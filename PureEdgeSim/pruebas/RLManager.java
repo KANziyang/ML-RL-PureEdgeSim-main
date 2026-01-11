@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import org.cloudbus.cloudsim.cloudlets.Cloudlet.Status;
 import org.cloudbus.cloudsim.vms.Vm;
@@ -75,7 +74,7 @@ public class RLManager {
 
 		// *** Exploraci髇 VS Explotaci髇 ***
 		int accion;
-		double e = new Random().nextFloat();
+		double e = SimulationParameters.ALGO_RNG.nextFloat();
 		if(e < epsilon) { // Exploraci髇
 			/*accion = new Random().nextInt(4);
 			
@@ -84,7 +83,7 @@ public class RLManager {
 			}*/
 
 			// Acci髇 aleatoria
-			accion = acciones.get(new Random().nextInt(acciones.size())).getAccion();
+			accion = acciones.get(SimulationParameters.ALGO_RNG.nextInt(acciones.size())).getAccion();
 			
 		} else { // Explotaci髇
 			accion = getRLAccion(acciones);

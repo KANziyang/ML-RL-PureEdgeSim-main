@@ -24,7 +24,6 @@ import java.io.File;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -215,8 +214,8 @@ public class DataCentersManager {
 			datacenter.setTasksGeneration(Boolean
 					.parseBoolean(datacenterElement.getElementsByTagName("generateTasks").item(0).getTextContent()));
 			// Generate random location for edge devices
-			datacenterLocation = new Location(new Random().nextInt(SimulationParameters.AREA_LENGTH),
-					new Random().nextInt(SimulationParameters.AREA_LENGTH));
+			datacenterLocation = new Location(SimulationParameters.ENV_RNG.nextInt(SimulationParameters.AREA_LENGTH),
+					SimulationParameters.ENV_RNG.nextInt(SimulationParameters.AREA_LENGTH));
 			getSimulationManager().getSimulationLogger().deepLog("ServersManager- Edge device:" + datacentersList.size()
 					+ "    location: ( " + datacenterLocation.getXPos() + "," + datacenterLocation.getYPos() + " )");
 		}

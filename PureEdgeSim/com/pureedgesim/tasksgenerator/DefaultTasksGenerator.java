@@ -21,7 +21,6 @@
 package com.pureedgesim.tasksgenerator;
 
 import java.util.List;
-import java.util.Random;
 import org.cloudbus.cloudsim.utilizationmodels.UtilizationModel;
 import org.cloudbus.cloudsim.utilizationmodels.UtilizationModelDynamic;
 import org.cloudbus.cloudsim.utilizationmodels.UtilizationModelFull;
@@ -59,7 +58,7 @@ public class DefaultTasksGenerator extends TasksGenerator {
 
 			for (int i = 0; i < numberOfDevices; i++) {
 				// Pickup a random application type for every device
-				dev = new Random().nextInt(datacentersList.size());
+				dev = SimulationParameters.ENV_RNG.nextInt(datacentersList.size());
 
 				// Assign this application to that device
 				datacentersList.get(dev).setApplicationType(app);
@@ -86,7 +85,7 @@ public class DefaultTasksGenerator extends TasksGenerator {
 			// Then pick up random second in this minute "st". Shift the time by the defined
 			// value "INITIALIZATION_TIME" in order to start after generating all the
 			// resources
-			time += new Random().nextInt(15) + SimulationParameters.INITIALIZATION_TIME;
+			time += SimulationParameters.ENV_RNG.nextInt(15) + SimulationParameters.INITIALIZATION_TIME;
 			insert(time, app, dev);
 		}
 	}

@@ -23,7 +23,6 @@ package pruebas;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 
 import org.cloudbus.cloudsim.cloudlets.Cloudlet.Status;
 import org.cloudbus.cloudsim.vms.Vm;
@@ -124,18 +123,17 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	/************ Random ************/
 	private int random(String[] architecture, Task task) {
-		return (new Random()).nextInt(orchestrationHistory.size());
+		return SimulationParameters.ALGO_RNG.nextInt(orchestrationHistory.size());
 	}
 	/************ Random ************/
 	
 	/************ Random Good ************/
 	private int randomGood(String[] architecture, Task task) {
-		Random r = new Random();
 		int max = orchestrationHistory.size();
-		int random = r.nextInt(max);
+		int random = SimulationParameters.ALGO_RNG.nextInt(max);
 		
 		while (!offloadingIsPossible(task, vmList.get(random), architecture))
-			random = r.nextInt(max);
+			random = SimulationParameters.ALGO_RNG.nextInt(max);
 		
 		return random;
 	}

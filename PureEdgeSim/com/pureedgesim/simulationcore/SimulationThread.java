@@ -24,6 +24,7 @@ import java.lang.reflect.Constructor;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Random;
 
 import org.cloudbus.cloudsim.core.CloudSim;
 
@@ -80,6 +81,9 @@ public class SimulationThread {
 					simLog.cleanOutputFolder(SimulationAbstract.getOutputFolder());
 				}
 				isFirstIteration = false;
+
+				SimulationParameters.ENV_RNG = new Random(SimulationParameters.RANDOM_SEED);
+				SimulationParameters.ALGO_RNG = new Random(SimulationParameters.RANDOM_SEED);
 
 				// New simulation instance
 				CloudSim cloudsim = new CloudSim(0.00001);

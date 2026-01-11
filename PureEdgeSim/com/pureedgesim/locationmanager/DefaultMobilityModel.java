@@ -20,17 +20,15 @@
  **/
 package com.pureedgesim.locationmanager;
 
-import java.util.Random;
-
 import com.pureedgesim.scenariomanager.SimulationParameters;
 
 public class DefaultMobilityModel extends MobilityModel {
 	private boolean pause = false;
 	private double pauseDuration = -1;
 	private double mobilityDuration = (getMaxMobilityDuration() - getMinMobilityDuration()) > 0
-			? new Random().nextInt((int) (getMaxMobilityDuration() - getMinMobilityDuration())) + getMinMobilityDuration()
+			? SimulationParameters.ENV_RNG.nextInt((int) (getMaxMobilityDuration() - getMinMobilityDuration())) + getMinMobilityDuration()
 			: 0;
-	private int orientationAngle = new Random().nextInt(359);
+	private int orientationAngle = SimulationParameters.ENV_RNG.nextInt(359);
 
 	public DefaultMobilityModel(Location currentLocation, boolean mobile, double speed, double minPauseDuration,
 			double maxPauseDuration, double minMobilityDuration, double maxMobilityDuration) {
@@ -86,25 +84,25 @@ public class DefaultMobilityModel extends MobilityModel {
 
 	private void pause() {
 		// Pickup random duration from 50 to 200 seconds
-		pauseDuration = getMinPauseDuration() + new Random().nextInt((int) (getMaxPauseDuration() - getMinPauseDuration()));
+		pauseDuration = getMinPauseDuration() + SimulationParameters.ENV_RNG.nextInt((int) (getMaxPauseDuration() - getMinPauseDuration()));
 		// Pause mobility (the device will stay in its location for the randomly
 		// generated duration
 		pause = true;
 		// Reorientate the device to a new direction
-		orientationAngle = new Random().nextInt(359);
+		orientationAngle = SimulationParameters.ENV_RNG.nextInt(359);
 		// The mobility will be resumed for the following period of time
-		mobilityDuration = new Random().nextInt(100);
+		mobilityDuration = SimulationParameters.ENV_RNG.nextInt(100);
 	}
 
 	private void reoriontate(double x_position, double y_position) {
 		if (x_position >= SimulationParameters.AREA_LENGTH)
-			orientationAngle = -90 - new Random().nextInt(180);
+			orientationAngle = -90 - SimulationParameters.ENV_RNG.nextInt(180);
 		else if (x_position <= 0)
-			orientationAngle = -90 + new Random().nextInt(180);
+			orientationAngle = -90 + SimulationParameters.ENV_RNG.nextInt(180);
 		if (y_position >= SimulationParameters.AREA_WIDTH)
-			orientationAngle = -new Random().nextInt(180);
+			orientationAngle = -SimulationParameters.ENV_RNG.nextInt(180);
 		else if (y_position <= 0)
-			orientationAngle = new Random().nextInt(180);
+			orientationAngle = SimulationParameters.ENV_RNG.nextInt(180);
 	}
 
 }

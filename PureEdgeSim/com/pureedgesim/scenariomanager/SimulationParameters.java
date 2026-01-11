@@ -22,6 +22,7 @@ package com.pureedgesim.scenariomanager;
  
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import com.pureedgesim.tasksgenerator.Application;
 public class SimulationParameters { 
@@ -94,6 +95,10 @@ public class SimulationParameters {
 
 	public static boolean SAVE_QTABLES = false; // Para el algoritmo RL
 	public static boolean LOAD_QTABLES = false; 
+
+	public static long RANDOM_SEED = System.currentTimeMillis();
+	public static Random ENV_RNG = new Random(RANDOM_SEED);
+	public static Random ALGO_RNG = new Random(RANDOM_SEED);
 	
 	
 }

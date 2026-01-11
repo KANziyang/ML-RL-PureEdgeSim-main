@@ -106,6 +106,13 @@ public class FilesParser {
 
 			SimulationParameters.SAVE_QTABLES = Boolean.parseBoolean(prop.getProperty("save_qtables").trim());
 			SimulationParameters.LOAD_QTABLES = Boolean.parseBoolean(prop.getProperty("load_qtables").trim());
+
+			String seedValue = prop.getProperty("random_seed");
+			if (seedValue != null && !seedValue.trim().isEmpty()) {
+				SimulationParameters.RANDOM_SEED = Long.parseLong(seedValue.trim());
+			}
+			SimulationParameters.ENV_RNG = new java.util.Random(SimulationParameters.RANDOM_SEED);
+			SimulationParameters.ALGO_RNG = new java.util.Random(SimulationParameters.RANDOM_SEED);
 			
 			SimulationParameters.CONSUMED_ENERGY_PER_BIT = Double.parseDouble(prop.getProperty("consumed_energy_per_bit").trim()); // J/bit
 			SimulationParameters.AMPLIFIER_DISSIPATION_FREE_SPACE = Double.parseDouble(prop.getProperty("amplifier_dissipation_free_space").trim()); // J/bit/m^2
