@@ -57,7 +57,7 @@ public class DefaultTasksGenerator extends TasksGenerator {
 					* devices_count / 100;
 
 			for (int i = 0; i < numberOfDevices; i++) {
-				// Pickup a random application type for every device
+				// Pickup a random  device
 				dev = SimulationParameters.ENV_RNG.nextInt(datacentersList.size());
 
 				// Assign this application to that device
@@ -85,7 +85,7 @@ public class DefaultTasksGenerator extends TasksGenerator {
 			// Then pick up random second in this minute "st". Shift the time by the defined
 			// value "INITIALIZATION_TIME" in order to start after generating all the
 			// resources
-			time += SimulationParameters.ENV_RNG.nextInt(15) + SimulationParameters.INITIALIZATION_TIME;
+			time += SimulationParameters.ENV_RNG.nextInt(60) + SimulationParameters.INITIALIZATION_TIME;
 			insert(time, app, dev);
 		}
 	}

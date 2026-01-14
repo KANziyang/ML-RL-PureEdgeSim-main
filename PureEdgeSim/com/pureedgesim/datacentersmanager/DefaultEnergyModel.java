@@ -61,7 +61,7 @@ public class DefaultEnergyModel extends EnergyModel {
 				|| device1.getType() == TYPES.EDGE_DATACENTER || device2.getType() == TYPES.EDGE_DATACENTER)
 			distance = SimulationParameters.EDGE_DATACENTERS_RANGE;
 		else
-			distance = device1.getMobilityManager().distanceTo(device1);
+			distance = device1.getMobilityManager().distanceTo(device2);
 
 		int sizeInBits = (int) (file.getFileSize() * 1000);
 

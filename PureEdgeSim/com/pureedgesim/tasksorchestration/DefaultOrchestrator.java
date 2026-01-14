@@ -56,7 +56,7 @@ public class DefaultOrchestrator extends Orchestrator {
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			if (offloadingIsPossible(task, vmList.get(i), architecture)) {
 				// the weight below represent the priority, the less it is, the more it is
-				// suitable for offlaoding, you can change it as you want
+				// suitable for offloading, you can change it as you want
 				double weight = 1.2; // this is an edge server 'cloudlet', the latency is slightly high then edge
 										// devices
 				if (((DataCenter) vmList.get(i).getHost().getDatacenter())
@@ -73,7 +73,7 @@ public class DefaultOrchestrator extends Orchestrator {
 				if (min == -1 || min > new_min) { // if it is the first iteration, or if this vm has more cpu mips and
 													// less waiting tasks
 					min = new_min;
-					// set the first vm as thebest one
+					// set the first vm as the best one
 					vm = i;
 				}
 			}

@@ -73,10 +73,11 @@ public class ChartsGenerator {
 
 	public void displayChart(String x_series, String y_series, String y_series_label, String folder) {
 		this.folder = folder;
-		// Create the charts filtered by algorithms (byAlgorithm = true), in order to
-		// ompare the orchestration algorithms
-		//generateChart(x_series, y_series, y_series_label, true);
-		// Create charts that are filtered by architectures (byAlgorithm = false)
+		// Generate charts grouped by algorithms (byAlgorithm = true) to
+		// compare different orchestration strategies
+
+		// Generate charts grouped by architectures (byAlgorithm = false) to
+		// compare different algorithms
 		generateChart(x_series, y_series, y_series_label, false);
 
 	}

@@ -75,7 +75,8 @@ public abstract class NetworkModel extends CloudSimEntity {
 				// Compare origin device
 				|| (task1.getEdgeDevice() == task2.getOrchestrator())
 				|| (task1.getEdgeDevice() == task2.getVm().getHost().getDatacenter())
-				|| (task1.getEdgeDevice() == task2.getEdgeDevice()) || (task1.getEdgeDevice() == task2.getRegistry())
+				|| (task1.getEdgeDevice() == task2.getEdgeDevice()) 
+				|| (task1.getEdgeDevice() == task2.getRegistry())
 
 				// Compare offloading destination
 				|| (task1.getVm().getHost().getDatacenter() == task2.getOrchestrator())

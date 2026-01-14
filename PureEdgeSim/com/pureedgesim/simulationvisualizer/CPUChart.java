@@ -65,7 +65,7 @@ public class CPUChart extends Chart {
 		for (int i = SimulationParameters.NUM_OF_EDGE_DATACENTERS + SimulationParameters.NUM_OF_CLOUD_DATACENTERS; i < simulationManager.getDataCentersManager().getDatacenterList().size(); i++) {
 			// If it is an edge device
 			device = simulationManager.getDataCentersManager().getDatacenterList().get(i);
-			// Si es un sensor no sumo uso de CPU y lo anoto
+			// If the device is a sensor, its CPU usage is not accounted for and is only logged
 			if (device.getResources().getTotalMips() == 0) {
 				sensors++;
 			} else {
@@ -104,7 +104,7 @@ public class CPUChart extends Chart {
 		double clUsage = 0;
 		for (DataCenter dc : simulationManager.getDataCentersManager().getDatacenterList()) {
 			if (dc.getType() == TYPES.CLOUD) {
-				clUsage = dc.getResources().getAvgCpuUtilization();
+				clUsage += dc.getResources().getAvgCpuUtilization();
 
 			}
 		}

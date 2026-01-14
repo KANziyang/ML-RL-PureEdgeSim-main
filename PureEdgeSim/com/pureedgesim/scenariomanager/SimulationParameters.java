@@ -26,11 +26,12 @@ import java.util.Random;
 
 import com.pureedgesim.tasksgenerator.Application;
 public class SimulationParameters { 
-
+	// Configuration files paths
 	public static String EDGE_DEVICES_FILE="";     // Edge devices xml file path
 	public static String EDGE_DATACENTERS_FILE=""; // Edge datacenters xml file path
 	public static String CLOUD_DATACENTERS_FILE="";// Cloud data centers xml file path
 	
+	// General simulation parameters
 	public static boolean STOP = false;           // used as alternative to System.exit(0); 
 	public static boolean PARALLEL = false;       // Enable parallelism
 	public static double SIMULATION_TIME;         // Simulation time (in seconds)
@@ -93,7 +94,7 @@ public class SimulationParameters {
                                                          // end the simulation when the predifined time ends.
 	public static int WAIT_FOR_TASKS_LIMIT;
 
-	public static boolean SAVE_QTABLES = false; // Para el algoritmo RL
+	public static boolean SAVE_QTABLES = false; 	     // For Reinforcement Learning (RL) agent
 	public static boolean LOAD_QTABLES = false; 
 
 	public static long RANDOM_SEED = System.currentTimeMillis();

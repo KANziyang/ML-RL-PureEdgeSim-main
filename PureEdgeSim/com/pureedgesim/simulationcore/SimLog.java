@@ -708,7 +708,7 @@ public class SimLog {
 	public void incrementTasksFailedLatency(Task task) {
 		this.tasksFailedLatency++;
 
-		// Tiempo perdido al fallar por latencia
+		// Time lost due to latency-related failures
 		// From: public void getTasksExecutionInfos(Task task) {
 		this.totalWastedExecutionTime += task.getActualCpuTime();
 		if (task.getReceptionTime() != -1) // the task is offloaded or a container has been downloaded

@@ -164,7 +164,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 			List<Task> finishedTasks = broker.getCloudletFinishedList();
 			// If some tasks have not been executed
 			double tasksPercentageStop = 1;
-			if (SimulationParameters.WAIT_FOR_TASKS && (tasksCount / simLog.getGeneratedTasks()) < tasksPercentageStop) {
+			if (SimulationParameters.WAIT_FOR_TASKS && (tasksCount *1.0 / simLog.getGeneratedTasks()) < tasksPercentageStop) {
 				// 1 = 100% , 0,9= 90%
 				// Some tasks may take hours to be executed that's why we don't wait until
 				// all of them get executed, but we only wait for 99% of tasks to be executed at

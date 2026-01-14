@@ -48,7 +48,7 @@ public class TasksFailedChart extends Chart {
 	}
 
 	public void update() {
-		// Avanzo en el tiempo
+		
 		currentTime.add(simulationManager.getSimulation().clock());
 
 		tasksTotalList.add((double) simulationManager.getTasksCount());
@@ -64,7 +64,7 @@ public class TasksFailedChart extends Chart {
 		updateSeries(getChart(), "Failed task", toArray(currentTime), toArray(tasksTotalFailedList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Failed due latency", toArray(currentTime), toArray(tasksTotalFailedLatencyList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Failed due battery", toArray(currentTime), toArray(tasksTotalFailedBatteryList), SeriesMarkers.NONE, Color.BLACK);
-		updateSeries(getChart(), "Failed due mobilty", toArray(currentTime), toArray(tasksTotalFailedMobilityList), SeriesMarkers.NONE, Color.BLACK);
+		updateSeries(getChart(), "Failed due mobility", toArray(currentTime), toArray(tasksTotalFailedMobilityList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Failed due resource", toArray(currentTime), toArray(tasksTotalFailedResourceList), SeriesMarkers.NONE, Color.BLACK);
 	}
 }

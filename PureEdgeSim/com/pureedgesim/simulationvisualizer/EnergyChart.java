@@ -47,7 +47,7 @@ public class EnergyChart extends Chart {
 	}
 
 	public void update() {
-		// Avanzo en el tiempo
+		
 		currentTime.add(simulationManager.getSimulation().clock());
 		
 		double energyConsumption = 0;

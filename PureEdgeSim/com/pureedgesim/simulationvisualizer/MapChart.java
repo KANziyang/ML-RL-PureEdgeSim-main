@@ -28,6 +28,7 @@ import org.knowm.xchart.XYSeries.XYSeriesRenderStyle;
 import org.knowm.xchart.style.markers.SeriesMarkers;
 
 import com.pureedgesim.datacentersmanager.DataCenter;
+import com.pureedgesim.locationmanager.Location;
 import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimulationManager;
 
@@ -91,6 +92,7 @@ public class MapChart extends Chart {
 		// Add edge data centers to the map and display their CPU utilization
 		edgeDataCenters();
 		// Display cloud CPU utilization
+		cloudDataCenters();
 	}
 
 	private void edgeDataCenters() {
@@ -135,6 +137,50 @@ public class MapChart extends Chart {
 			updateSeries(getChart(), "Active Edge servers", toArray(x_activeEdgeDataCentersList),
 					toArray(y_activeEdgeDataCentersList), SeriesMarkers.CROSS, Color.RED);
 
+		}
+	}
+
+	private void cloudDataCenters() {
+		// Only if Cloud computing is used
+		if (simulationManager.getScenario().getStringOrchArchitecture().contains("CLOUD")
+				|| simulationManager.getScenario().getStringOrchArchitecture().equals("ALL")) {
+			// List of idle servers
+			List<Double> x_idleCloudDataCentersList = new ArrayList<>();
+			List<Double> y_idleCloudDataCentersList = new ArrayList<>();
+			// List of active servers
+			List<Double> x_activeCloudDataCentersList = new ArrayList<>();
+			List<Double> y_activeCloudDataCentersList = new ArrayList<>();
+
+			DataCenter datacenter;
+			for (int j = 0; j < SimulationParameters.NUM_OF_CLOUD_DATACENTERS; j++) {
+				datacenter = simulationManager.getDataCentersManager().getDatacenterList().get(j);
+				// If it is a cloud data center
+				if (datacenter.getType() == SimulationParameters.TYPES.CLOUD
+						&& SimulationParameters.NUM_OF_CLOUD_DATACENTERS != 0) {
+					double Xpos = SimulationParameters.AREA_WIDTH / 2.0;
+					double Ypos = SimulationParameters.AREA_LENGTH / 2.0;
+					Location location = datacenter.getMobilityManager() != null
+							? datacenter.getMobilityManager().getCurrentLocation()
+							: null;
+					if (location != null) {
+						Xpos = location.getXPos();
+						Ypos = location.getYPos();
+					}
+					if (datacenter.getResources().isIdle()) {
+						x_idleCloudDataCentersList.add(Xpos);
+						y_idleCloudDataCentersList.add(Ypos);
+					} else {
+						x_activeCloudDataCentersList.add(Xpos);
+						y_activeCloudDataCentersList.add(Ypos);
+					}
+				}
+			}
+
+			updateSeries(getChart(), "Idle Cloud servers", toArray(x_idleCloudDataCentersList),
+					toArray(y_idleCloudDataCentersList), SeriesMarkers.SQUARE, Color.DARK_GRAY);
+
+			updateSeries(getChart(), "Active Cloud servers", toArray(x_activeCloudDataCentersList),
+					toArray(y_activeCloudDataCentersList), SeriesMarkers.SQUARE, Color.ORANGE);
 		}
 	}
 }

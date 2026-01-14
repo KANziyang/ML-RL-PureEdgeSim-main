@@ -49,7 +49,7 @@ public class ServersChart extends Chart {
 	}
 
 	public void update() {
-		// Avanzo en el tiempo
+
 		currentTime.add(simulationManager.getSimulation().clock());
 		
 		Integer idleDevs = 0;
@@ -71,7 +71,7 @@ public class ServersChart extends Chart {
 		busyEdgeServers.add((double)(busyDevs));
 		idleEdgeServers.add((double)(idleDevs));
 
-		// Reinicio los contadores
+		// Reset the counters
 		idleDevs = busyDevs = 0;
 		
 		// cloud servers

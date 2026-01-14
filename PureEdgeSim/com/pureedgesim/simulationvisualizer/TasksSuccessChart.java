@@ -31,9 +31,9 @@ import com.pureedgesim.simulationcore.SimulationManager;
 
 public class TasksSuccessChart extends Chart {
 
-	private List<Double> tasksFailedList = new ArrayList<>();
-	private List<Double> tasksTotalFailedList = new ArrayList<>();
-	private List<Double> tasksTotalFailedSimLogList = new ArrayList<>();
+	private List<Double> tasksSucceedList = new ArrayList<>();
+	private List<Double> tasksTotalSucceedList = new ArrayList<>();
+	private List<Double> tasksTotalSucceedSimLogList = new ArrayList<>();
 	
 	public TasksSuccessChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
@@ -45,21 +45,21 @@ public class TasksSuccessChart extends Chart {
 		if (((int) Math.floor(simulationManager.getSimulation().clock() / 30)) != clock) {
 			clock = (int) Math.floor(simulationManager.getSimulation().clock() / 30);
 			
-			double tasksFailed = 100.0 - simulationManager.getFailureRate();
-			double tasksFailedTotal = 100.0 - simulationManager.getTotalFailuresRate();
-			double tasksFailedSimLogTotal = 100.0 - simulationManager.getTotalFailuresRateSimLog();
+			double tasksSucceed = 100.0 - simulationManager.getFailureRate();
+			double tasksSucceedTotal = 100.0 - simulationManager.getTotalFailuresRate();
+			double tasksSucceedSimLogTotal = 100.0 - simulationManager.getTotalFailuresRateSimLog();
 			
 			double[] time = new double[clock];
 			for (int i = 0; i < clock; i++)
 				time[i] = i*0.5;
 			
-			tasksFailedList.add(tasksFailed);
-			tasksTotalFailedList.add(tasksFailedTotal);
-			tasksTotalFailedSimLogList.add(tasksFailedSimLogTotal);
+			tasksSucceedList.add(tasksSucceed);
+			tasksTotalSucceedList.add(tasksSucceedTotal);
+			tasksTotalSucceedSimLogList.add(tasksSucceedSimLogTotal);
 			
-			updateSeries(getChart(), "Actual rate", time, toArray(tasksFailedList), SeriesMarkers.NONE, Color.BLACK);
-			updateSeries(getChart(), "Total rate", time, toArray(tasksTotalFailedList), SeriesMarkers.NONE, Color.BLACK);
-			updateSeries(getChart(), "SimLog rate", time, toArray(tasksTotalFailedSimLogList), SeriesMarkers.NONE, Color.BLACK);
+			updateSeries(getChart(), "Actual 30s Window rate", time, toArray(tasksSucceedList), SeriesMarkers.NONE, Color.BLACK);
+			updateSeries(getChart(), "Total rate", time, toArray(tasksTotalSucceedList), SeriesMarkers.NONE, Color.BLACK);
+			updateSeries(getChart(), "SimLog rate", time, toArray(tasksTotalSucceedSimLogList), SeriesMarkers.NONE, Color.BLACK);
 		}
 	}
 }

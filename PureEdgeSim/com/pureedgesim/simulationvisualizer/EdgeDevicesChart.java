@@ -46,10 +46,10 @@ public class EdgeDevicesChart extends Chart {
 	}
 
 	public void update() {
-		// Avanzo en el tiempo
+		// Advance the simulation time
 		currentTime.add(simulationManager.getSimulation().clock());
 		
-		// Pongo a cero todos los contadores
+		// Reset all counters
 		Integer totalDevs = 0;
 		Integer	deadDevs = 0; 
 		Integer idleDevs = 0;

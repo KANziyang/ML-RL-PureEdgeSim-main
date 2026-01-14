@@ -97,7 +97,7 @@ public class FilesParser {
 			SimulationParameters.WAN_PROPAGATION_DELAY = Double.parseDouble(prop.getProperty("wan_propogation_delay").trim()); // seconds
 			SimulationParameters.WAN_PROPAGATION_SPEED = Double.parseDouble(prop.getProperty("wan_propogation_speed").trim());	// Kbits/s
 			SimulationParameters.NETWORK_UPDATE_INTERVAL = Double.parseDouble(prop.getProperty("network_update_interval").trim()); // seconds
-			SimulationParameters.REALISTIC_NETWORK_MODEL = Boolean.parseBoolean(prop.getProperty("realistic_network_model").trim()); // seconds
+			SimulationParameters.REALISTIC_NETWORK_MODEL = Boolean.parseBoolean(prop.getProperty("realistic_network_model").trim()); 
 
 			SimulationParameters.CPU_ALLOCATION_POLICY = prop.getProperty("Applications_CPU_allocation_policy").trim();
 			SimulationParameters.ORCHESTRATION_ARCHITECTURES = prop.getProperty("orchestration_architectures").split(",");

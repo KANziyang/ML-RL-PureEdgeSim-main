@@ -118,7 +118,8 @@ public abstract class Orchestrator {
 
 	protected void assignTaskToVm(int vmIndex, Task task) {
 		if (vmIndex == -1) {
-			// No es necesario ya que SimulationManager en sendFromOrchToDestination() contar?este error y lo notificar?			//simLog.incrementTasksFailedLackOfRessources(task);
+			// Not required, as SimulationManager already handles and reports this error
+			// in sendFromOrchToDestination()	simLog.incrementTasksFailedLackOfRessources(task);
 			//task.setFailureReason(Task.Status.FAILED_NO_RESOURCES);
 			//this.resultsReturned(task);
 		} else {
@@ -162,7 +163,7 @@ public abstract class Orchestrator {
 						&& (sameLocation(((DataCenter) vm.getHost().getDatacenter()), task.getEdgeDevice(), SimulationParameters.EDGE_DEVICES_RANGE)
 							// or compare the location of their orchestrators
 							|| (SimulationParameters.ENABLE_ORCHESTRATORS && sameLocation(((DataCenter) vm.getHost().getDatacenter()), task.getOrchestrator(), SimulationParameters.EDGE_DEVICES_RANGE)))
-						// y no est?muerto el dispositivo
+						// And isn't the device already dead?
 						&& !((DataCenter) vm.getHost().getDatacenter()).isDead()));
 	}
 
