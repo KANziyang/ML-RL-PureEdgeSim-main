@@ -2,13 +2,13 @@ package pruebas;
 
 public class Qrow {
 	private String rule;
-	private int accion;
+	private int action;
 	private double value;
 	private int updatesCount;
 	
-	public Qrow(String rule, int accion, double value) {
+	public Qrow(String rule, int action, double value) {
 		this.rule = rule;
-		this.accion = accion;
+		this.action = action;
 		this.value = value;
 		this.updatesCount = 1;
 	}
@@ -21,12 +21,12 @@ public class Qrow {
 		this.rule = rule;
 	}
 
-	public int getAccion() {
-		return accion;
+	public int getAction() {
+		return action;
 	}
 
-	public void setAccion(int accion) {
-		this.accion = accion;
+	public void setAction(int action) {
+		this.action = action;
 	}
 
 	public double getValue() {

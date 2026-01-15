@@ -164,7 +164,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	
 
 	/************ Closest Mist ************/
-	// Basado en round robin
+	// Round-robin–based
 	private int closestMist(String[] architecture, Task task) {
 		int vm = -1;
 		double minDistance = SimulationParameters.EDGE_DEVICES_RANGE;
@@ -192,7 +192,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	/************ Closest Mist ************/
 	
 	/************ Only Type ************/
-	// Basado en round robin
+	// Round-robin–based
 	private int onlyType(String[] architecture, Task task, TYPES tipo) {
 		int vm = -1;
 		int minTasksCount = -1; // vm with minimum assigned tasks;
@@ -240,41 +240,8 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	}
 	/************ Round Robin ************/
 	
-	
 
 	/************ Trade Off ************/
-	/*private int tradeOff(String[] architecture, Task task) {
-		int vm = -1;
-		double min = -1;
-		double new_min;// vm with minimum assigned tasks;
-
-		// get best vm for this task
-		for (int i = 0; i < orchestrationHistory.size(); i++) {
-			if (offloadingIsPossible(task, vmList.get(i), architecture)) {
-				// the weight below represent the priority, the less it is, the more it is
-				// suitable for offlaoding, you can change it as you want
-				double weight = 1;
-
-				if (((DataCenter) vmList.get(i).getHost().getDatacenter())
-						.getType() == SimulationParameters.TYPES.CLOUD) {
-					// this is the cloud, it consumes more energy and results in high latency, so
-					// better to avoid it
-					weight = 1.5;
-				}
-
-				new_min = (orchestrationHistory.get(i).size() + 1) * weight * task.getLength()
-						/ vmList.get(i).getMips();
-				if (min == -1 || min > new_min) {
-					min = new_min;
-					// set the first vm as the best one
-					vm = i;
-				}
-			}
-		}
-		// assign the tasks to the found vm
-		return vm;
-	}*/
-
 	private int tradeOff(String[] architecture, Task task) {
 		int vm = -1;
 		double min = -1;
@@ -284,7 +251,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			if (offloadingIsPossible(task, vmList.get(i), architecture)) {
 				// the weight below represent the priority, the less it is, the more it is
-				// suitable for offlaoding, you can change it as you want
+				// suitable for offloading, you can change it as you want
 				double weight = 1.2; // this is an edge server 'cloudlet', the latency is slightly high then edge devices
 				if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() == SimulationParameters.TYPES.CLOUD) {
 					weight = 1.8; // this is the cloud, it consumes more energy and results in high latency, so better to avoid it
@@ -294,7 +261,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				new_min = (orchestrationHistory.get(i).size() + 1) * weight * task.getLength() / vmList.get(i).getMips();
 				if (min == -1 || min > new_min) { // if it is the first iteration, or if this vm has more cpu mips and less waiting tasks
 					min = new_min;
-					// set the first vm as thebest one
+					// set the first vm as the best one
 					vm = i;
 				}
 			}
@@ -494,7 +461,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		}
 		
 		if(vm == -1) {
-			System.err.println("VM no encontrada para el offloading");
+			System.err.println("VM not found for offloading");
 		}
 		
 		return vm;
@@ -504,17 +471,17 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	/************ Reinforcement Learning ************/
 	private int reinforcementLearning(String[] architecture, Task task) {
-		// Ejecuto el algoritmo RL para esta tarea
-		int accion = rlManager.reinforcementLearning(architecture, task);
+		// Run the RL algorithm for this task
+		int action = rlManager.reinforcementLearning(architecture, task);
 
-		// En funcion de la decisi髇 del algoritmo RL lanzo una politica de offloading u otra
-		if (accion == 0) {			
+		// Based on the RL decision, apply the corresponding offloading policy
+		if (action == 0) {			
 			return local(architecture, task);
-		} else if (accion == 1) {			
+		} else if (action == 1) {			
 			String[] architecture2 = { "Mist" };
 			return test(architecture2, task);
 			//return onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DEVICE);
-		} else if (accion == 2) {			
+		} else if (action == 2) {			
 			String[] architecture2 = { "Edge" };
 			return test(architecture2, task);
 			//return onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DATACENTER);
@@ -533,17 +500,17 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	/************ MultiLayer Reinforcement Learning ************/
 	private int multilayerreinforcementLearning(String[] architecture, Task task) {
-		// Ejecuto el algoritmo RL para esta tarea		
-		int accion = multiLayerRLManager.reinforcementLearning(architecture, task);
+		// Run the RL algorithm for this task		
+		int action = multiLayerRLManager.reinforcementLearning(architecture, task);
 
-		// En funcion de la decisi髇 del algoritmo RL lanzo una politica de offloading u otra
-		if (accion == 0) {			
+		// Based on the RL decision, apply the corresponding offloading policy
+		if (action == 0) {			
 			return local(architecture, task);
-		} else if (accion == 1) {			
+		} else if (action == 1) {			
 			String[] architecture2 = { "Mist" };
 			return test(architecture2, task);
 			//return onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DEVICE);
-		} else if (accion == 2) {			
+		} else if (action == 2) {			
 			String[] architecture2 = { "Edge" };
 			return test(architecture2, task);
 			//return onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DATACENTER);
@@ -589,12 +556,12 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		// Evaluate
 		fis.evaluate();
 
-		// Es mejor hacer offloading a la Cloud
+		//  Offloading to the cloud is preferable
 		if (fis.getVariable("offload").defuzzify() > 50) {
 			String[] architecture2 = { "Cloud" };
 			return increaseLifetime(architecture2, task);
 			//return roundRobin(architecture2, task);
-		} else { // No es mejor hacer offloading a la Cloud, lo envio al edge y mist
+		} else { // Offloading to the cloud is not preferable; send the task to edge or mist instead
 			String[] architecture2 = { "Edge", "Mist" };
 			return stage2(architecture2, task);
 		}
@@ -639,7 +606,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			//System.out.println("CustomEdgeOrchestrator, task " + task.getId() + " has been successfully executed");
 		}
 		
-		// Estamos haciendo las pruebas con el algoritmo RL
+		// Testing with the RL algorithm
 		if(algorithm.equals("RL")) {
 			rlManager.reinforcementFeedback(task);
 		} else if(algorithm.equals("RL_MULTILAYER") || algorithm.equals("RL_MULTILAYER_DISABLED") || algorithm.equals("RL_MULTILAYER_EMPTY")) {

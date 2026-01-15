@@ -435,7 +435,7 @@ public class SimLog {
 			try {
 				bf = new BufferedWriter(new FileWriter(file));
 				for (Map.Entry<String, Qrow> entry : Qtable.entrySet()) {
-					bf.write(entry.getKey() + ":" + ((Qrow)entry.getValue()).getAccion() + ":" + ((Qrow)entry.getValue()).getValue() + ":" + ((Qrow)entry.getValue()).getUpdatesCount());
+					bf.write(entry.getKey() + ":" + ((Qrow)entry.getValue()).getAction() + ":" + ((Qrow)entry.getValue()).getValue() + ":" + ((Qrow)entry.getValue()).getUpdatesCount());
 					bf.newLine();
 				}
 
@@ -465,7 +465,7 @@ public class SimLog {
 				try {
 					bf = new BufferedWriter(new FileWriter(file));
 					for (Map.Entry<String, Qrow> entry : qtable.entrySet()) {
-						bf.write(entry.getKey() + ":" + ((Qrow)entry.getValue()).getAccion() + ":" + ((Qrow)entry.getValue()).getValue() + ":" + ((Qrow)entry.getValue()).getUpdatesCount());
+						bf.write(entry.getKey() + ":" + ((Qrow)entry.getValue()).getAction() + ":" + ((Qrow)entry.getValue()).getValue() + ":" + ((Qrow)entry.getValue()).getUpdatesCount());
 						bf.newLine();
 					}
 	
@@ -497,11 +497,11 @@ public class SimLog {
 					while (line != null) {
 						String[] linea = line.split(":");
 						String rule = linea[0];
-						int accion = Integer.parseInt(linea[1]); 
+						int action = Integer.parseInt(linea[1]); 
 						double value = Double.parseDouble(linea[2]); 
 						int count = Integer.parseInt(linea[3]); 
 						
-						Qrow row = new Qrow(rule, accion, value);
+						Qrow row = new Qrow(rule, action, value);
 						row.setUpdatesCount(count);
 						Qtable.put(rule, row);
 						
@@ -524,11 +524,11 @@ public class SimLog {
 					while (line != null) {
 						String[] linea = line.split(":");
 						String rule = linea[0];
-						int accion = Integer.parseInt(linea[1]); 
+						int action = Integer.parseInt(linea[1]); 
 						double value = Double.parseDouble(linea[2]); 
 						int count = Integer.parseInt(linea[3]); 
 						
-						Qrow row = new Qrow(rule, accion, value);
+						Qrow row = new Qrow(rule, action, value);
 						row.setUpdatesCount(count);
 						qtable.put(rule, row);
 						
