@@ -53,6 +53,7 @@ public class SimulationVisualizer {
 	private DelayChart delayChart;
 	private RLChart rlChart;
 	private MultiRLChart multiRLChart;
+	private PPOChart ppoChart;
 	private List<Chart> charts = new ArrayList<Chart>();
 	private boolean firstTime = true;
 
@@ -70,6 +71,7 @@ public class SimulationVisualizer {
 		delayChart = new DelayChart("Delays", "Simulation Time (s)", "Time (s)", simulationManager);
 		rlChart = new RLChart("Rewards", "Time (s)", "Reward", simulationManager);
 		multiRLChart = new MultiRLChart("Tasks queries", "Time (s)", "Tasks", simulationManager);
+		ppoChart = new PPOChart("PPO Rewards", "Time (s)", "Reward", simulationManager);
 		
 		charts.add(mapChart);
 		charts.add(cpuUtilizationChart);
@@ -83,6 +85,8 @@ public class SimulationVisualizer {
 			charts.add(rlChart);
 		else if(simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER") || simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER_DISABLED") || simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER_EMPTY"))
 			charts.add(multiRLChart);
+		else if(simulationManager.getScenario().getStringOrchAlgorithm().equals("PPO"))
+			charts.add(ppoChart);
 		else
 			charts.add(networkUtilizationChart);
 	}
@@ -133,6 +137,7 @@ public class SimulationVisualizer {
 		BitmapEncoder.saveBitmapWithDPI(delayChart.getChart(), folderName + "/delays", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(rlChart.getChart(), folderName + "/rl_avg_reward", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(multiRLChart.getChart(), folderName + "/rl_multilayer", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(ppoChart.getChart(), folderName + "/ppo_avg_reward", BitmapFormat.PNG, 300);
 		
 		List<org.knowm.xchart.internal.chartpart.Chart> sCharts = new ArrayList<org.knowm.xchart.internal.chartpart.Chart>();
 		for (Chart chart : charts) {

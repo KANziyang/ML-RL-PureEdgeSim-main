@@ -40,12 +40,14 @@ import net.sourceforge.jFuzzyLogic.FIS;
 public class CustomEdgeOrchestrator extends Orchestrator {
 	RLManager rlManager;
 	MultiLayerRLManager multiLayerRLManager;
+	PPOManager ppoManager;
 
 	public CustomEdgeOrchestrator(SimulationManager simulationManager) {
 		super(simulationManager);
 
 		rlManager = new RLManager(simLog, simulationManager, orchestrationHistory, vmList);
 		multiLayerRLManager = new MultiLayerRLManager(simLog, simulationManager, orchestrationHistory, vmList, algorithm);
+		ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
 	}
 
 	protected int findVM(String[] architecture, Task task) {		
@@ -104,6 +106,9 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				break;
 			case "FUZZY_LOGIC":
 				bestVM = fuzzyLogic(task);
+				break;
+			case "PPO":
+				bestVM = ppoDecision(architecture, task);
 				break;
 	
 			default:
@@ -520,9 +525,32 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			//return onlyType(architecture, task, SimulationParameters.TYPES.CLOUD);
 		}
 	}
+
+	/************ PPO ************/
+	private int ppoDecision(String[] architecture, Task task) {
+		int action = ppoManager.reinforcementLearning(architecture, task);
+
+		if (action == 0) {
+			return local(architecture, task);
+		} else if (action == 1) {
+			String[] architecture2 = { "Mist" };
+			return test(architecture2, task);
+		} else if (action == 2) {
+			String[] architecture2 = { "Edge" };
+			return test(architecture2, task);
+		} else {
+			String[] architecture2 = { "Cloud" };
+			return test(architecture2, task);
+		}
+	}
+	/************ PPO ************/
 	
 	public MultiLayerRLManager getMultiLayerRLManager() {
 		return multiLayerRLManager;
+	}
+
+	public PPOManager getPPOManager() {
+		return ppoManager;
 	}
 	/************ Reinforcement Learning ************/
 	
@@ -611,6 +639,8 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			rlManager.reinforcementFeedback(task);
 		} else if(algorithm.equals("RL_MULTILAYER") || algorithm.equals("RL_MULTILAYER_DISABLED") || algorithm.equals("RL_MULTILAYER_EMPTY")) {
 			multiLayerRLManager.reinforcementFeedback(task);
+		} else if(algorithm.equals("PPO")) {
+			ppoManager.reinforcementFeedback(task);
 		}
 
 	}

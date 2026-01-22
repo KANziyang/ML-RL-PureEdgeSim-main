@@ -406,4 +406,18 @@ public class SimulationManager extends SimulationManagerAbstract {
 		return this.edgeOrchestrator;
 	}
 
+	public void terminateAndSaveCharts() {
+		if (simulationVisualizer != null) {
+			if (SimulationParameters.AUTO_CLOSE_REAL_TIME_CHARTS) {
+				simulationVisualizer.close();
+			}
+			try {
+				simulationVisualizer.saveCharts();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		simulation.terminate();
+	}
+
 }
