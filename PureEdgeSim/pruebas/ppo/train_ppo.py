@@ -41,7 +41,7 @@ class PureEdgeSimEnv(gym.Env):
         line = self._file.readline()
         if not line:
             raise RuntimeError("Disconnected from EnvServer.")
-        print(f"recv: {line.strip()}")
+        # print(f"recv: {line.strip()}")
         return json.loads(line)
 
     def reset(self, *, seed: int | None = None, options: Dict[str, Any] | None = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -53,14 +53,14 @@ class PureEdgeSimEnv(gym.Env):
             if msg.get("type") == "transition":
                 self._transition_queue.append(msg)
             msg = self._recv()
-        print("reset: received obs")
+        # print("reset: received obs")
 
         obs = np.array(msg["obs"], dtype=np.float32)
         return obs, {}
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         self._send({"type": "action", "action": int(action)})
-        print(f"step: sent action {int(action)}")
+        # print(f"step: sent action {int(action)}")
 
         # Delayed reward: return the previous transition (if any) on this step.
         reward = 0.0
@@ -77,7 +77,7 @@ class PureEdgeSimEnv(gym.Env):
             if msg.get("type") == "transition":
                 self._transition_queue.append(msg)
             msg = self._recv()
-        print("step: received obs")
+        # print("step: received obs")
 
         next_obs = np.array(msg["obs"], dtype=np.float32)
         return next_obs, reward, done, False, info
@@ -102,6 +102,7 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"using device: {device}")
     latest_model = max(output_dir.glob("ppo_pureedgesim_*.zip"), default=None, key=lambda p: p.stat().st_mtime)
+    latest_model = None
     if latest_model is not None:
         print(f"loading model: {latest_model}")
         model = PPO.load(str(latest_model), env=env, device=device)

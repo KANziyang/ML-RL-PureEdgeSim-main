@@ -39,7 +39,7 @@ public class PPOChart extends Chart {
 	public PPOChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
 		getChart().getStyler().setDefaultSeriesRenderStyle(XYSeriesRenderStyle.Line);
-		updateSize(SimulationParameters.INITIALIZATION_TIME, null, 0.0, null);
+		updateSize(SimulationParameters.INITIALIZATION_TIME, null, -5.0, 1.0);
 	}
 
 	public void update() {

@@ -23,13 +23,13 @@
 		<hosts>
 			<host>
 				<core>8</core>
-				<mips>25000</mips>
+				<mips>20000</mips>
 				<ram>4000</ram>
 				<storage>128000</storage>
 				<VMs>
 					<VM>
 						<core>8</core>
-						<mips>25000</mips>
+						<mips>20000</mips>
 						<ram>4000</ram>
 						<storage>128000</storage> <!--128GB of storage --> 
 					</VM>
@@ -45,7 +45,7 @@
 		<minMobilityDuration>0</minMobilityDuration>
 		<maxMobilityDuration>0</maxMobilityDuration>
 		<battery>false</battery>
-		<percentage>10</percentage>
+		<percentage>20</percentage>
 		<batteryCapacity>0</batteryCapacity>
 		<idleConsumption>1.6</idleConsumption>
 		<maxConsumption>5.1</maxConsumption>
@@ -54,13 +54,13 @@
 		<hosts>
 			<host>
 				<core>4</core>
-				<mips>16000</mips>
+				<mips>8000</mips>
 				<ram>4000</ram>
 				<storage>32000</storage>
 				<VMs>
 					<VM>
 						<core>4</core>
-						<mips>16000</mips>
+						<mips>8000</mips>
 						<ram>4000</ram>
 						<storage>32000</storage>  
 					</VM>
@@ -86,13 +86,13 @@
 		<hosts>
 			<host>
 				<core>8</core>
-				<mips>110000</mips>
+				<mips>60000</mips>
 				<ram>8000</ram>
 				<storage>1024000</storage>
 				<VMs>
 					<VM>
 						<core>8</core>
-						<mips>110000</mips>
+						<mips>60000</mips>
 						<ram>8000</ram>
 						<storage>1024000</storage>
 					</VM>
@@ -108,7 +108,7 @@
 		<minMobilityDuration>0</minMobilityDuration>
 		<maxMobilityDuration>0</maxMobilityDuration>
 		<battery>false</battery>
-		<percentage>40</percentage>
+		<percentage>30</percentage>
 		<batteryCapacity>0</batteryCapacity>
 		<idleConsumption>0.0011</idleConsumption>
 		<maxConsumption>0.036</maxConsumption>

@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +40,10 @@ public class PPOManager {
 	private double beta_a = 100;
 	private double beta_b = 0.3;
 	private double beta_c = 1;
+
+	private static final int ENERGY_WINDOW = 200;
+	private final ArrayDeque<Double> energyWindow = new ArrayDeque<>();
+	private double energyP95 = 1.0;
 
 	private static class PPOMeta {
 		private final double[] state;
@@ -238,11 +243,45 @@ public class PPOManager {
 			cpuExecution = task.getVm().getCpuPercentUtilization(task.getTime());
 		}
 
-		double reward = (beta_a * totalTime + beta_b * totalEnergy) * cpuExecution * beta_c;
-		if (task.getStatus() == Status.FAILED) {
-			reward = beta_a * 99;
-		}
+		updateEnergyStats(totalEnergy);
+
+		double timeBaseline = Math.max(task.getMaxLatency(), 1e-6);
+		double normTime = clamp(totalTime / timeBaseline, 0.0, 2.0);
+		double normEnergy = clamp(totalEnergy / energyP95, 0.0, 2.0);
+		double normCpu = clamp(cpuExecution / 100.0, 0.0, 1.0);
+
+		double wSuccess = 1.0;
+		double wFail = 3.0;
+		double wTime = 0.5;
+		double wEnergy = 0.3;
+		double wCpu = 0.2;
+
+		boolean failed = task.getStatus() == Status.FAILED;
+		double reward = (failed ? 0.0 : wSuccess)
+				- (failed ? wFail : 0.0)
+				- wTime * normTime
+				- wEnergy * normEnergy
+				- wCpu * normCpu;
+
 		return reward;
+	}
+
+	private void updateEnergyStats(double totalEnergy) {
+		energyWindow.addLast(totalEnergy);
+		if (energyWindow.size() > ENERGY_WINDOW) {
+			energyWindow.removeFirst();
+		}
+		if (energyWindow.size() < 20) {
+			return;
+		}
+		List<Double> sorted = new ArrayList<>(energyWindow);
+		sorted.sort(Double::compareTo);
+		int idx = (int) Math.ceil(0.95 * sorted.size()) - 1;
+		energyP95 = Math.max(sorted.get(Math.max(idx, 0)), 1e-6);
+	}
+
+	private double clamp(double value, double low, double high) {
+		return Math.max(low, Math.min(high, value));
 	}
 
 	private void ensureTraceHeader() {

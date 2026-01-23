@@ -54,13 +54,13 @@ public class EnvServer {
 			return -1;
 		}
 		try {
-			System.out.println("EnvServer: sending obs");
+			//System.out.println("EnvServer: sending obs");
 			writer.write(buildObsMessage(obs));
 			writer.newLine();
 			writer.flush();
 
 			String line = reader.readLine();
-			System.out.println("EnvServer: received action line: " + line);
+			//System.out.println("EnvServer: received action line: " + line);
 			return parseAction(line);
 		} catch (SocketTimeoutException e) {
 			return -1;

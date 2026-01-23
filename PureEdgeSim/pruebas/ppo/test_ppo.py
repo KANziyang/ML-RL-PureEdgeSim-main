@@ -91,15 +91,20 @@ class PureEdgeSimEnv(gym.Env):
 def main() -> None:
     env = DummyVecEnv([lambda: PureEdgeSimEnv()])
     output_dir = Path(r"C:\Users\hp\Desktop\ML-RL-PureEdgeSim-main\PureEdgeSim\pruebas\ppo\model")
-    latest_model = max(output_dir.glob("ppo_pureedgesim_*.zip"), default=None, key=lambda p: p.stat().st_mtime)
-    if latest_model is None:
+    requested_model = output_dir / "100device_100_000step.zip"
+    model_path = requested_model if requested_model.exists() else max(
+        output_dir.glob("ppo_pureedgesim_*.zip"),
+        default=None,
+        key=lambda p: p.stat().st_mtime,
+    )
+    if model_path is None:
         raise FileNotFoundError(f"No model found in {output_dir}")
 
-    print(f"loading model: {latest_model}")
-    model = PPO.load(str(latest_model), env=env)
+    print(f"loading model: {model_path}")
+    model = PPO.load(str(model_path), env=env)
 
     obs = env.reset()
-    for _ in range(1000):
+    for _ in range(10000):
         action, _ = model.predict(obs, deterministic=True)
         obs, _, done, _ = env.step(action)
         if bool(done):
