@@ -58,8 +58,8 @@ public class TasksSuccessChart extends Chart {
 			tasksTotalSucceedSimLogList.add(tasksSucceedSimLogTotal);
 			
 			updateSeries(getChart(), "Actual 30s Window rate", time, toArray(tasksSucceedList), SeriesMarkers.NONE, Color.BLACK);
-			updateSeries(getChart(), "Total rate", time, toArray(tasksTotalSucceedList), SeriesMarkers.NONE, Color.BLACK);
-			updateSeries(getChart(), "SimLog rate", time, toArray(tasksTotalSucceedSimLogList), SeriesMarkers.NONE, Color.BLACK);
+			//updateSeries(getChart(), "Total rate", time, toArray(tasksTotalSucceedList), SeriesMarkers.NONE, Color.BLACK);
+			updateSeries(getChart(), "Total rate (SimLog)", time, toArray(tasksTotalSucceedSimLogList), SeriesMarkers.NONE, Color.BLACK);
 		}
 	}
 }

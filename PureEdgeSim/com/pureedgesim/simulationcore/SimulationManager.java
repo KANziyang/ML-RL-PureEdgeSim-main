@@ -51,6 +51,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 	private int failedTasksCount = 0;
 	private int failedTasksCountTotal = 0;
 	private int tasksCount = 0;
+	private int tasksCountTotal = 0;
 
 	public SimulationManager(SimLog simLog, CloudSim simulation, int simulationId, int iteration, Scenario scenario) {
 		super(simLog, simulation, simulationId, iteration, scenario);
@@ -133,6 +134,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 			if (taskFailed(task, 0))
 				return;
 			this.edgeOrchestrator.resultsReturned(task);
+			tasksCountTotal++;
 			tasksCount++;
 			break;
 
@@ -164,7 +166,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 			List<Task> finishedTasks = broker.getCloudletFinishedList();
 			// If some tasks have not been executed
 			double tasksPercentageStop = 1;
-			if (SimulationParameters.WAIT_FOR_TASKS && (tasksCount *1.0 / simLog.getGeneratedTasks()) < tasksPercentageStop) {
+			if (SimulationParameters.WAIT_FOR_TASKS && (tasksCountTotal *1.0 / simLog.getGeneratedTasks()) < tasksPercentageStop) {
 				// 1 = 100% , 0,9= 90%
 				// Some tasks may take hours to be executed that's why we don't wait until
 				// all of them get executed, but we only wait for 99% of tasks to be executed at
@@ -270,6 +272,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 
 			if (orchestratorsList.size() == 0) {
 				simLog.printSameLine("SimulationManager- Error no orchestrator found", "red");
+				tasksCountTotal++;
 				tasksCount++;
 				return;
 			}
@@ -281,13 +284,14 @@ public class SimulationManager extends SimulationManagerAbstract {
 
 
 	public double getFailureRate() {
-		double result = (failedTasksCount * 100.0) / tasksList.size();
+		double result = (failedTasksCount * 100.0) / tasksCount;
 		failedTasksCount = 0;
+		tasksCount = 0;
 		return result;
 	}
 	
 	public double getTotalFailuresRate() {
-		return tasksCount == 0.0 ? 0.0 : (failedTasksCountTotal * 100.0) / tasksCount;
+		return tasksCountTotal == 0.0 ? 0.0 : (failedTasksCountTotal * 100.0) / tasksCountTotal;
 	}
 	
 	public double getTotalFailuresRateSimLog() {
@@ -387,6 +391,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 	private boolean setFailed(Task task) {
 		failedTasksCount++;
 		failedTasksCountTotal++;
+		tasksCountTotal++;
 		tasksCount++;
 		this.edgeOrchestrator.resultsReturned(task);
 		return true;
