@@ -22,14 +22,24 @@ package com.pureedgesim.network;
 
 import org.cloudbus.cloudsim.core.events.SimEvent;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.pureedgesim.datacentersmanager.DataCenter;
 import com.pureedgesim.datacentersmanager.DefaultEnergyModel;
 import com.pureedgesim.scenariomanager.SimulationParameters;
-import com.pureedgesim.scenariomanager.SimulationParameters.TYPES;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
 
 public class DefaultNetworkModel extends NetworkModel { 
+	private int allocatedLanPrbBlocks = 0;
+	private final Map<Task, TaskPrbAllocation> taskPrbAllocations = new HashMap<>();
+
+	private static class TaskPrbAllocation {
+		private int lanBlocks;
+		private boolean lanAllocated;
+	}
+
 	public DefaultNetworkModel(SimulationManager simulationManager) {
 		super(simulationManager);
 	}
@@ -69,51 +79,85 @@ public class DefaultNetworkModel extends NetworkModel {
 
 
 	public void sendRequestFromOrchToDest(Task task) {
-		transferProgressList
-				.add(new FileTransferProgress(task, task.getFileSize() * 8, FileTransferProgress.Type.TASK));
+		enqueueTransfer(task, task.getFileSize() * 8, FileTransferProgress.Type.TASK);
 	}
 
 	public void sendResultFromOrchToDev(Task task) {
-		transferProgressList.add(
-				new FileTransferProgress(task, task.getOutputSize() * 8, FileTransferProgress.Type.RESULTS_TO_DEV));
+		enqueueTransfer(task, task.getOutputSize() * 8, FileTransferProgress.Type.RESULTS_TO_DEV);
 	}
 
 	public void sendResultFromDevToOrch(Task task) {
 		if (task.getOrchestrator() != task.getEdgeDevice())
-			transferProgressList.add(new FileTransferProgress(task, task.getOutputSize() * 8,
-					FileTransferProgress.Type.RESULTS_TO_ORCH));
+			enqueueTransfer(task, task.getOutputSize() * 8, FileTransferProgress.Type.RESULTS_TO_ORCH);
 		else
 			scheduleNow(this, DefaultNetworkModel.SEND_RESULT_FROM_ORCH_TO_DEV, task);
 	}
 
 	public void addContainer(Task task) {
-		transferProgressList
-				.add(new FileTransferProgress(task, task.getContainerSize() * 8, FileTransferProgress.Type.CONTAINER));
+		enqueueTransfer(task, task.getContainerSize() * 8, FileTransferProgress.Type.CONTAINER);
 	}
 
 	public void sendRequestFromDeviceToOrch(Task task) {
 		if (task.getOrchestrator() != task.getEdgeDevice())
-			transferProgressList
-					.add(new FileTransferProgress(task, task.getFileSize() * 8, FileTransferProgress.Type.REQUEST));
+			enqueueTransfer(task, task.getFileSize() * 8, FileTransferProgress.Type.REQUEST);
 		else // The device orchestrate its tasks by itself, so, send the request directly to
 				// destination
 			scheduleNow(simulationManager, SimulationManager.SEND_TASK_FROM_ORCH_TO_DESTINATION, task);
+	}
+
+	private void enqueueTransfer(Task task, double sizeInKbits, FileTransferProgress.Type type) {
+		FileTransferProgress transfer = new FileTransferProgress(task, sizeInKbits, type);
+		if (!applyFixedPrbAllocationIfRequested(transfer)) {
+			return;
+		}
+		transferProgressList.add(transfer);
+	}
+
+	private boolean applyFixedPrbAllocationIfRequested(FileTransferProgress transfer) {
+		Task task = transfer.getTask();
+		if (task == null) {
+			return true;
+		}
+		int requestedLan = task.getRequestedLanPrbBlocks();
+
+		if (requestedLan < 0) {
+			return true;
+		}
+
+		TaskPrbAllocation allocation = taskPrbAllocations.get(task);
+		if (allocation == null) {
+			allocation = new TaskPrbAllocation();
+			taskPrbAllocations.put(task, allocation);
+		}
+
+		if (!allocation.lanAllocated) {
+			int lanReq = Math.max(0, requestedLan);
+			if (lanReq <= 0) {
+				simulationManager.failTaskDueToNetwork(task);
+				return false;
+			}
+			if (allocatedLanPrbBlocks + lanReq > SimulationParameters.WLAN_PRB_BLOCKS) {
+				simulationManager.failTaskDueToNetwork(task);
+				return false;
+			}
+			allocatedLanPrbBlocks += lanReq;
+			allocation.lanBlocks = lanReq;
+			allocation.lanAllocated = true;
+		}
+
+		transfer.setFixedPrbAllocation(true);
+		transfer.setLanPrbBlocks(allocation.lanBlocks);
+		return true;
 	}
 
 	protected void updateTasksProgress() {
 		// Ignore finished transfers, so we will start looping from the first index of
 		// the remaining transfers
 		int remainingTransfersCount_Lan;
-		int remainingTransfersCount_Wan; 
 		for (int i = 0; i < transferProgressList.size(); i++) {
 			if (transferProgressList.get(i).getRemainingFileSize() > 0) {
 				remainingTransfersCount_Lan = 0;
-				remainingTransfersCount_Wan = 0;
 				for (int j = 0; j < transferProgressList.size(); j++) {
-					if (transferProgressList.get(j).getRemainingFileSize() > 0 && j != i
-							&& wanIsUsed(transferProgressList.get(j))) {
-						remainingTransfersCount_Wan++; 
-					}
 					if (transferProgressList.get(j).getRemainingFileSize() > 0 && j != i && sameLanIsUsed(
 							transferProgressList.get(i).getTask(), transferProgressList.get(j).getTask())) {
 						// Both transfers use same Lan
@@ -121,11 +165,13 @@ public class DefaultNetworkModel extends NetworkModel {
 					}
 				}
 
-				// allocate bandwidths
-				transferProgressList.get(i).setLanBandwidth(getLanBandwidth(remainingTransfersCount_Lan));
-				transferProgressList.get(i).setWanBandwidth(getWanBandwidth(remainingTransfersCount_Wan));
-				updateBandwidth(transferProgressList.get(i));
-				updateTransfer(transferProgressList.get(i));
+				FileTransferProgress transfer = transferProgressList.get(i);
+				if (!transfer.isFixedPrbAllocation()) {
+					int totalLanTransfers = remainingTransfersCount_Lan + 1;
+					transfer.setLanPrbBlocks(getLanPrbBlocks(totalLanTransfers));
+				}
+				updateBandwidth(transfer);
+				updateTransfer(transfer);
 			}
 
 		}
@@ -145,11 +191,6 @@ public class DefaultNetworkModel extends NetworkModel {
 		// Update LAN network usage delay
 		transfer.setLanNetworkUsage(transfer.getLanNetworkUsage()
 				+ (oldRemainingSize - transfer.getRemainingFileSize()) / transfer.getCurrentBandwidth());
-
-		// Update WAN network usage delay 
-		if (wanIsUsed(transfer))
-			transfer.setWanNetworkUsage(transfer.getWanNetworkUsage()
-					+ (oldRemainingSize - transfer.getRemainingFileSize()) / transfer.getCurrentBandwidth());
 		if (transfer.getRemainingFileSize() <= 0) { // Transfer finished
 			transfer.setRemainingFileSize(0); // if < 0 set it to 0
 			transferFinished(transfer);
@@ -232,20 +273,14 @@ public class DefaultNetworkModel extends NetworkModel {
 	}
 
 	protected void returnResultToDevice(FileTransferProgress transfer) {
-		// if the results are returned from the cloud, consider the wan propagation
-		// delay
-		if (transfer.getTask().getOrchestrator().getType().equals(TYPES.CLOUD)
-				|| ((DataCenter) transfer.getTask().getVm().getHost().getDatacenter()).getType().equals(TYPES.CLOUD))
-			schedule(this, SimulationParameters.WAN_PROPAGATION_DELAY, DefaultNetworkModel.SEND_RESULT_FROM_ORCH_TO_DEV,
-					transfer.getTask());
-		else
-			scheduleNow(this, DefaultNetworkModel.SEND_RESULT_FROM_ORCH_TO_DEV, transfer.getTask());
+		scheduleNow(this, DefaultNetworkModel.SEND_RESULT_FROM_ORCH_TO_DEV, transfer.getTask());
 
 	}
 
 	protected void executeTaskOrDownloadContainer(FileTransferProgress transfer) { 
 		if (SimulationParameters.ENABLE_REGISTRY && "CLOUD".equals(SimulationParameters.registry_mode)
-				&& !((DataCenter) transfer.getTask().getVm().getHost().getDatacenter()).getType().equals(TYPES.CLOUD)) {
+				&& !((DataCenter) transfer.getTask().getVm().getHost().getDatacenter()).getType()
+						.equals(SimulationParameters.TYPES.CLOUD)) {
 			// if the registry is enabled and the task is offloaded to the edge data centers
 			// or the mist nodes (edge devices),
 			// then download the container
@@ -253,37 +288,47 @@ public class DefaultNetworkModel extends NetworkModel {
 
 		} else {// if the registry is disabled, execute directly the request, as it represents
 				// the offloaded task in this case
-			if (((DataCenter) transfer.getTask().getVm().getHost().getDatacenter()).getType().equals(TYPES.CLOUD))
-				schedule(simulationManager, SimulationParameters.WAN_PROPAGATION_DELAY, SimulationManager.EXECUTE_TASK,
-						transfer.getTask());
-			else
-				scheduleNow(simulationManager, SimulationManager.EXECUTE_TASK, transfer.getTask());
+			scheduleNow(simulationManager, SimulationManager.EXECUTE_TASK, transfer.getTask());
 		}
 	}
 
 	protected void offloadingRequestRecievedByOrchestrator(FileTransferProgress transfer) {
 		// Find the offloading destination and execute the task
-		if (transfer.getTask().getOrchestrator().getType().equals(TYPES.CLOUD))
-			schedule(simulationManager, SimulationParameters.WAN_PROPAGATION_DELAY,
-					SimulationManager.SEND_TASK_FROM_ORCH_TO_DESTINATION, transfer.getTask());
-		else
-			scheduleNow(simulationManager, SimulationManager.SEND_TASK_FROM_ORCH_TO_DESTINATION, transfer.getTask());
+		scheduleNow(simulationManager, SimulationManager.SEND_TASK_FROM_ORCH_TO_DESTINATION, transfer.getTask());
 	}
 
 	@Override
 	protected void startInternal() {
 		schedule(this, SimulationParameters.NETWORK_UPDATE_INTERVAL, UPDATE_PROGRESS);
 	}
-	public double getWanUtilization() {
-		int wanTasks = 0;
+	public double getNetworkUtilization() {
+		int activeTransfers = 0;
 		double bwUsage = 0;
 		for (FileTransferProgress fileTransferProgress : transferProgressList) {
-			if (fileTransferProgress.getRemainingFileSize() > 0 && wanIsUsed(fileTransferProgress)) {
-				wanTasks++;
+			if (fileTransferProgress.getRemainingFileSize() > 0) {
+				activeTransfers++;
 				bwUsage += fileTransferProgress.getRemainingFileSize();
 			}
 		}
-		bwUsage = (wanTasks > 0 ? bwUsage / (wanTasks * 1000) : 0);
-		return Math.min(bwUsage, SimulationParameters.WAN_BANDWIDTH / 1000);
+		bwUsage = (activeTransfers > 0 ? bwUsage / (activeTransfers * 1000) : 0);
+		return Math.min(bwUsage, SimulationParameters.BANDWIDTH_WLAN / 1000.0);
+	}
+
+	public int getAllocatedLanPrbBlocks() {
+		return allocatedLanPrbBlocks;
+	}
+
+	@Override
+	public void releaseTaskPrb(Task task) {
+		if (task == null) {
+			return;
+		}
+		TaskPrbAllocation allocation = taskPrbAllocations.remove(task);
+		if (allocation == null) {
+			return;
+		}
+		if (allocation.lanAllocated) {
+			allocatedLanPrbBlocks = Math.max(0, allocatedLanPrbBlocks - allocation.lanBlocks);
+		}
 	}
 }

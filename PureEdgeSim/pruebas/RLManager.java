@@ -66,12 +66,10 @@ public class RLManager {
 		
 		String state = getRLState(task, localDevice);
 		
-		
 
 		// *** Determine the action set ***
 		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, state);
 		
-
 		// *** Exploration VS Exploitation ***
 		int action;
 		double e = SimulationParameters.ALGO_RNG.nextFloat();

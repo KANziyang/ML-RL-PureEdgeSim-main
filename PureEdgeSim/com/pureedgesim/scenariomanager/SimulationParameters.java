@@ -66,13 +66,17 @@ public class SimulationParameters {
 	
 	// Network parameters 
 	public static int BANDWIDTH_WLAN;             // wlan bandwidth (in kbits/s)
-	public static int WAN_BANDWIDTH;              // wan (cloud) bandwidth (in kbits/s) 
+	public static int WLAN_PRB_BLOCKS;           // wlan PRB blocks (integer units)
+	public static double CLOUD_COVERAGE_DISTANCE; // effective distance used for cloud link attenuation (meters)
+	public static double PRB_DISTANCE_D0;        // PRB distance attenuation d0 (meters)
+	public static double PRB_DISTANCE_ALPHA;     // PRB distance attenuation exponent alpha
+	public static double PRB_TASK_MAX_RATIO;     // Max PRB ratio per task (0-1)
 	public static double POWER_CONS_PER_MEGABYTE; // Power consumption by every transferred MBytes (in Wh)
 	public static int EDGE_DEVICES_RANGE;         // The range of edge devices (in meters)
 	public static int EDGE_DATACENTERS_RANGE;     // The range of edge servers (in meters)
 	public static double NETWORK_UPDATE_INTERVAL; // Network model update interval (in seconds) 
-	public static double WAN_PROPAGATION_DELAY;   // Wan propagation delay (in seconds)
-	public static double WAN_PROPAGATION_SPEED;   // m/s
+	public static double PROPAGATION_DELAY;       // propagation delay (in seconds)
+	public static double PROPAGATION_SPEED;       // m/s
 	public static boolean REALISTIC_NETWORK_MODEL;// Enabling this will give more accurate results, but also will increase the simulation duration
 	
 	// Energy model parameters

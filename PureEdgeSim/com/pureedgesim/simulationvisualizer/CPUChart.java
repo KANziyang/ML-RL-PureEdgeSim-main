@@ -77,7 +77,7 @@ public class CPUChart extends Chart {
 		if (simulationManager.getScenario().getStringOrchArchitecture().contains("MIST") || simulationManager.getScenario().getStringOrchArchitecture().equals("ALL")) {
 			//mistUsage.add(msUsage / (simulationManager.getScenario().getDevicesCount() - sensors));
 			mistUsage.add(msUsage / devices);
-			updateSeries(getChart(), "Edge Devices", toArray(currentTime), toArray(mistUsage), SeriesMarkers.NONE, Color.BLACK);
+			updateSeries(getChart(), "Devices", toArray(currentTime), toArray(mistUsage), SeriesMarkers.NONE, Color.BLACK);
 		}
 	}
 

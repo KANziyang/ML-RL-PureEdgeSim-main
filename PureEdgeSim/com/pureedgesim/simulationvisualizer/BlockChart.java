@@ -14,7 +14,7 @@
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with PureEdgeSim. If not, see <http://www.gnu.org/licenses/>.
+ *     along with PureEdgeSim Project. If not, see <http://www.gnu.org/licenses/>.
  *     
  *     @author Mechalikh
  **/
@@ -27,33 +27,41 @@ import java.util.List;
 import org.knowm.xchart.XYSeries.XYSeriesRenderStyle;
 import org.knowm.xchart.style.markers.SeriesMarkers;
 
+import com.pureedgesim.network.DefaultNetworkModel;
 import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimulationManager;
 
-public class WanChart extends Chart {
+public class BlockChart extends Chart {
 
-	private List<Double> wanUsage = new ArrayList<>();
+	private List<Double> allocatedPrbPercent = new ArrayList<>();
 
-	public WanChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
+	public BlockChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
 		getChart().getStyler().setDefaultSeriesRenderStyle(XYSeriesRenderStyle.Line);
-		updateSize(0.0, 0.0, 0.0, SimulationParameters.WAN_BANDWIDTH / 1000.0);
+		updateSize(0.0, 0.0, 0.0, 100.0);
 	}
 
 	public void update() {
-		double wan = simulationManager.getNetworkModel().getWanUtilization();
-
-		wanUsage.add(wan);
-
-		while (wanUsage.size() > 300 / SimulationParameters.CHARTS_UPDATE_INTERVAL) {
-			wanUsage.remove(0);
+		double allocatedPercent = 0.0;
+		if (simulationManager.getNetworkModel() instanceof DefaultNetworkModel) {
+			DefaultNetworkModel network = (DefaultNetworkModel) simulationManager.getNetworkModel();
+			if (SimulationParameters.WLAN_PRB_BLOCKS > 0) {
+				allocatedPercent = (network.getAllocatedLanPrbBlocks() * 100.0) / SimulationParameters.WLAN_PRB_BLOCKS;
+			}
 		}
-		double[] time = new double[wanUsage.size()];
-		double currentTime = simulationManager.getSimulation().clock() - SimulationParameters.INITIALIZATION_TIME;
-		for (int i = wanUsage.size() - 1; i > 0; i--)
-			time[i] = currentTime - ((wanUsage.size() - i) * SimulationParameters.CHARTS_UPDATE_INTERVAL);
 
-		updateSize(currentTime - 200, currentTime, 0.0, SimulationParameters.WAN_BANDWIDTH / 1000.0);
-		updateSeries(getChart(), "WAN", time, toArray(wanUsage), SeriesMarkers.NONE, Color.BLACK);
+		allocatedPrbPercent.add(allocatedPercent);
+
+		while (allocatedPrbPercent.size() > 300 / SimulationParameters.CHARTS_UPDATE_INTERVAL) {
+			allocatedPrbPercent.remove(0);
+		}
+		double[] time = new double[allocatedPrbPercent.size()];
+		double currentTime = simulationManager.getSimulation().clock() - SimulationParameters.INITIALIZATION_TIME;
+		for (int i = allocatedPrbPercent.size() - 1; i > 0; i--) {
+			time[i] = currentTime - ((allocatedPrbPercent.size() - i) * SimulationParameters.CHARTS_UPDATE_INTERVAL);
+		}
+
+		updateSize(currentTime - 200, currentTime, 0.0, 100.0);
+		updateSeries(getChart(), "LAN PRB (%)", time, toArray(allocatedPrbPercent), SeriesMarkers.NONE, Color.BLACK);
 	}
 }

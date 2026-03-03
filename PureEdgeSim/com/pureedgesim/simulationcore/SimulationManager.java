@@ -133,6 +133,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 			// Result returned to edge device
 			if (taskFailed(task, 0))
 				return;
+			getNetworkModel().releaseTaskPrb(task);
 			this.edgeOrchestrator.resultsReturned(task);
 			tasksCountTotal++;
 			tasksCount++;
@@ -327,6 +328,10 @@ public class SimulationManager extends SimulationManagerAbstract {
 	public int getTasksFailedDueLackOfRessources() {
 		return simLog.getTasksFailedLackOfRessources();
 	}
+
+	public int getTasksFailedDueNetwork() {
+		return simLog.getTasksFailedNetwork();
+	}
 	
 	public double getTotalExecutionTime() {
 		return simLog.getTotalExecutionTime();
@@ -388,11 +393,22 @@ public class SimulationManager extends SimulationManagerAbstract {
 		return false;
 	}
 
+	public void failTaskDueToNetwork(Task task) {
+		if (task == null) {
+			return;
+		}
+		task.setPrbRejected(true);
+		task.setFailureReason(Task.Status.FAILED_NO_RESOURCES);
+		simLog.incrementTasksFailedNetwork(task);
+		setFailed(task);
+	}
+
 	private boolean setFailed(Task task) {
 		failedTasksCount++;
 		failedTasksCountTotal++;
 		tasksCountTotal++;
 		tasksCount++;
+		getNetworkModel().releaseTaskPrb(task);
 		this.edgeOrchestrator.resultsReturned(task);
 		return true;
 	}

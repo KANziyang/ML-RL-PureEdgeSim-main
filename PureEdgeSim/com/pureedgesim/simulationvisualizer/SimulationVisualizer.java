@@ -44,12 +44,12 @@ public class SimulationVisualizer {
 	private SimulationManager simulationManager;
 	private Chart mapChart;
 	private Chart cpuUtilizationChart;
-	private WanChart networkUtilizationChart;
+	private BlockChart blockChart;
 	private TasksSuccessChart tasksSuccessChart;
 	private TasksFailedChart tasksFailedChart;
 	private EdgeDevicesChart edgeDeviceChart;
 	private ServersChart serversChart;
-	private EnergyChart energyChart;
+	// private EnergyChart energyChart;
 	private DelayChart delayChart;
 	private RLChart rlChart;
 	private MultiRLChart multiRLChart;
@@ -62,12 +62,12 @@ public class SimulationVisualizer {
 		
 		mapChart = new MapChart("Simulation map", "Width (meters)", "Length (meters)", simulationManager);
 		cpuUtilizationChart = new CPUChart("CPU utilization", "Time (s)", "Utilization (%)", simulationManager);
-		networkUtilizationChart = new WanChart("Network utilization", "Time (s)", "Utilization (Mbps)",	simulationManager);
+		blockChart = new BlockChart("PRB Blocks", "Time (s)", "Utilization (%)", simulationManager);
 		tasksSuccessChart = new TasksSuccessChart("Tasks success rate", "Time (minutes)", "Success rate (%)", simulationManager);
 		tasksFailedChart = new TasksFailedChart("Tasks failures", "Time (s)", "Tasks number", simulationManager);
 		edgeDeviceChart = new EdgeDevicesChart("Edge Devices", "Time (s)", "Devices number", simulationManager);
 		serversChart = new ServersChart("Busy Servers", "Time (s)", "Devices number", simulationManager);
-		energyChart = new EnergyChart("Energy", "Time (s)", "Power (W)", simulationManager);
+		// energyChart = new EnergyChart("Energy", "Time (s)", "Power (W)", simulationManager);
 		delayChart = new DelayChart("Delays", "Simulation Time (s)", "Time (s)", simulationManager);
 		rlChart = new RLChart("Rewards", "Time (s)", "Reward", simulationManager);
 		multiRLChart = new MultiRLChart("Tasks queries", "Time (s)", "Tasks", simulationManager);
@@ -75,20 +75,20 @@ public class SimulationVisualizer {
 		
 		charts.add(mapChart);
 		charts.add(cpuUtilizationChart);
-		charts.add(energyChart);
+		// charts.add(energyChart);
 		charts.add(tasksSuccessChart);
 		charts.add(tasksFailedChart);
 		charts.add(delayChart);
 		charts.add(edgeDeviceChart);
 		charts.add(serversChart);
+		charts.add(blockChart);
+
 		if(simulationManager.getScenario().getStringOrchAlgorithm().equals("RL"))
 			charts.add(rlChart);
 		else if(simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER") || simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER_DISABLED") || simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER_EMPTY"))
 			charts.add(multiRLChart);
 		else if(simulationManager.getScenario().getStringOrchAlgorithm().equals("PPO"))
 			charts.add(ppoChart);
-		else
-			charts.add(networkUtilizationChart);
 	}
 
 	public void updateCharts() {
@@ -128,7 +128,7 @@ public class SimulationVisualizer {
 		new File(folderName).mkdirs();
 		
 		BitmapEncoder.saveBitmapWithDPI(mapChart.getChart(), folderName + "/map_chart", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(networkUtilizationChart.getChart(), folderName + "/network_usage", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/prb_blocks", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(cpuUtilizationChart.getChart(), folderName + "/cpu_usage", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(tasksSuccessChart.getChart(), folderName + "/tasks_success_rate", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(tasksFailedChart.getChart(), folderName + "/tasks_failed", BitmapFormat.PNG, 300);
@@ -143,8 +143,10 @@ public class SimulationVisualizer {
 		for (Chart chart : charts) {
 			sCharts.add(chart.getChart());
 		}
-		BitmapEncoder.saveBitmap(sCharts, 3, 3, folderName + "/final", BitmapFormat.PNG);
-		BitmapEncoder.saveBitmap(sCharts, 3, 3, folderNameSimulation + "/" + folderNameIteration + "_final", BitmapFormat.PNG);
+		int cols = 3;
+		int rows = (int) Math.ceil(sCharts.size() / (double) cols);
+		BitmapEncoder.saveBitmap(sCharts, rows, cols, folderName + "/final", BitmapFormat.PNG);
+		BitmapEncoder.saveBitmap(sCharts, rows, cols, folderNameSimulation + "/" + folderNameIteration + "_final", BitmapFormat.PNG);
 
 	}
 

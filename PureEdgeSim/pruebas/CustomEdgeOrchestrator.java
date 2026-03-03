@@ -374,7 +374,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			else
 				localDistance = 99999;
 			
-			double disdelay_tem = localDistance / SimulationParameters.WAN_PROPAGATION_SPEED;
+			double disdelay_tem = localDistance / SimulationParameters.PROPAGATION_SPEED;
 			disdelay.add(disdelay_tem);
 			double exedelay_tem = task.getLength()/vmList.get(i).getMips();
 			exedelay.add(exedelay_tem);
@@ -576,7 +576,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		}
 
 		// set fuzzy inputs
-		fis.setVariable("wan", SimulationParameters.WAN_BANDWIDTH / 1000 - simulationManager.getNetworkModel().getWanUtilization());
+		fis.setVariable("lan", SimulationParameters.BANDWIDTH_WLAN / 1000.0 - simulationManager.getNetworkModel().getNetworkUtilization());
 		fis.setVariable("tasklength", task.getLength());
 		fis.setVariable("delay", task.getMaxLatency());
 		fis.setVariable("vm", vmUsage / count);

@@ -14,12 +14,16 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 class PureEdgeSimEnv(gym.Env):
     metadata = {"render_modes": []}
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 5005, obs_size: int = 8, action_space_n: int = 4):
+    def __init__(self, host: str = "127.0.0.1", port: int = 5005, obs_size: int = 9):
         super().__init__()
         self.host = host
         self.port = port
         self.obs_size = obs_size
-        self.action_space = spaces.Discrete(action_space_n)
+        self.action_space = spaces.Box(
+            low=np.array([0.0, 0.0], dtype=np.float32),
+            high=np.array([3.0, 1.0], dtype=np.float32),
+            dtype=np.float32,
+        )
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)
         self._sock = None
         self._file = None
@@ -54,8 +58,20 @@ class PureEdgeSimEnv(gym.Env):
         obs = np.array(msg["obs"], dtype=np.float32)
         return obs, {}
 
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        self._send({"type": "action", "action": int(action)})
+    def step(self, action: Any) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        if isinstance(action, np.ndarray):
+            flat = action.flatten()
+            offload = int(np.rint(float(flat[0]))) if flat.size > 0 else 0
+            prb_ratio = float(flat[1]) if flat.size > 1 else 0.0
+        elif isinstance(action, (list, tuple)):
+            offload = int(np.rint(float(action[0]))) if len(action) > 0 else 0
+            prb_ratio = float(action[1]) if len(action) > 1 else 0.0
+        else:
+            offload = int(np.rint(float(action)))
+            prb_ratio = 0.0
+        offload = int(np.clip(offload, 0, 3))
+        prb_ratio = float(np.clip(prb_ratio, 0.0, 1.0))
+        self._send({"type": "action", "action": [offload, prb_ratio]})
 
         reward = 0.0
         done = False

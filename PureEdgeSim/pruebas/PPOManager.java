@@ -16,12 +16,13 @@ import org.cloudbus.cloudsim.cloudlets.Cloudlet.Status;
 import org.cloudbus.cloudsim.vms.Vm;
 
 import com.pureedgesim.datacentersmanager.DataCenter;
+import com.pureedgesim.network.DefaultNetworkModel;
 import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
 
 public class PPOManager {
-	private static final int STATE_SIZE = 8;
+	private static final int STATE_SIZE = 9;
 	private static final String ENV_SERVER_ENABLED_PROP = "ppo.env.server";
 	private static final String ENV_SERVER_PORT_PROP = "ppo.env.port";
 	private static final String ENV_SERVER_TIMEOUT_PROP = "ppo.env.action_timeout_ms";
@@ -32,7 +33,8 @@ public class PPOManager {
 	private Path tracePath;
 	private EnvServer envServer;
 	private boolean envServerEnabled;
-	private int lastAction = 2;
+	private int lastOffloadAction = 0;
+	private double lastPrbRatio = 0.1;
 	private double rewardSum = 0;
 	private int rewardNum = 0;
 
@@ -47,12 +49,14 @@ public class PPOManager {
 
 	private static class PPOMeta {
 		private final double[] state;
-		private final int action;
+		private final int offloadAction;
+		private final double prbRatio;
 		private final double actionProb;
 
-		private PPOMeta(double[] state, int action, double actionProb) {
+		private PPOMeta(double[] state, int offloadAction, double prbRatio, double actionProb) {
 			this.state = state;
-			this.action = action;
+			this.offloadAction = offloadAction;
+			this.prbRatio = prbRatio;
 			this.actionProb = actionProb;
 		}
 	}
@@ -95,24 +99,41 @@ public class PPOManager {
 
 		waitForEnvConnection();
 
-		int action = envServer.waitForAction(state);
-		if (action == EnvServer.ACTION_TERMINATE) {
+		EnvServer.ActionData actionData = envServer.waitForAction(state);
+		if (actionData.terminate) {
 			simulationManager.terminateAndSaveCharts();
-			action = lastAction;
+			actionData = new EnvServer.ActionData(lastOffloadAction, lastPrbRatio, false);
 		}
-		if (!actions.contains(action)) {
-			if (actions.contains(lastAction)) {
-				action = lastAction;
+		int offloadAction = actionData.offloadAction;
+		double prbRatio = actionData.prbRatio;
+
+		if (!actions.contains(offloadAction)) {
+			if (actions.contains(lastOffloadAction)) {
+				offloadAction = lastOffloadAction;
+				prbRatio = lastPrbRatio;
 			} else {
-				action = actions.get(SimulationParameters.ALGO_RNG.nextInt(actions.size()));
+				offloadAction = actions.get(SimulationParameters.ALGO_RNG.nextInt(actions.size()));
 			}
 		}
+		if (offloadAction <= 0) {
+			prbRatio = 0.0;
+		} else {
+			if (Double.isNaN(prbRatio) || Double.isInfinite(prbRatio)) {
+				prbRatio = lastPrbRatio;
+			}
+			prbRatio = clamp(prbRatio, 0.0, 1.0);
+		}
 
-		double actionProb = 1.0 / actions.size();
-		lastAction = action;
+		double actionProb = 1.0;
+		lastOffloadAction = offloadAction;
+		if (prbRatio > 0.0) {
+			lastPrbRatio = prbRatio;
+		}
 
-		task.setMetaData(new PPOMeta(state, action, actionProb));
-		return action;
+		applyPrbDecision(task, offloadAction, prbRatio);
+
+		task.setMetaData(new PPOMeta(state, offloadAction, prbRatio, actionProb));
+		return offloadAction;
 	}
 
 	public void reinforcementFeedback(Task task) {
@@ -136,7 +157,7 @@ public class PPOManager {
 		double[] nextState = getState(task, device, localDevice, localDeviceId);
 		boolean done = task.getStatus() == Status.FAILED;
 
-		appendTrace(task, ppoMeta.state, ppoMeta.action, ppoMeta.actionProb, reward, nextState, done);
+		appendTrace(task, ppoMeta.state, ppoMeta.offloadAction, ppoMeta.prbRatio, ppoMeta.actionProb, reward, nextState, done);
 		updateAvgReward(reward);
 
 		if (envServerEnabled && envServer != null && envServer.isConnected()) {
@@ -194,6 +215,7 @@ public class PPOManager {
 		}
 
 		int neighbors = getNumNeighbors(device);
+		double lanPrbRemaining = getPrbRemainingRatio();
 
 		state[0] = cloudCPU;
 		state[1] = edgeCPU;
@@ -203,21 +225,49 @@ public class PPOManager {
 		state[5] = localMIPS;
 		state[6] = localTaskRunning;
 		state[7] = neighbors;
+		state[8] = lanPrbRemaining;
 
 		return state;
 	}
 
+	private double getPrbRemainingRatio() {
+		if (simulationManager == null || simulationManager.getNetworkModel() == null) {
+			return 0.0;
+		}
+		if (!(simulationManager.getNetworkModel() instanceof DefaultNetworkModel)) {
+			return 0.0;
+		}
+		DefaultNetworkModel network = (DefaultNetworkModel) simulationManager.getNetworkModel();
+		int total = SimulationParameters.WLAN_PRB_BLOCKS;
+		if (total <= 0) {
+			return 0.0;
+		}
+		int allocated = network.getAllocatedLanPrbBlocks();
+		double remaining = (total - allocated) / (double) total;
+		return clamp(remaining, 0.0, 1.0);
+	}
+
 	private List<Integer> getActionsList(DataCenter device, Vm localDevice) {
 		List<Integer> actions = new ArrayList<>();
+		boolean hasMist = getNumNeighbors(device) > 0;
+		boolean hasEdge = SimulationParameters.NUM_OF_EDGE_DATACENTERS > 0;
+		boolean hasCloud = SimulationParameters.NUM_OF_CLOUD_DATACENTERS > 0;
 
 		if (localDevice != null) {
 			actions.add(0);
 		}
-		if (getNumNeighbors(device) > 0) {
+		if (hasMist) {
 			actions.add(1);
 		}
-		actions.add(2);
-		actions.add(3);
+		if (hasEdge) {
+			actions.add(2);
+		}
+		if (hasCloud) {
+			actions.add(3);
+		}
+		if (actions.isEmpty()) {
+			actions.add(0);
+		}
 
 		return actions;
 	}
@@ -235,6 +285,34 @@ public class PPOManager {
 		return neighbors;
 	}
 
+	private void applyPrbDecision(Task task, int offloadAction, double prbRatio) {
+		if (offloadAction <= 0) {
+			task.setRequestedLanPrbBlocks(-1);
+			return;
+		}
+		int lanBlocks = prbRatioToBlocks(prbRatio, SimulationParameters.WLAN_PRB_BLOCKS);
+		task.setRequestedLanPrbBlocks(lanBlocks);
+	}
+
+	private int prbRatioToBlocks(double ratio, int totalBlocks) {
+		if (totalBlocks <= 0) {
+			return 0;
+		}
+		double effectiveRatio = clamp(ratio, 0.0, 1.0);
+		if (SimulationParameters.PRB_TASK_MAX_RATIO > 0 && SimulationParameters.PRB_TASK_MAX_RATIO <= 1.0) {
+			effectiveRatio = Math.min(effectiveRatio, SimulationParameters.PRB_TASK_MAX_RATIO);
+		}
+		if (effectiveRatio <= 0.0) {
+			return 0;
+		}
+		int blocks = (int) Math.ceil(effectiveRatio * totalBlocks);
+		int maxPerTask = (int) Math.ceil(SimulationParameters.PRB_TASK_MAX_RATIO * totalBlocks);
+		if (maxPerTask <= 0) {
+			maxPerTask = 1;
+		}
+		return Math.max(1, Math.min(blocks, maxPerTask));
+	}
+
 	private double computeReward(Task task) {
 		double totalTime = task.getCheckTime() - task.getTime();
 		double totalEnergy = task.getTotalCost();
@@ -249,21 +327,55 @@ public class PPOManager {
 		double normTime = clamp(totalTime / timeBaseline, 0.0, 2.0);
 		double normEnergy = clamp(totalEnergy / energyP95, 0.0, 2.0);
 		double normCpu = clamp(cpuExecution / 100.0, 0.0, 1.0);
+		double prbUtil = clamp(getPrbUtilization(task), 0.0, 1.0);
+		double prbReject = task.isPrbRejected() ? 1.0 : 0.0;
 
-		double wSuccess = 1.0;
+		double wSuccess = 10.0;
 		double wFail = 3.0;
 		double wTime = 0.5;
 		double wEnergy = 0.3;
 		double wCpu = 0.2;
+		double wPrbUtil = 0.0;
+		double wPrbRemaining = 0.05;
+		double wOffload = 0.1;
+		double wPrbReject = 2.0;
 
 		boolean failed = task.getStatus() == Status.FAILED;
+		double offloadBonus = 0.0;
+		Object meta = task.getMetaData();
+		if (meta instanceof PPOMeta) {
+			PPOMeta ppoMeta = (PPOMeta) meta;
+			if (ppoMeta.offloadAction != 0) {
+				double localCpuNorm = clamp(ppoMeta.state[2] / 100.0, 0.0, 1.0);
+				offloadBonus = wOffload * Math.max(0.2, localCpuNorm);
+			}
+		}
 		double reward = (failed ? 0.0 : wSuccess)
 				- (failed ? wFail : 0.0)
 				- wTime * normTime
 				- wEnergy * normEnergy
-				- wCpu * normCpu;
+				- wCpu * normCpu
+				+ wPrbUtil * prbUtil
+				+ wPrbRemaining * (1.0 - prbUtil)
+				- wPrbReject * prbReject
+				+ offloadBonus;
 
 		return reward;
+	}
+
+	private double getPrbUtilization(Task task) {
+		if (simulationManager == null || simulationManager.getNetworkModel() == null) {
+			return 0.0;
+		}
+		if (!(simulationManager.getNetworkModel() instanceof DefaultNetworkModel)) {
+			return 0.0;
+		}
+		DefaultNetworkModel network = (DefaultNetworkModel) simulationManager.getNetworkModel();
+		double lanUtil = 0.0;
+		if (SimulationParameters.WLAN_PRB_BLOCKS > 0) {
+			lanUtil = network.getAllocatedLanPrbBlocks() / (double) SimulationParameters.WLAN_PRB_BLOCKS;
+		}
+		return lanUtil;
 	}
 
 	private void updateEnergyStats(double totalEnergy) {
@@ -296,7 +408,7 @@ public class PPOManager {
 				for (int i = 0; i < STATE_SIZE; i++) {
 					header.append("s").append(i).append(",");
 				}
-				header.append("action,action_prob,reward,");
+				header.append("action_offload,action_prb_ratio,action_prob,reward,");
 				for (int i = 0; i < STATE_SIZE; i++) {
 					header.append("s_next").append(i).append(",");
 				}
@@ -309,14 +421,14 @@ public class PPOManager {
 		}
 	}
 
-	private void appendTrace(Task task, double[] state, int action, double actionProb, double reward, double[] nextState, boolean done) {
+	private void appendTrace(Task task, double[] state, int offloadAction, double prbRatio, double actionProb, double reward, double[] nextState, boolean done) {
 		try (BufferedWriter writer = Files.newBufferedWriter(tracePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
 			StringBuilder line = new StringBuilder();
 			line.append(task.getTime()).append(",").append(task.getId()).append(",");
 			for (int i = 0; i < STATE_SIZE; i++) {
 				line.append(state[i]).append(",");
 			}
-			line.append(action).append(",").append(actionProb).append(",").append(reward).append(",");
+			line.append(offloadAction).append(",").append(prbRatio).append(",").append(actionProb).append(",").append(reward).append(",");
 			for (int i = 0; i < STATE_SIZE; i++) {
 				line.append(nextState[i]).append(",");
 			}

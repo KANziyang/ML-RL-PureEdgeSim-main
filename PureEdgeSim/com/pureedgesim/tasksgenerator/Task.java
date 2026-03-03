@@ -38,6 +38,8 @@ public class Task extends CloudletSimple {
 	private int applicationID;
 	private Status failureReason;
     private Object metaData;
+    private int requestedLanPrbBlocks = -1;
+    private boolean prbRejected = false;
     
 	public static enum Status {
 		FAILED_DUE_TO_LATENCY, FAILED_BECAUSE_DEVICE_DEAD, FAILED_DUE_TO_DEVICE_MOBILITY,
@@ -127,6 +129,22 @@ public class Task extends CloudletSimple {
 
 	public void setMetaData(Object metaData) {
 		this.metaData = metaData;
+	}
+
+	public int getRequestedLanPrbBlocks() {
+		return requestedLanPrbBlocks;
+	}
+
+	public void setRequestedLanPrbBlocks(int requestedLanPrbBlocks) {
+		this.requestedLanPrbBlocks = requestedLanPrbBlocks;
+	}
+
+	public boolean isPrbRejected() {
+		return prbRejected;
+	}
+
+	public void setPrbRejected(boolean prbRejected) {
+		this.prbRejected = prbRejected;
 	}
 	
 	public double getCheckTime() {
