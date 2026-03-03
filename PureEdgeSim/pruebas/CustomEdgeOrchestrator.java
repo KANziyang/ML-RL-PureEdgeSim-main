@@ -41,6 +41,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	RLManager rlManager;
 	MultiLayerRLManager multiLayerRLManager;
 	PPOManager ppoManager;
+	MAPPOManager mappoManager;
 
 	public CustomEdgeOrchestrator(SimulationManager simulationManager) {
 		super(simulationManager);
@@ -48,6 +49,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		rlManager = new RLManager(simLog, simulationManager, orchestrationHistory, vmList);
 		multiLayerRLManager = new MultiLayerRLManager(simLog, simulationManager, orchestrationHistory, vmList, algorithm);
 		ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
+		mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
 	}
 
 	protected int findVM(String[] architecture, Task task) {		
@@ -109,6 +111,9 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				break;
 			case "PPO":
 				bestVM = ppoDecision(architecture, task);
+				break;
+			case "MAPPO":
+				bestVM = mappoDecision(architecture, task);
 				break;
 	
 			default:
@@ -544,6 +549,12 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		}
 	}
 	/************ PPO ************/
+
+	/************ MAPPO ************/
+	private int mappoDecision(String[] architecture, Task task) {
+		return mappoManager.reinforcementLearning(architecture, task);
+	}
+	/************ MAPPO ************/
 	
 	public MultiLayerRLManager getMultiLayerRLManager() {
 		return multiLayerRLManager;
@@ -551,6 +562,10 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	public PPOManager getPPOManager() {
 		return ppoManager;
+	}
+
+	public MAPPOManager getMAPPOManager() {
+		return mappoManager;
 	}
 	/************ Reinforcement Learning ************/
 	
@@ -641,11 +656,18 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			multiLayerRLManager.reinforcementFeedback(task);
 		} else if(algorithm.equals("PPO")) {
 			ppoManager.reinforcementFeedback(task);
+		} else if(algorithm.equals("MAPPO")) {
+			mappoManager.reinforcementFeedback(task);
 		}
 
 	}
-	
-	
-	
+
+	@Override
+	public void simulationFinished() {
+		if ("MAPPO".equals(algorithm)) {
+			mappoManager.simulationFinished();
+		}
+	}
+
 }
 

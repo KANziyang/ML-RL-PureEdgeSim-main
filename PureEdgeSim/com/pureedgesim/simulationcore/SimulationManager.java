@@ -195,6 +195,14 @@ public class SimulationManager extends SimulationManagerAbstract {
 					e.printStackTrace();
 				}
 			}
+
+			// Notify the orchestrator that this simulation episode is about to end.
+			try {
+				edgeOrchestrator.simulationFinished();
+			} catch (RuntimeException ex) {
+				simLog.print("SimulationManager- simulationFinished() failed: " + ex.getMessage());
+			}
+
 			// Show results and stop the simulation
 			simLog.showIterationResults(finishedTasks);
 

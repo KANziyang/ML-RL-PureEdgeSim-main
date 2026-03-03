@@ -169,5 +169,12 @@ public abstract class Orchestrator {
 
 	public abstract void resultsReturned(Task task);
 
-}
+	/**
+	 * Hook called when one simulation episode is about to finish.
+	 * Implementations can send final signals to external learners.
+	 */
+	public void simulationFinished() {
+		// Default no-op for backward compatibility.
+	}
 
+}
