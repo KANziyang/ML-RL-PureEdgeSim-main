@@ -40,6 +40,7 @@ public class Task extends CloudletSimple {
     private Object metaData;
     private int requestedLanPrbBlocks = -1;
     private boolean prbRejected = false;
+    private int lanPriorityBin = 0;
     
 	public static enum Status {
 		FAILED_DUE_TO_LATENCY, FAILED_BECAUSE_DEVICE_DEAD, FAILED_DUE_TO_DEVICE_MOBILITY,
@@ -145,6 +146,20 @@ public class Task extends CloudletSimple {
 
 	public void setPrbRejected(boolean prbRejected) {
 		this.prbRejected = prbRejected;
+	}
+
+	public int getLanPriorityBin() {
+		return lanPriorityBin;
+	}
+
+	public void setLanPriorityBin(int lanPriorityBin) {
+		if (lanPriorityBin < 0) {
+			this.lanPriorityBin = 0;
+		} else if (lanPriorityBin > 10) {
+			this.lanPriorityBin = 10;
+		} else {
+			this.lanPriorityBin = lanPriorityBin;
+		}
 	}
 	
 	public double getCheckTime() {

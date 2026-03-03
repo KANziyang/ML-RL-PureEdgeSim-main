@@ -33,35 +33,33 @@ import com.pureedgesim.simulationcore.SimulationManager;
 
 public class BlockChart extends Chart {
 
-	private List<Double> allocatedPrbPercent = new ArrayList<>();
+	private List<Double> allocatedPrbBlocks = new ArrayList<>();
 
 	public BlockChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
 		getChart().getStyler().setDefaultSeriesRenderStyle(XYSeriesRenderStyle.Line);
-		updateSize(0.0, 0.0, 0.0, 100.0);
+		updateSize(0.0, 0.0, 0.0, Math.max(1.0, SimulationParameters.WLAN_PRB_BLOCKS));
 	}
 
 	public void update() {
-		double allocatedPercent = 0.0;
+		double allocatedBlocks = 0.0;
 		if (simulationManager.getNetworkModel() instanceof DefaultNetworkModel) {
 			DefaultNetworkModel network = (DefaultNetworkModel) simulationManager.getNetworkModel();
-			if (SimulationParameters.WLAN_PRB_BLOCKS > 0) {
-				allocatedPercent = (network.getAllocatedLanPrbBlocks() * 100.0) / SimulationParameters.WLAN_PRB_BLOCKS;
-			}
+			allocatedBlocks = network.getCurrentAllocatedLanPrbBlocks();
 		}
 
-		allocatedPrbPercent.add(allocatedPercent);
+		allocatedPrbBlocks.add(allocatedBlocks);
 
-		while (allocatedPrbPercent.size() > 300 / SimulationParameters.CHARTS_UPDATE_INTERVAL) {
-			allocatedPrbPercent.remove(0);
+		while (allocatedPrbBlocks.size() > 300 / SimulationParameters.CHARTS_UPDATE_INTERVAL) {
+			allocatedPrbBlocks.remove(0);
 		}
-		double[] time = new double[allocatedPrbPercent.size()];
+		double[] time = new double[allocatedPrbBlocks.size()];
 		double currentTime = simulationManager.getSimulation().clock() - SimulationParameters.INITIALIZATION_TIME;
-		for (int i = allocatedPrbPercent.size() - 1; i > 0; i--) {
-			time[i] = currentTime - ((allocatedPrbPercent.size() - i) * SimulationParameters.CHARTS_UPDATE_INTERVAL);
+		for (int i = allocatedPrbBlocks.size() - 1; i > 0; i--) {
+			time[i] = currentTime - ((allocatedPrbBlocks.size() - i) * SimulationParameters.CHARTS_UPDATE_INTERVAL);
 		}
 
-		updateSize(currentTime - 200, currentTime, 0.0, 100.0);
-		updateSeries(getChart(), "LAN PRB (%)", time, toArray(allocatedPrbPercent), SeriesMarkers.NONE, Color.BLACK);
+		updateSize(currentTime - 200, currentTime, 0.0, Math.max(1.0, SimulationParameters.WLAN_PRB_BLOCKS));
+		updateSeries(getChart(), "Allocated PRB (blocks)", time, toArray(allocatedPrbBlocks), SeriesMarkers.NONE, Color.BLACK);
 	}
 }

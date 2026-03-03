@@ -98,18 +98,18 @@ public class MAPPOManager {
 		private final int[][] actions;
 		private final int selectedAgent;
 		private final int selectedVm;
-		private final double selectedPrbRatio;
+		private final int selectedPriorityBin;
 		private final long stepId;
 
 		private MAPPOMeta(double[][] obs, double[] state, int[] actionMask, int[][] actions, int selectedAgent,
-				int selectedVm, double selectedPrbRatio, long stepId) {
+				int selectedVm, int selectedPriorityBin, long stepId) {
 			this.obs = deepCopy2D(obs);
 			this.state = copy1D(state);
 			this.actionMask = copyInt1D(actionMask);
 			this.actions = deepCopyInt2D(actions);
 			this.selectedAgent = selectedAgent;
 			this.selectedVm = selectedVm;
-			this.selectedPrbRatio = selectedPrbRatio;
+			this.selectedPriorityBin = selectedPriorityBin;
 			this.stepId = stepId;
 		}
 	}
@@ -195,14 +195,14 @@ public class MAPPOManager {
 		int selectedAgent = selectWinningAgent(task, state.actionMask, actions, state.candidates, architecture);
 		int selectedVm = selectedAgent >= 0 ? state.candidates[selectedAgent].vmIndex : -1;
 
-		double selectedPrbRatio = 0.0;
+		int selectedPriorityBin = 0;
 		if (selectedAgent >= 0) {
-			selectedPrbRatio = prbBinToRatio(actions[selectedAgent][1]);
+			selectedPriorityBin = actions[selectedAgent][1];
 		}
-		applyPrbDecision(task, selectedVm, selectedPrbRatio);
+		applyPrbDecision(task, selectedVm, selectedPriorityBin);
 
 		task.setMetaData(new MAPPOMeta(state.localObs, state.globalState, state.actionMask, actions, selectedAgent,
-				selectedVm, selectedPrbRatio, stepId));
+				selectedVm, selectedPriorityBin, stepId));
 
 		lastObs = deepCopy2D(state.localObs);
 		lastState = copy1D(state.globalState);
@@ -321,6 +321,9 @@ public class MAPPOManager {
 			if (actionMask[i] == 0 || candidates[i].vmIndex < 0) {
 				continue;
 			}
+			if (!isNetworkAdmissionFeasible(task, candidates[i].vmIndex)) {
+				continue;
+			}
 			int score = clampInt(actions[i][0], 0, 10);
 			double cost = candidates[i].cost;
 			if (selectedAgent == -1 || score > bestScore || (score == bestScore && cost < bestCost)) {
@@ -338,12 +341,26 @@ public class MAPPOManager {
 		double minCost = Double.MAX_VALUE;
 		for (int i = 0; i < AGENT_COUNT; i++) {
 			VmCandidate candidate = findBestVmForAgent(task, i, architecture);
-			if (candidate.vmIndex >= 0 && candidate.cost < minCost) {
+			if (candidate.vmIndex >= 0 && candidate.cost < minCost && isNetworkAdmissionFeasible(task, candidate.vmIndex)) {
 				minCost = candidate.cost;
 				selectedAgent = i;
 			}
 		}
 		return selectedAgent;
+	}
+
+	private boolean isNetworkAdmissionFeasible(Task task, int vmIndex) {
+		if (vmIndex < 0 || vmIndex >= vmList.size()) {
+			return false;
+		}
+		if (simulationManager == null || simulationManager.getNetworkModel() == null) {
+			return true;
+		}
+		if (!(simulationManager.getNetworkModel() instanceof DefaultNetworkModel)) {
+			return true;
+		}
+		DefaultNetworkModel network = (DefaultNetworkModel) simulationManager.getNetworkModel();
+		return network.canAdmitDynamicTransfer(task, vmList.get(vmIndex));
 	}
 
 	private VmCandidate findBestVmForAgent(Task task, int agentIndex, String[] architecture) {
@@ -495,37 +512,15 @@ public class MAPPOManager {
 		return normalized;
 	}
 
-	private double prbBinToRatio(int prbBin) {
-		double ratio = clamp(prbBin, 0, 10) / 10.0;
-		return clamp(ratio, 0.0, 1.0);
-	}
-
-	private void applyPrbDecision(Task task, int selectedVm, double prbRatio) {
+	private void applyPrbDecision(Task task, int selectedVm, int priorityBin) {
 		if (selectedVm < 0) {
 			task.setRequestedLanPrbBlocks(-1);
+			task.setLanPriorityBin(0);
 			return;
 		}
-		int blocks = prbRatioToBlocks(prbRatio, SimulationParameters.WLAN_PRB_BLOCKS);
-		task.setRequestedLanPrbBlocks(blocks);
-	}
-
-	private int prbRatioToBlocks(double ratio, int totalBlocks) {
-		if (totalBlocks <= 0) {
-			return 0;
-		}
-		double effectiveRatio = clamp(ratio, 0.0, 1.0);
-		if (SimulationParameters.PRB_TASK_MAX_RATIO > 0 && SimulationParameters.PRB_TASK_MAX_RATIO <= 1.0) {
-			effectiveRatio = Math.min(effectiveRatio, SimulationParameters.PRB_TASK_MAX_RATIO);
-		}
-		if (effectiveRatio <= 0.0) {
-			return 0;
-		}
-		int blocks = (int) Math.ceil(effectiveRatio * totalBlocks);
-		int maxPerTask = (int) Math.ceil(SimulationParameters.PRB_TASK_MAX_RATIO * totalBlocks);
-		if (maxPerTask <= 0) {
-			maxPerTask = 1;
-		}
-		return Math.max(1, Math.min(blocks, maxPerTask));
+		// MAPPO uses dynamic transfer-level scheduling; do not reserve fixed PRBs per task.
+		task.setRequestedLanPrbBlocks(-1);
+		task.setLanPriorityBin(clampInt(priorityBin, 0, 10));
 	}
 
 	private double getPrbRemainingRatio() {
@@ -540,7 +535,7 @@ public class MAPPOManager {
 		if (total <= 0) {
 			return 0.0;
 		}
-		int allocated = network.getAllocatedLanPrbBlocks();
+		int allocated = network.getCurrentAllocatedLanPrbBlocks();
 		double remaining = (total - allocated) / (double) total;
 		return clamp(remaining, 0.0, 1.0);
 	}
@@ -655,12 +650,12 @@ public class MAPPOManager {
 			Files.createDirectories(tracePath.getParent());
 			try (BufferedWriter writer = Files.newBufferedWriter(tracePath, StandardOpenOption.CREATE)) {
 				StringBuilder header = new StringBuilder();
-				header.append("time,task_id,reward,selected_agent,selected_vm,selected_prb_ratio,done");
+				header.append("time,task_id,reward,selected_agent,selected_vm,selected_priority_bin,done");
 				for (int i = 0; i < AGENT_COUNT; i++) {
 					header.append(",mask_").append(i);
 				}
 				for (int i = 0; i < AGENT_COUNT; i++) {
-					header.append(",a").append(i).append("_score,a").append(i).append("_prb");
+					header.append(",a").append(i).append("_score,a").append(i).append("_priority_bin");
 				}
 				for (int i = 0; i < AGENT_COUNT; i++) {
 					for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
@@ -686,7 +681,7 @@ public class MAPPOManager {
 			line.append(String.format(Locale.US, "%.4f", task.getTime())).append(",").append(task.getId()).append(",")
 					.append(String.format(Locale.US, "%.6f", reward)).append(",").append(meta.selectedAgent).append(",")
 					.append(meta.selectedVm).append(",")
-					.append(String.format(Locale.US, "%.6f", meta.selectedPrbRatio)).append(",")
+					.append(meta.selectedPriorityBin).append(",")
 					.append(done ? 1 : 0);
 
 			for (int i = 0; i < AGENT_COUNT; i++) {

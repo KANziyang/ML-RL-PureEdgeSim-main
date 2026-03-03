@@ -62,7 +62,7 @@ public class SimulationVisualizer {
 		
 		mapChart = new MapChart("Simulation map", "Width (meters)", "Length (meters)", simulationManager);
 		cpuUtilizationChart = new CPUChart("CPU utilization", "Time (s)", "Utilization (%)", simulationManager);
-		blockChart = new BlockChart("PRB Blocks", "Time (s)", "Utilization (%)", simulationManager);
+		blockChart = new BlockChart("Allocated PRB Blocks (Realtime)", "Time (s)", "PRB Blocks", simulationManager);
 		tasksSuccessChart = new TasksSuccessChart("Tasks success rate", "Time (minutes)", "Success rate (%)", simulationManager);
 		tasksFailedChart = new TasksFailedChart("Tasks failures", "Time (s)", "Tasks number", simulationManager);
 		edgeDeviceChart = new EdgeDevicesChart("Edge Devices", "Time (s)", "Devices number", simulationManager);
@@ -128,6 +128,7 @@ public class SimulationVisualizer {
 		new File(folderName).mkdirs();
 		
 		BitmapEncoder.saveBitmapWithDPI(mapChart.getChart(), folderName + "/map_chart", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/allocated_prb_blocks", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/prb_blocks", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(cpuUtilizationChart.getChart(), folderName + "/cpu_usage", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(tasksSuccessChart.getChart(), folderName + "/tasks_success_rate", BitmapFormat.PNG, 300);

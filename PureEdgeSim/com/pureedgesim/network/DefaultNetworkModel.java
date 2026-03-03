@@ -21,9 +21,16 @@
 package com.pureedgesim.network;
 
 import org.cloudbus.cloudsim.core.events.SimEvent;
+import org.cloudbus.cloudsim.vms.Vm;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.pureedgesim.datacentersmanager.DataCenter;
 import com.pureedgesim.datacentersmanager.DefaultEnergyModel;
@@ -32,7 +39,13 @@ import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
 
 public class DefaultNetworkModel extends NetworkModel { 
+	private static final int MIN_BLOCKS_PER_DYNAMIC_TRANSFER = 1;
+	private static final double PRIORITY_BASE_WEIGHT = 1.0;
+
+	// Reserved PRBs for fixed per-task allocations (legacy/compat mode).
 	private int allocatedLanPrbBlocks = 0;
+	// Recomputed every network tick from active transfers; used by charts/MAPPO state.
+	private int currentAllocatedLanPrbBlocks = 0;
 	private final Map<Task, TaskPrbAllocation> taskPrbAllocations = new HashMap<>();
 
 	private static class TaskPrbAllocation {
@@ -110,6 +123,10 @@ public class DefaultNetworkModel extends NetworkModel {
 		if (!applyFixedPrbAllocationIfRequested(transfer)) {
 			return;
 		}
+		if (!transfer.isFixedPrbAllocation() && !canAdmitDynamicTransfer(task)) {
+			simulationManager.failTaskDueToNetwork(task);
+			return;
+		}
 		transferProgressList.add(transfer);
 	}
 
@@ -151,30 +168,224 @@ public class DefaultNetworkModel extends NetworkModel {
 	}
 
 	protected void updateTasksProgress() {
-		// Ignore finished transfers, so we will start looping from the first index of
-		// the remaining transfers
-		int remainingTransfersCount_Lan;
+		List<Integer> activeIndices = getActiveTransferIndices();
+		if (activeIndices.isEmpty()) {
+			currentAllocatedLanPrbBlocks = 0;
+			return;
+		}
+
+		Set<Task> tasksToFail = new HashSet<>();
+		List<List<Integer>> components = buildConflictComponents(activeIndices);
+		for (int c = 0; c < components.size(); c++) {
+			allocateComponentBlocks(components.get(c), tasksToFail);
+		}
+
+		if (!tasksToFail.isEmpty()) {
+			for (Task failedTask : tasksToFail) {
+				removeTransfersOfTask(failedTask);
+				simulationManager.failTaskDueToNetwork(failedTask);
+			}
+			activeIndices = getActiveTransferIndices();
+		}
+
+		currentAllocatedLanPrbBlocks = computeCurrentAllocatedBlocks();
+
+		for (int i = 0; i < transferProgressList.size();) {
+			FileTransferProgress transfer = transferProgressList.get(i);
+			if (transfer.getRemainingFileSize() <= 0) {
+				i++;
+				continue;
+			}
+			updateBandwidth(transfer);
+			int sizeBefore = transferProgressList.size();
+			updateTransfer(transfer);
+			if (transferProgressList.size() == sizeBefore) {
+				i++;
+			}
+		}
+	}
+
+	private List<Integer> getActiveTransferIndices() {
+		List<Integer> indices = new ArrayList<>();
 		for (int i = 0; i < transferProgressList.size(); i++) {
 			if (transferProgressList.get(i).getRemainingFileSize() > 0) {
-				remainingTransfersCount_Lan = 0;
-				for (int j = 0; j < transferProgressList.size(); j++) {
-					if (transferProgressList.get(j).getRemainingFileSize() > 0 && j != i && sameLanIsUsed(
-							transferProgressList.get(i).getTask(), transferProgressList.get(j).getTask())) {
-						// Both transfers use same Lan
-						remainingTransfersCount_Lan++;
+				indices.add(i);
+			}
+		}
+		return indices;
+	}
+
+	private List<List<Integer>> buildConflictComponents(List<Integer> activeIndices) {
+		List<List<Integer>> components = new ArrayList<>();
+		Set<Integer> visited = new HashSet<>();
+		for (int i = 0; i < activeIndices.size(); i++) {
+			int seed = activeIndices.get(i);
+			if (visited.contains(seed)) {
+				continue;
+			}
+			List<Integer> component = new ArrayList<>();
+			ArrayDeque<Integer> queue = new ArrayDeque<>();
+			queue.add(seed);
+			visited.add(seed);
+			while (!queue.isEmpty()) {
+				int idx = queue.poll();
+				component.add(idx);
+				Task t1 = transferProgressList.get(idx).getTask();
+				for (int j = 0; j < activeIndices.size(); j++) {
+					int candidate = activeIndices.get(j);
+					if (visited.contains(candidate)) {
+						continue;
+					}
+					Task t2 = transferProgressList.get(candidate).getTask();
+					if (sameLanIsUsedSafe(t1, t2)) {
+						visited.add(candidate);
+						queue.add(candidate);
 					}
 				}
-
-				FileTransferProgress transfer = transferProgressList.get(i);
-				if (!transfer.isFixedPrbAllocation()) {
-					int totalLanTransfers = remainingTransfersCount_Lan + 1;
-					transfer.setLanPrbBlocks(getLanPrbBlocks(totalLanTransfers));
-				}
-				updateBandwidth(transfer);
-				updateTransfer(transfer);
 			}
-
+			components.add(component);
 		}
+		return components;
+	}
+
+	private void allocateComponentBlocks(List<Integer> component, Set<Task> tasksToFail) {
+		int fixedBlocks = 0;
+		List<Integer> dynamic = new ArrayList<>();
+		for (int i = 0; i < component.size(); i++) {
+			int idx = component.get(i);
+			FileTransferProgress transfer = transferProgressList.get(idx);
+			if (transfer.isFixedPrbAllocation()) {
+				fixedBlocks += Math.max(0, transfer.getLanPrbBlocks());
+			} else {
+				dynamic.add(idx);
+			}
+		}
+
+		if (dynamic.isEmpty()) {
+			return;
+		}
+
+		int available = Math.max(0, SimulationParameters.WLAN_PRB_BLOCKS - fixedBlocks);
+		int minRequired = dynamic.size() * MIN_BLOCKS_PER_DYNAMIC_TRANSFER;
+		if (available < minRequired) {
+			for (int i = 0; i < dynamic.size(); i++) {
+				Task task = transferProgressList.get(dynamic.get(i)).getTask();
+				if (task != null) {
+					tasksToFail.add(task);
+				}
+			}
+			return;
+		}
+
+		Map<Integer, Integer> assigned = new HashMap<>();
+		for (int i = 0; i < dynamic.size(); i++) {
+			assigned.put(dynamic.get(i), MIN_BLOCKS_PER_DYNAMIC_TRANSFER);
+		}
+
+		int leftover = available - minRequired;
+		if (leftover > 0) {
+			double sumWeights = 0.0;
+			Map<Integer, Double> weights = new HashMap<>();
+			for (int i = 0; i < dynamic.size(); i++) {
+				int idx = dynamic.get(i);
+				double w = getDynamicWeight(transferProgressList.get(idx));
+				weights.put(idx, w);
+				sumWeights += w;
+			}
+			int used = 0;
+			Map<Integer, Double> remainders = new HashMap<>();
+			for (int i = 0; i < dynamic.size(); i++) {
+				int idx = dynamic.get(i);
+				double share = (sumWeights > 0.0) ? leftover * (weights.get(idx) / sumWeights) : 0.0;
+				int extra = (int) Math.floor(share);
+				assigned.put(idx, assigned.get(idx) + extra);
+				used += extra;
+				remainders.put(idx, share - extra);
+			}
+			int remaining = leftover - used;
+			if (remaining > 0) {
+				List<Integer> order = new ArrayList<>(dynamic);
+				order.sort(Comparator.comparingDouble((Integer i) -> remainders.get(i)).reversed());
+				int p = 0;
+				while (remaining > 0 && !order.isEmpty()) {
+					int idx = order.get(p % order.size());
+					assigned.put(idx, assigned.get(idx) + 1);
+					remaining--;
+					p++;
+				}
+			}
+		}
+
+		for (int i = 0; i < dynamic.size(); i++) {
+			int idx = dynamic.get(i);
+			transferProgressList.get(idx).setLanPrbBlocks(Math.max(0, assigned.get(idx)));
+		}
+	}
+
+	private double getDynamicWeight(FileTransferProgress transfer) {
+		Task task = transfer.getTask();
+		int priority = 0;
+		if (task != null) {
+			priority = Math.max(0, Math.min(10, task.getLanPriorityBin()));
+		}
+		return PRIORITY_BASE_WEIGHT + priority;
+	}
+
+	private int computeCurrentAllocatedBlocks() {
+		int sum = 0;
+		for (int i = 0; i < transferProgressList.size(); i++) {
+			FileTransferProgress transfer = transferProgressList.get(i);
+			if (transfer.getRemainingFileSize() > 0) {
+				sum += Math.max(0, transfer.getLanPrbBlocks());
+			}
+		}
+		return Math.min(sum, SimulationParameters.WLAN_PRB_BLOCKS);
+	}
+
+	private void removeTransfersOfTask(Task task) {
+		if (task == null) {
+			return;
+		}
+		for (int i = transferProgressList.size() - 1; i >= 0; i--) {
+			FileTransferProgress transfer = transferProgressList.get(i);
+			if (transfer.getTask() == task) {
+				transferProgressList.remove(i);
+			}
+		}
+	}
+
+	private boolean sameLanIsUsedSafe(Task task1, Task task2) {
+		if (task1 == null || task2 == null) {
+			return false;
+		}
+		DataCenter[] endpoints1 = { task1.getOrchestrator(), task1.getEdgeDevice(), task1.getRegistry(),
+				getTaskDestination(task1) };
+		DataCenter[] endpoints2 = { task2.getOrchestrator(), task2.getEdgeDevice(), task2.getRegistry(),
+				getTaskDestination(task2) };
+		for (int i = 0; i < endpoints1.length; i++) {
+			DataCenter a = endpoints1[i];
+			if (a == null) {
+				continue;
+			}
+			for (int j = 0; j < endpoints2.length; j++) {
+				DataCenter b = endpoints2[j];
+				if (b != null && a == b) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private DataCenter getTaskDestination(Task task) {
+		if (task == null) {
+			return null;
+		}
+		Vm vm = task.getVm();
+		if (vm == null || vm == Vm.NULL || vm.getHost() == null) {
+			return null;
+		}
+		return (DataCenter) vm.getHost().getDatacenter();
 	}
 
 	protected void updateTransfer(FileTransferProgress transfer) {
@@ -316,6 +527,51 @@ public class DefaultNetworkModel extends NetworkModel {
 
 	public int getAllocatedLanPrbBlocks() {
 		return allocatedLanPrbBlocks;
+	}
+
+	public int getCurrentAllocatedLanPrbBlocks() {
+		return currentAllocatedLanPrbBlocks;
+	}
+
+	public boolean canAdmitDynamicTransfer(Task task) {
+		if (task == null) {
+			return false;
+		}
+		int fixedConflictBlocks = 0;
+		int dynamicConflicts = 0;
+
+		for (int i = 0; i < transferProgressList.size(); i++) {
+			FileTransferProgress transfer = transferProgressList.get(i);
+			if (transfer.getRemainingFileSize() <= 0) {
+				continue;
+			}
+			Task activeTask = transfer.getTask();
+			if (activeTask == null || !sameLanIsUsedSafe(task, activeTask)) {
+				continue;
+			}
+			if (transfer.isFixedPrbAllocation()) {
+				fixedConflictBlocks += Math.max(0, transfer.getLanPrbBlocks());
+			} else {
+				dynamicConflicts++;
+			}
+		}
+
+		int available = Math.max(0, SimulationParameters.WLAN_PRB_BLOCKS - fixedConflictBlocks);
+		int needed = (dynamicConflicts + 1) * MIN_BLOCKS_PER_DYNAMIC_TRANSFER;
+		return available >= needed;
+	}
+
+	public boolean canAdmitDynamicTransfer(Task task, Vm candidateVm) {
+		if (task == null || candidateVm == null) {
+			return false;
+		}
+		Vm originalVm = task.getVm();
+		task.setVm(candidateVm);
+		try {
+			return canAdmitDynamicTransfer(task);
+		} finally {
+			task.setVm(originalVm);
+		}
 	}
 
 	@Override
