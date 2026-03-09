@@ -24,6 +24,7 @@ _ENV_OVERRIDES = {
     "java_main_class": "PUREEDGESIM_MAPPO_JAVA_MAIN_CLASS",
     "host": "PUREEDGESIM_MAPPO_HOST",
     "port": "PUREEDGESIM_MAPPO_PORT",
+    "settings_dir": "PUREEDGESIM_MAPPO_SETTINGS_DIR",
     "train_settings_dir": "PUREEDGESIM_MAPPO_TRAIN_SETTINGS_DIR",
     "eval_settings_dir": "PUREEDGESIM_MAPPO_EVAL_SETTINGS_DIR",
     "episodes": "PUREEDGESIM_MAPPO_EPISODES",
@@ -41,8 +42,7 @@ class RuntimeConfig:
     java_main_class: str
     host: str
     port: int
-    train_settings_dir: Path
-    eval_settings_dir: Path
+    settings_dir: Path
     episodes: int
     save_interval: int
     progress_log_interval: int
@@ -56,8 +56,7 @@ class RuntimeConfig:
             "java_main_class": self.java_main_class,
             "host": self.host,
             "port": self.port,
-            "train_settings_dir": str(self.train_settings_dir),
-            "eval_settings_dir": str(self.eval_settings_dir),
+            "settings_dir": str(self.settings_dir),
             "episodes": self.episodes,
             "save_interval": self.save_interval,
             "progress_log_interval": self.progress_log_interval,
@@ -158,8 +157,6 @@ def load_config(config_path: Optional[Path] = None) -> RuntimeConfig:
         "java_main_class",
         "host",
         "port",
-        "train_settings_dir",
-        "eval_settings_dir",
         "episodes",
         "save_interval",
         "progress_log_interval",
@@ -176,14 +173,15 @@ def load_config(config_path: Optional[Path] = None) -> RuntimeConfig:
     if not isinstance(java_launch_cmd, list) or not java_launch_cmd:
         raise ValueError("runtime_config.json key 'java_launch_cmd' must be a non-empty list or string.")
 
+    settings_dir = _resolve_shared_settings_dir(raw)
+
     return RuntimeConfig(
         python_exe=str(raw["python_exe"]),
         java_launch_cmd=[str(part) for part in java_launch_cmd],
         java_main_class=str(raw["java_main_class"]),
         host=str(raw["host"]),
         port=int(raw["port"]),
-        train_settings_dir=_resolve_path(raw["train_settings_dir"]),
-        eval_settings_dir=_resolve_path(raw["eval_settings_dir"]),
+        settings_dir=settings_dir,
         episodes=max(1, int(raw["episodes"])),
         save_interval=max(1, int(raw["save_interval"])),
         progress_log_interval=max(1, int(raw["progress_log_interval"])),
@@ -406,6 +404,29 @@ def write_settings_overrides(settings_dir: Path, overrides: Dict[str, str]) -> N
     if missing:
         raise ValueError(f"Missing settings in {sim_file}: {', '.join(missing)}")
     sim_file.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+
+
+def _resolve_shared_settings_dir(raw: Dict[str, Any]) -> Path:
+    settings_dir = raw.get("settings_dir")
+    if settings_dir is not None and str(settings_dir).strip() != "":
+        return _resolve_path(settings_dir)
+
+    train_settings_dir = raw.get("train_settings_dir")
+    eval_settings_dir = raw.get("eval_settings_dir")
+    if train_settings_dir is not None and eval_settings_dir is not None:
+        train_path = _resolve_path(train_settings_dir)
+        eval_path = _resolve_path(eval_settings_dir)
+        if train_path != eval_path:
+            raise ValueError(
+                "Legacy MAPPO config keys 'train_settings_dir' and 'eval_settings_dir' must match "
+                f"when 'settings_dir' is absent, got '{train_path}' and '{eval_path}'."
+            )
+        return train_path
+    if train_settings_dir is not None:
+        return _resolve_path(train_settings_dir)
+    if eval_settings_dir is not None:
+        return _resolve_path(eval_settings_dir)
+    raise KeyError("Missing MAPPO runtime config key: settings_dir")
 
 
 def _apply_env_overrides(raw: Dict[str, Any]) -> Dict[str, Any]:

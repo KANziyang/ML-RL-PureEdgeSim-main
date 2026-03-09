@@ -320,7 +320,7 @@ def main() -> None:
         compile_java_project(config, logger)
         settings_dir, simulation_minutes = prepare_effective_settings_dir(
             config,
-            config.train_settings_dir,
+            config.settings_dir,
             "train",
             logger.log_path.stem,
             simulation_minutes_override,

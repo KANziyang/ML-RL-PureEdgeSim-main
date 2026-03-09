@@ -31,7 +31,7 @@ DEFAULT_TEST_EPISODES = int(os.getenv("PUREEDGESIM_MAPPO_TEST_EPISODES", "1"))
 # Quick overrides for local runs. Set to None to use defaults.
 TEST_EPISODES_OVERRIDE: Optional[int] = None
 TEST_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
-TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 50
+TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = None
 
 
 def main() -> None:
@@ -49,7 +49,7 @@ def main() -> None:
         compile_java_project(config, logger)
         settings_dir, simulation_minutes = prepare_effective_settings_dir(
             config,
-            config.eval_settings_dir,
+            config.settings_dir,
             "eval",
             logger.log_path.stem,
             simulation_minutes_override,
