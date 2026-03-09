@@ -1,0 +1,18 @@
+{
+  "python_exe": "python",
+  "java_launch_cmd": [
+    "mvn",
+    "-q",
+    "-DskipTests"
+  ],
+  "java_main_class": "pruebas.PruebaMAPPO",
+  "host": "127.0.0.1",
+  "port": 5006,
+  "train_settings_dir": "PureEdgeSim/pruebas/settings_mappo_5agents_train",
+  "eval_settings_dir": "PureEdgeSim/pruebas/settings_mappo_5agents",
+  "episodes": 10,
+  "save_interval": 1,
+  "progress_log_interval": 500,
+  "model_dir": "PureEdgeSim/pruebas/mappo/model",
+  "output_root": "PureEdgeSim/pruebas/output_mappo"
+}

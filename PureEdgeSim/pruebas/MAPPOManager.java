@@ -642,7 +642,7 @@ public class MAPPOManager {
 		rewardNum++;
 	}
 
-	private void ensureTraceHeader() {
+	private synchronized void ensureTraceHeader() {
 		if (Files.exists(tracePath)) {
 			return;
 		}
@@ -675,7 +675,7 @@ public class MAPPOManager {
 		}
 	}
 
-	private void appendTrace(Task task, MAPPOMeta meta, double reward, double[][] nextObs, double[] nextState, boolean done) {
+	private synchronized void appendTrace(Task task, MAPPOMeta meta, double reward, double[][] nextObs, double[] nextState, boolean done) {
 		try (BufferedWriter writer = Files.newBufferedWriter(tracePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
 			StringBuilder line = new StringBuilder();
 			line.append(String.format(Locale.US, "%.4f", task.getTime())).append(",").append(task.getId()).append(",")

@@ -6,16 +6,18 @@ from typing import Any, Dict, List, Optional
 
 
 class MAPPOClient:
-    def __init__(self, host: str = "127.0.0.1", port: int = 5006) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 5006, connect_timeout_s: float = 1.0) -> None:
         self.host = host
         self.port = port
+        self.connect_timeout_s = connect_timeout_s
         self._sock: Optional[socket.socket] = None
         self._file = None
 
     def connect(self) -> None:
         if self._sock is not None:
             return
-        self._sock = socket.create_connection((self.host, self.port))
+        self._sock = socket.create_connection((self.host, self.port), timeout=self.connect_timeout_s)
+        self._sock.settimeout(None)
         self._file = self._sock.makefile("r")
 
     def close(self) -> None:

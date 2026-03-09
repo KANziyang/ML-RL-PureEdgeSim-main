@@ -1,7 +1,13 @@
 target/
 output/
 PureEdgeSim/pruebas/output/
+PureEdgeSim/pruebas/output_mappo/
 PureEdgeSim/output/
+PureEdgeSim/pruebas/mappo/trajectory/
+PureEdgeSim/pruebas/mappo/model/
+PureEdgeSim/pruebas/ppo/trajectory/
+PureEdgeSim/pruebas/ppo/model/*.zip
+PureEdgeSim/pruebas/ppo/model/*.png
 PureEdgeSim/settings/
 PureEdgeSim/examples/
 PureEdgeSim/MyWork/
