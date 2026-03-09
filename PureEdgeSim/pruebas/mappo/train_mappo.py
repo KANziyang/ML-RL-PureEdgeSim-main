@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -13,12 +13,16 @@ from buffer import EpisodeBuffer, compute_gae
 from env_client import MAPPOClient
 from models import CentralCritic, SharedActor
 from runtime_support import (
+    RunLogger,
     RuntimeConfig,
     build_output_dir,
     compile_java_project,
     connect_client_with_retry,
+    create_run_logger,
     describe_runtime,
     load_config,
+    prepare_effective_settings_dir,
+    read_boolean_setting,
     resolve_model_path,
     start_java_episode,
     wait_for_java_exit,
@@ -40,6 +44,13 @@ VALUE_COEF = float(os.getenv("PUREEDGESIM_MAPPO_VALUE_COEF", "0.5"))
 MAX_GRAD_NORM = float(os.getenv("PUREEDGESIM_MAPPO_MAX_GRAD_NORM", "0.5"))
 PPO_EPOCHS = int(os.getenv("PUREEDGESIM_MAPPO_EPOCHS", "10"))
 MINIBATCH = int(os.getenv("PUREEDGESIM_MAPPO_MINIBATCH", "256"))
+
+# Quick overrides for local runs. Set to None to use existing defaults.
+TRAIN_EPISODES_OVERRIDE: Optional[int] = None
+TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
+TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = None
+TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
+TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 
 
 def masked_reduce(x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -127,16 +138,23 @@ def run_episode(
     device: torch.device,
     config: RuntimeConfig,
     episode: int,
+    max_env_steps: Optional[int],
+    settings_dir: Path,
+    logger: RunLogger,
 ) -> Tuple[EpisodeBuffer, float]:
     label = f"java-train-ep{episode:03d}"
     output_dir = build_output_dir(config, "train", episode)
-    process = start_java_episode(config, config.train_settings_dir, output_dir, label)
+    process = start_java_episode(config, settings_dir, output_dir, label, logger)
     client = MAPPOClient(host=config.host, port=config.port, connect_timeout_s=1.0)
     pending: Dict[str, Dict[str, object]] = {}
     buffer = EpisodeBuffer()
     episode_reward = 0.0
     transition_count = 0
     episode_done = False
+    pending_terminate = False
+    terminate_requested = False
+
+    print(f"episode={episode}/{config.episodes} start", flush=True)
 
     try:
         connect_client_with_retry(client, process)
@@ -147,12 +165,28 @@ def run_episode(
             except Exception as exc:
                 process.ensure_success()
                 raise RuntimeError(
-                    f"Disconnected before episode {episode} completed.\nRecent output:\n{process.recent_output()}"
+                    f"Disconnected before episode {episode} completed.\n"
+                    f"Recent output:\n{process.recent_output()}\n"
+                    f"Full log: {process.log_path}"
                 ) from exc
 
             msg_type = msg.get("type", "")
 
             if msg_type == "marl_obs":
+                if pending_terminate and not terminate_requested:
+                    client.request_termination()
+                    terminate_requested = True
+                    print(
+                        f"episode={episode}/{config.episodes} "
+                        f"steps={transition_count} "
+                        f"reward_so_far={episode_reward:.4f} "
+                        f"step_limit_reached terminating",
+                        flush=True,
+                    )
+                    continue
+                if terminate_requested:
+                    continue
+
                 step_id = str(msg.get("step_id", ""))
                 obs = np.asarray(msg["obs"], dtype=np.float32)
                 state = np.asarray(msg["state"], dtype=np.float32)
@@ -199,6 +233,9 @@ def run_episode(
                 )
                 episode_reward += reward
                 transition_count += 1
+
+                if max_env_steps is not None and transition_count >= max_env_steps:
+                    pending_terminate = True
 
                 if transition_count % config.progress_log_interval == 0:
                     print(
@@ -268,44 +305,91 @@ def main() -> None:
     config = load_config()
     config.model_dir.mkdir(parents=True, exist_ok=True)
     config.output_root.mkdir(parents=True, exist_ok=True)
-    describe_runtime(config)
-    compile_java_project(config)
+    if TRAIN_EPISODES_OVERRIDE is not None:
+        config.episodes = max(1, int(TRAIN_EPISODES_OVERRIDE))
+    max_env_steps = _normalize_optional_limit(TRAIN_MAX_ENV_STEPS_OVERRIDE)
+    simulation_minutes_override = _normalize_optional_limit(TRAIN_SIMULATION_MINUTES_OVERRIDE)
+    display_real_time_charts_override = TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE
+    auto_close_real_time_charts_override = TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"using device: {device}", flush=True)
+    logger = create_run_logger(config, "train", "train_run")
+    print(f"train_log={logger.log_path}", flush=True)
 
-    actor = SharedActor(obs_dim=LOCAL_OBS_DIM, num_agents=NUM_AGENTS, action_bins=ACTION_BINS).to(device)
-    critic = CentralCritic(state_dim=STATE_DIM).to(device)
-    actor_optim = torch.optim.Adam(actor.parameters(), lr=ACTOR_LR)
-    critic_optim = torch.optim.Adam(critic.parameters(), lr=CRITIC_LR)
-
-    for episode in range(1, config.episodes + 1):
-        buffer, episode_reward = run_episode(actor, critic, device, config, episode)
-
-        if len(buffer) > 0:
-            stats = update_policy(actor, critic, actor_optim, critic_optim, buffer, device)
-        else:
-            stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
-
+    try:
+        describe_runtime(config, logger)
+        compile_java_project(config, logger)
+        settings_dir, simulation_minutes = prepare_effective_settings_dir(
+            config,
+            config.train_settings_dir,
+            "train",
+            logger.log_path.stem,
+            simulation_minutes_override,
+            logger,
+            display_real_time_charts_override=display_real_time_charts_override,
+            auto_close_real_time_charts_override=auto_close_real_time_charts_override,
+        )
+        display_real_time_charts = read_boolean_setting(settings_dir, "display_real_time_charts")
+        auto_close_real_time_charts = read_boolean_setting(settings_dir, "auto_close_real_time_charts")
         print(
-            f"episode={episode}/{config.episodes} "
-            f"steps={len(buffer)} "
-            f"reward={episode_reward:.4f} "
-            f"policy_loss={stats['policy_loss']:.6f} "
-            f"value_loss={stats['value_loss']:.6f} "
-            f"entropy={stats['entropy']:.6f}",
+            f"simulation_minutes={simulation_minutes} "
+            f"display_real_time_charts={str(display_real_time_charts).lower()} "
+            f"auto_close_real_time_charts={str(auto_close_real_time_charts).lower()} "
+            f"settings_dir={settings_dir}",
             flush=True,
         )
 
-        saved_paths = save_checkpoint(
-            actor,
-            critic,
-            config,
-            episode,
-            latest_only=(episode % config.save_interval != 0),
-        )
-        for path in saved_paths:
-            print(f"saved model: {path}", flush=True)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"using device: {device}", flush=True)
+
+        actor = SharedActor(obs_dim=LOCAL_OBS_DIM, num_agents=NUM_AGENTS, action_bins=ACTION_BINS).to(device)
+        critic = CentralCritic(state_dim=STATE_DIM).to(device)
+        actor_optim = torch.optim.Adam(actor.parameters(), lr=ACTOR_LR)
+        critic_optim = torch.optim.Adam(critic.parameters(), lr=CRITIC_LR)
+
+        for episode in range(1, config.episodes + 1):
+            buffer, episode_reward = run_episode(
+                actor,
+                critic,
+                device,
+                config,
+                episode,
+                max_env_steps,
+                settings_dir,
+                logger,
+            )
+
+            if len(buffer) > 0:
+                stats = update_policy(actor, critic, actor_optim, critic_optim, buffer, device)
+            else:
+                stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+
+            print(
+                f"episode={episode}/{config.episodes} "
+                f"steps={len(buffer)} "
+                f"reward={episode_reward:.4f} "
+                f"policy_loss={stats['policy_loss']:.6f} "
+                f"value_loss={stats['value_loss']:.6f} "
+                f"entropy={stats['entropy']:.6f}",
+                flush=True,
+            )
+
+            saved_paths = save_checkpoint(
+                actor,
+                critic,
+                config,
+                episode,
+                latest_only=(episode % config.save_interval != 0),
+            )
+            for path in saved_paths:
+                print(f"saved model: {path}", flush=True)
+    finally:
+        logger.close()
+
+
+def _normalize_optional_limit(value: Optional[int]) -> Optional[int]:
+    if value is None:
+        return None
+    return max(1, int(value))
 
 
 if __name__ == "__main__":

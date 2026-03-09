@@ -144,11 +144,24 @@ public class SimulationVisualizer {
 		for (Chart chart : charts) {
 			sCharts.add(chart.getChart());
 		}
-		int cols = 3;
+		if (sCharts.isEmpty()) {
+			return;
+		}
+		int cols = chooseGridColumns(sCharts.size(), 3);
 		int rows = (int) Math.ceil(sCharts.size() / (double) cols);
 		BitmapEncoder.saveBitmap(sCharts, rows, cols, folderName + "/final", BitmapFormat.PNG);
 		BitmapEncoder.saveBitmap(sCharts, rows, cols, folderNameSimulation + "/" + folderNameIteration + "_final", BitmapFormat.PNG);
 
+	}
+
+	private int chooseGridColumns(int chartCount, int preferredMaxCols) {
+		int maxCols = Math.max(1, Math.min(preferredMaxCols, chartCount));
+		for (int cols = maxCols; cols >= 1; cols--) {
+			if (chartCount % cols == 0) {
+				return cols;
+			}
+		}
+		return 1;
 	}
 
 }

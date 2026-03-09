@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.lang.management.ManagementFactory;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import org.cloudbus.cloudsim.cloudlets.Cloudlet.Status;
 import org.cloudbus.cloudsim.vms.Vm;
@@ -40,6 +42,8 @@ public class MAPPOManager {
 	private final List<List<Integer>> orchestrationHistory;
 	private final List<Vm> vmList;
 	private final Path tracePath;
+	private BufferedWriter traceWriter;
+	private boolean traceWriterClosed = false;
 	private final boolean envServerEnabled;
 	private final MAPPOEnvServer envServer;
 	private final List<AgentNode> agentNodes = new ArrayList<>();
@@ -53,6 +57,7 @@ public class MAPPOManager {
 	private double energyP95 = 1.0;
 
 	private long finishedEpisodes = 0;
+	private boolean episodeEndSent = false;
 	private double[][] lastObs = null;
 	private double[] lastState = null;
 	private int[] lastMask = null;
@@ -121,7 +126,7 @@ public class MAPPOManager {
 		this.tracePath = Paths.get("PureEdgeSim", "pruebas", "mappo", "trajectory", buildTraceFileName());
 		initializeAgentMapping();
 		initializeVmLookup();
-		ensureTraceHeader();
+		initializeTraceWriter();
 
 		this.envServerEnabled = Boolean.getBoolean(ENV_SERVER_ENABLED_PROP);
 		if (this.envServerEnabled) {
@@ -235,14 +240,22 @@ public class MAPPOManager {
 		lastMask = copyInt1D(nextState.actionMask);
 	}
 
-	public void simulationFinished() {
-		finishedEpisodes++;
-		if (!envServerEnabled || envServer == null || !envServer.isConnected()) {
+	public synchronized void simulationFinished() {
+		if (episodeEndSent) {
 			return;
 		}
-		double[][] obs = lastObs != null ? lastObs : new double[AGENT_COUNT][LOCAL_OBS_SIZE];
-		double[] state = lastState != null ? lastState : new double[GLOBAL_STATE_SIZE];
-		envServer.sendEpisodeEnd(obs, state, finishedEpisodes);
+		episodeEndSent = true;
+		finishedEpisodes++;
+		try {
+			if (!envServerEnabled || envServer == null || !envServer.isConnected()) {
+				return;
+			}
+			double[][] obs = lastObs != null ? lastObs : new double[AGENT_COUNT][LOCAL_OBS_SIZE];
+			double[] state = lastState != null ? lastState : new double[GLOBAL_STATE_SIZE];
+			envServer.sendEpisodeEnd(obs, state, finishedEpisodes);
+		} finally {
+			closeTraceWriter();
+		}
 	}
 
 	public double getAvgReward() {
@@ -642,41 +655,34 @@ public class MAPPOManager {
 		rewardNum++;
 	}
 
-	private synchronized void ensureTraceHeader() {
-		if (Files.exists(tracePath)) {
+	private synchronized void initializeTraceWriter() {
+		if (traceWriter != null || traceWriterClosed) {
 			return;
 		}
 		try {
 			Files.createDirectories(tracePath.getParent());
-			try (BufferedWriter writer = Files.newBufferedWriter(tracePath, StandardOpenOption.CREATE)) {
-				StringBuilder header = new StringBuilder();
-				header.append("time,task_id,reward,selected_agent,selected_vm,selected_priority_bin,done");
-				for (int i = 0; i < AGENT_COUNT; i++) {
-					header.append(",mask_").append(i);
-				}
-				for (int i = 0; i < AGENT_COUNT; i++) {
-					header.append(",a").append(i).append("_score,a").append(i).append("_priority_bin");
-				}
-				for (int i = 0; i < AGENT_COUNT; i++) {
-					for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
-						header.append(",s_").append(i).append("_").append(j);
-					}
-				}
-				for (int i = 0; i < AGENT_COUNT; i++) {
-					for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
-						header.append(",s_next_").append(i).append("_").append(j);
-					}
-				}
-				writer.write(header.toString());
-				writer.newLine();
-			}
+			traceWriter = Files.newBufferedWriter(tracePath, StandardOpenOption.CREATE,
+					StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+			traceWriter.write(buildTraceHeader());
+			traceWriter.newLine();
+			traceWriter.flush();
 		} catch (IOException e) {
 			System.err.println("MAPPOManager: failed to initialize trace file: " + e.getMessage());
+			traceWriter = null;
 		}
 	}
 
 	private synchronized void appendTrace(Task task, MAPPOMeta meta, double reward, double[][] nextObs, double[] nextState, boolean done) {
-		try (BufferedWriter writer = Files.newBufferedWriter(tracePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+		if (traceWriterClosed) {
+			return;
+		}
+		if (traceWriter == null) {
+			initializeTraceWriter();
+			if (traceWriter == null) {
+				return;
+			}
+		}
+		try {
 			StringBuilder line = new StringBuilder();
 			line.append(String.format(Locale.US, "%.4f", task.getTime())).append(",").append(task.getId()).append(",")
 					.append(String.format(Locale.US, "%.6f", reward)).append(",").append(meta.selectedAgent).append(",")
@@ -700,17 +706,62 @@ public class MAPPOManager {
 					line.append(",").append(String.format(Locale.US, "%.6f", nextObs[i][j]));
 				}
 			}
-			writer.write(line.toString());
-			writer.newLine();
+			traceWriter.write(line.toString());
+			traceWriter.newLine();
+			traceWriter.flush();
 		} catch (IOException e) {
 			System.err.println("MAPPOManager: failed to append trace: " + e.getMessage());
 		}
 	}
 
+	private synchronized void closeTraceWriter() {
+		traceWriterClosed = true;
+		if (traceWriter == null) {
+			return;
+		}
+		try {
+			traceWriter.flush();
+			traceWriter.close();
+		} catch (IOException e) {
+			System.err.println("MAPPOManager: failed to close trace file: " + e.getMessage());
+		} finally {
+			traceWriter = null;
+		}
+	}
+
+	private String buildTraceHeader() {
+		StringBuilder header = new StringBuilder();
+		header.append("time,task_id,reward,selected_agent,selected_vm,selected_priority_bin,done");
+		for (int i = 0; i < AGENT_COUNT; i++) {
+			header.append(",mask_").append(i);
+		}
+		for (int i = 0; i < AGENT_COUNT; i++) {
+			header.append(",a").append(i).append("_score,a").append(i).append("_priority_bin");
+		}
+		for (int i = 0; i < AGENT_COUNT; i++) {
+			for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
+				header.append(",s_").append(i).append("_").append(j);
+			}
+		}
+		for (int i = 0; i < AGENT_COUNT; i++) {
+			for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
+				header.append(",s_next_").append(i).append("_").append(j);
+			}
+		}
+		return header.toString();
+	}
+
 	private String buildTraceFileName() {
-		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS");
 		String suffix = LocalDateTime.now().format(formatter);
-		return "mappo_trajectories_" + suffix + ".csv";
+		String processName = ManagementFactory.getRuntimeMXBean().getName();
+		String pid = processName;
+		int atIndex = processName.indexOf('@');
+		if (atIndex > 0) {
+			pid = processName.substring(0, atIndex);
+		}
+		String randomSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
+		return "mappo_trajectories_" + suffix + "_pid" + pid + "_" + randomSuffix + ".csv";
 	}
 
 	private double clamp(double value, double low, double high) {

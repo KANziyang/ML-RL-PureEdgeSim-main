@@ -191,7 +191,8 @@ public class SimulationManager extends SimulationManagerAbstract {
 					// Save those charts in bitmap and vector formats
 					if (SimulationParameters.SAVE_CHARTS)
 						simulationVisualizer.saveCharts();
-				} catch (IOException e) {
+				} catch (Exception e) {
+					simLog.print("SimulationManager- saveCharts() failed: " + e.getMessage());
 					e.printStackTrace();
 				}
 			}
@@ -441,10 +442,18 @@ public class SimulationManager extends SimulationManagerAbstract {
 				simulationVisualizer.close();
 			}
 			try {
-				simulationVisualizer.saveCharts();
-			} catch (IOException e) {
+				if (SimulationParameters.SAVE_CHARTS) {
+					simulationVisualizer.saveCharts();
+				}
+			} catch (Exception e) {
+				simLog.print("SimulationManager- terminateAndSaveCharts() saveCharts() failed: " + e.getMessage());
 				e.printStackTrace();
 			}
+		}
+		try {
+			edgeOrchestrator.simulationFinished();
+		} catch (RuntimeException ex) {
+			simLog.print("SimulationManager- terminateAndSaveCharts() simulationFinished() failed: " + ex.getMessage());
 		}
 		simulation.terminate();
 	}

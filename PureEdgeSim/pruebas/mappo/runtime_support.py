@@ -5,13 +5,12 @@ import os
 import shlex
 import shutil
 import subprocess
-import sys
 import threading
 import time
-from collections import deque
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -67,11 +66,35 @@ class RuntimeConfig:
         }
 
 
+class RunLogger:
+    def __init__(self, log_path: Path) -> None:
+        self.log_path = log_path
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._file = self.log_path.open("a", encoding="utf-8", buffering=1)
+
+    def log(self, message: str) -> None:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self._lock:
+            self._file.write(f"{timestamp} {message}\n")
+
+    def open_subprocess_stream(self):
+        return self.log_path.open("a", encoding="utf-8", buffering=1)
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._file.closed:
+                self._file.close()
+
+
 class JavaEpisodeProcess:
-    def __init__(self, process: subprocess.Popen, label: str) -> None:
+    def __init__(self, process: subprocess.Popen, label: str, logger: RunLogger) -> None:
         self.process = process
         self.label = label
-        self.tail: Deque[str] = deque(maxlen=50)
+        self.logger = logger
+        self.log_path = logger.log_path
+        self._tail: List[str] = []
+        self._tail_lock = threading.Lock()
         self._thread = threading.Thread(target=self._stream_output, name=f"{label}-stdout", daemon=True)
         self._thread.start()
 
@@ -80,8 +103,11 @@ class JavaEpisodeProcess:
             return
         for raw_line in self.process.stdout:
             line = raw_line.rstrip()
-            self.tail.append(line)
-            print(f"[{self.label}] {line}", flush=True)
+            self.logger.log(f"[{self.label}] {line}")
+            with self._tail_lock:
+                self._tail.append(line)
+                if len(self._tail) > 50:
+                    self._tail.pop(0)
 
     def poll(self) -> Optional[int]:
         return self.process.poll()
@@ -105,13 +131,16 @@ class JavaEpisodeProcess:
             return
         if return_code != 0:
             raise RuntimeError(
-                f"Java simulation exited with code {return_code}.\nRecent output:\n{self.recent_output()}"
+                f"Java simulation exited with code {return_code}.\n"
+                f"Recent output:\n{self.recent_output()}\n"
+                f"Full log: {self.log_path}"
             )
 
     def recent_output(self) -> str:
-        if not self.tail:
-            return "<no java output captured>"
-        return "\n".join(self.tail)
+        with self._tail_lock:
+            if not self._tail:
+                return "<no java output captured>"
+            return "\n".join(self._tail)
 
 
 def load_config(config_path: Optional[Path] = None) -> RuntimeConfig:
@@ -163,16 +192,33 @@ def load_config(config_path: Optional[Path] = None) -> RuntimeConfig:
     )
 
 
-def describe_runtime(config: RuntimeConfig) -> None:
-    print(f"running python: {sys.executable}", flush=True)
-    if config.python_exe:
-        print(f"config python_exe: {config.python_exe}", flush=True)
+def create_run_logger(config: RuntimeConfig, mode: str, file_prefix: str) -> RunLogger:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = config.output_root / mode / "logs" / f"{file_prefix}_{timestamp}.log"
+    logger = RunLogger(log_path)
+    logger.log(f"run_logger_initialized mode={mode}")
+    return logger
 
 
-def compile_java_project(config: RuntimeConfig) -> None:
+def describe_runtime(config: RuntimeConfig, logger: RunLogger) -> None:
+    logger.log(f"python_executable={config.python_exe}")
+    logger.log(f"runtime_config={json.dumps(config.to_dict(), ensure_ascii=True)}")
+
+
+def compile_java_project(config: RuntimeConfig, logger: RunLogger) -> None:
     compile_cmd = _resolve_launch_cmd(list(config.java_launch_cmd)) + ["compile"]
-    print(f"compiling java: {' '.join(compile_cmd)}", flush=True)
-    subprocess.run(compile_cmd, cwd=REPO_ROOT, check=True)
+    logger.log(f"compile_command={' '.join(compile_cmd)}")
+    with logger.open_subprocess_stream() as sink:
+        result = subprocess.run(
+            compile_cmd,
+            cwd=REPO_ROOT,
+            stdout=sink,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+    if result.returncode != 0:
+        raise RuntimeError(f"Java compile failed with code {result.returncode}. See log: {logger.log_path}")
 
 
 def start_java_episode(
@@ -180,6 +226,7 @@ def start_java_episode(
     settings_dir: Path,
     output_dir: Path,
     label: str,
+    logger: RunLogger,
 ) -> JavaEpisodeProcess:
     output_dir.mkdir(parents=True, exist_ok=True)
     cmd = _resolve_launch_cmd(list(config.java_launch_cmd))
@@ -193,7 +240,7 @@ def start_java_episode(
             "exec:java",
         ]
     )
-    print(f"starting java episode: {' '.join(cmd)}", flush=True)
+    logger.log(f"start_java_episode label={label} command={' '.join(cmd)}")
     process = subprocess.Popen(
         cmd,
         cwd=REPO_ROOT,
@@ -202,7 +249,7 @@ def start_java_episode(
         text=True,
         bufsize=1,
     )
-    return JavaEpisodeProcess(process, label)
+    return JavaEpisodeProcess(process, label, logger)
 
 
 def connect_client_with_retry(
@@ -226,7 +273,7 @@ def connect_client_with_retry(
     process.ensure_success()
     raise TimeoutError(
         f"Timed out after {timeout_s:.1f}s waiting for MAPPOEnvServer at {client.host}:{client.port}. "
-        f"Last error: {last_error}"
+        f"Last error: {last_error}\nFull log: {process.log_path}"
     )
 
 
@@ -236,9 +283,63 @@ def wait_for_java_exit(process: JavaEpisodeProcess, timeout_s: float = 60.0) -> 
     except subprocess.TimeoutExpired as exc:
         process.terminate()
         raise TimeoutError(
-            f"Java simulation did not exit within {timeout_s:.1f}s.\nRecent output:\n{process.recent_output()}"
+            f"Java simulation did not exit within {timeout_s:.1f}s.\n"
+            f"Recent output:\n{process.recent_output()}\n"
+            f"Full log: {process.log_path}"
         ) from exc
     process.ensure_success()
+
+
+def prepare_effective_settings_dir(
+    config: RuntimeConfig,
+    base_settings_dir: Path,
+    mode: str,
+    run_id: str,
+    simulation_minutes_override: Optional[int],
+    logger: RunLogger,
+    display_real_time_charts_override: Optional[bool] = None,
+    auto_close_real_time_charts_override: Optional[bool] = None,
+) -> tuple[Path, int]:
+    base_settings_dir = base_settings_dir.resolve()
+    if (
+        simulation_minutes_override is None
+        and display_real_time_charts_override is None
+        and auto_close_real_time_charts_override is None
+    ):
+        simulation_minutes = read_simulation_minutes(base_settings_dir)
+        display_real_time_charts = read_boolean_setting(base_settings_dir, "display_real_time_charts")
+        auto_close_real_time_charts = read_boolean_setting(base_settings_dir, "auto_close_real_time_charts")
+        logger.log(
+            f"using_base_settings_dir mode={mode} settings_dir={base_settings_dir} "
+            f"simulation_minutes={simulation_minutes} "
+            f"display_real_time_charts={str(display_real_time_charts).lower()} "
+            f"auto_close_real_time_charts={str(auto_close_real_time_charts).lower()}"
+        )
+        return base_settings_dir, simulation_minutes
+
+    runtime_settings_dir = config.output_root / mode / "runtime_settings" / run_id
+    if runtime_settings_dir.exists():
+        shutil.rmtree(runtime_settings_dir)
+    runtime_settings_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(base_settings_dir, runtime_settings_dir)
+    overrides: Dict[str, str] = {}
+    if simulation_minutes_override is not None:
+        overrides["simulation_time"] = str(max(1, int(simulation_minutes_override)))
+    if display_real_time_charts_override is not None:
+        overrides["display_real_time_charts"] = str(display_real_time_charts_override).lower()
+    if auto_close_real_time_charts_override is not None:
+        overrides["auto_close_real_time_charts"] = str(auto_close_real_time_charts_override).lower()
+    write_settings_overrides(runtime_settings_dir, overrides)
+    simulation_minutes = read_simulation_minutes(runtime_settings_dir)
+    display_real_time_charts = read_boolean_setting(runtime_settings_dir, "display_real_time_charts")
+    auto_close_real_time_charts = read_boolean_setting(runtime_settings_dir, "auto_close_real_time_charts")
+    logger.log(
+        f"created_runtime_settings_dir mode={mode} base_settings_dir={base_settings_dir} "
+        f"runtime_settings_dir={runtime_settings_dir} simulation_minutes={simulation_minutes} "
+        f"display_real_time_charts={str(display_real_time_charts).lower()} "
+        f"auto_close_real_time_charts={str(auto_close_real_time_charts).lower()}"
+    )
+    return runtime_settings_dir, simulation_minutes
 
 
 def build_output_dir(config: RuntimeConfig, mode: str, episode_index: int) -> Path:
@@ -253,6 +354,58 @@ def resolve_model_path(config: RuntimeConfig, name: str = "latest.pt") -> Path:
 def with_trailing_separator(path: Path) -> str:
     normalized = path.resolve().as_posix().rstrip("/")
     return normalized + "/"
+
+
+def read_simulation_minutes(settings_dir: Path) -> int:
+    sim_file = settings_dir / "simulation_parameters.properties"
+    for line in sim_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("simulation_time="):
+            return max(1, int(float(stripped.split("=", 1)[1].strip())))
+    raise ValueError(f"simulation_time not found in {sim_file}")
+
+
+def read_boolean_setting(settings_dir: Path, key: str) -> bool:
+    sim_file = settings_dir / "simulation_parameters.properties"
+    prefix = f"{key}="
+    for line in sim_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith(prefix):
+            value = stripped.split("=", 1)[1].strip().lower()
+            if value == "true":
+                return True
+            if value == "false":
+                return False
+            raise ValueError(f"{key} must be true or false in {sim_file}, found: {value}")
+    raise ValueError(f"{key} not found in {sim_file}")
+
+
+def write_simulation_minutes(settings_dir: Path, simulation_minutes: int) -> None:
+    write_settings_overrides(settings_dir, {"simulation_time": str(max(1, int(simulation_minutes)))})
+
+
+def write_settings_overrides(settings_dir: Path, overrides: Dict[str, str]) -> None:
+    if not overrides:
+        return
+    sim_file = settings_dir / "simulation_parameters.properties"
+    updated_lines = []
+    replaced = set()
+    for line in sim_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        matched_key = None
+        for key in overrides:
+            if stripped.startswith(f"{key}="):
+                matched_key = key
+                break
+        if matched_key is None:
+            updated_lines.append(line)
+            continue
+        updated_lines.append(f"{matched_key}={overrides[matched_key]}")
+        replaced.add(matched_key)
+    missing = sorted(set(overrides).difference(replaced))
+    if missing:
+        raise ValueError(f"Missing settings in {sim_file}: {', '.join(missing)}")
+    sim_file.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
 
 
 def _apply_env_overrides(raw: Dict[str, Any]) -> Dict[str, Any]:
