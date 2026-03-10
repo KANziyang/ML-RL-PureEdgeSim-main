@@ -9,7 +9,7 @@
   "host": "127.0.0.1",
   "port": 5006,
   "settings_dir": "PureEdgeSim/pruebas/settings_mappo_5agents_train",
-  "episodes": 40,
+  "episodes": 10,
   "save_interval": 1,
   "progress_log_interval": 500,
   "model_dir": "PureEdgeSim/pruebas/mappo/model",

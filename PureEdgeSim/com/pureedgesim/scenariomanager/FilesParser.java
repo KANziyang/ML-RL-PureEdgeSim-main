@@ -69,6 +69,10 @@ public class FilesParser {
 			SimulationParameters.AUTO_CLOSE_REAL_TIME_CHARTS = Boolean.parseBoolean(prop.getProperty("auto_close_real_time_charts").trim());
 			SimulationParameters.CHARTS_UPDATE_INTERVAL = Double.parseDouble(prop.getProperty("charts_update_interval").trim());
 			SimulationParameters.SAVE_CHARTS = Boolean.parseBoolean(prop.getProperty("save_charts").trim());
+			SimulationParameters.SAVE_SIMULATION_CHARTS = Boolean.parseBoolean(
+					prop.getProperty("save_simulation_charts", String.valueOf(SimulationParameters.SAVE_CHARTS)).trim());
+			SimulationParameters.SAVE_FINAL_RESULTS_CHARTS = Boolean.parseBoolean(
+					prop.getProperty("save_final_results_charts", String.valueOf(SimulationParameters.SAVE_CHARTS)).trim());
 
 			SimulationParameters.AREA_LENGTH = Integer.parseInt(prop.getProperty("length").trim()); // seconds
 			SimulationParameters.AREA_WIDTH = Integer.parseInt(prop.getProperty("width").trim()); // seconds

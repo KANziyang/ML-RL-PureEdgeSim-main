@@ -43,7 +43,9 @@ public class SimulationParameters {
 	public static boolean DISPLAY_REAL_TIME_CHARTS;   // Show real time charts
 	public static boolean AUTO_CLOSE_REAL_TIME_CHARTS;// Close real time charts when simlation finishes 
 	public static double CHARTS_UPDATE_INTERVAL;	  // Charts refresh interval in seconds
-	public static boolean SAVE_CHARTS;                // Save charts to bitmap format (*.png files)  
+	public static boolean SAVE_CHARTS;                // Legacy save-charts switch used as a compatibility fallback
+	public static boolean SAVE_SIMULATION_CHARTS;     // Save per-simulation charts under simulation_<id>/
+	public static boolean SAVE_FINAL_RESULTS_CHARTS;  // Save aggregated charts under Final results/
 	
 	// Simulation area
 	public static int AREA_LENGTH;                         

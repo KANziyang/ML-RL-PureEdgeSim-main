@@ -177,7 +177,7 @@ public class SimulationThread {
 	 * @param simLog the simulation logger.
 	 */
 	protected void generateCharts(SimLog simLog) {
-		if (SimulationParameters.SAVE_CHARTS && !SimulationParameters.PARALLEL && simLog != null) {
+		if (SimulationParameters.SAVE_FINAL_RESULTS_CHARTS && !SimulationParameters.PARALLEL && simLog != null) {
 			SimLog.println("Main- Saving charts...");
 			ChartsGenerator chartsGenerator = new ChartsGenerator(simLog.getFileName(".csv"));
 			chartsGenerator.generate();

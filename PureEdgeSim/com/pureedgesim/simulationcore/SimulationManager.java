@@ -189,7 +189,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 					simulationVisualizer.close();
 				try {
 					// Save those charts in bitmap and vector formats
-					if (SimulationParameters.SAVE_CHARTS)
+					if (SimulationParameters.SAVE_SIMULATION_CHARTS)
 						simulationVisualizer.saveCharts();
 				} catch (Exception e) {
 					simLog.print("SimulationManager- saveCharts() failed: " + e.getMessage());
@@ -442,7 +442,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 				simulationVisualizer.close();
 			}
 			try {
-				if (SimulationParameters.SAVE_CHARTS) {
+				if (SimulationParameters.SAVE_SIMULATION_CHARTS) {
 					simulationVisualizer.saveCharts();
 				}
 			} catch (Exception e) {
