@@ -36,6 +36,7 @@ public class MAPPOManager {
 	private static final int PRIORITY_ACTIONS = 5;
 	private static final int[] PRIORITY_BIN_MAP = { 0, 2, 5, 8, 10 };
 	private static final String[] EDGE_CLOUD_ARCH = { "Cloud", "Edge" };
+	private static final int TELEMETRY_WINDOW_SIZE = 200;
 
 	private static final String ENV_SERVER_ENABLED_PROP = "mappo.env.server";
 	private static final String ENV_SERVER_PORT_PROP = "mappo.env.port";
@@ -59,6 +60,12 @@ public class MAPPOManager {
 	private double[][] lastObs = null;
 	private double[] lastState = null;
 	private int[] lastMask = null;
+	private final ArrayDeque<Integer> destWindow = new ArrayDeque<>();
+	private final ArrayDeque<Integer> priorityWindow = new ArrayDeque<>();
+	private final int[] destWindowCounts = new int[AGENT_COUNT];
+	private final int[] priorityWindowCounts = new int[PRIORITY_ACTIONS];
+	private int lastDestAction = -1;
+	private int lastPriorityBin = -1;
 
 	private static final int ENERGY_WINDOW = 200;
 	private final ArrayDeque<Double> energyWindow = new ArrayDeque<>();
@@ -125,6 +132,23 @@ public class MAPPOManager {
 			this.selectedVm = selectedVm;
 			this.selectedPriorityBin = selectedPriorityBin;
 			this.stepId = stepId;
+		}
+	}
+
+	public static class MAPPOTelemetrySnapshot {
+		public final int windowDecisionCount;
+		public final int[] destWindowCounts;
+		public final int[] priorityWindowCounts;
+		public final int lastDestAction;
+		public final int lastPriorityBin;
+
+		public MAPPOTelemetrySnapshot(int windowDecisionCount, int[] destWindowCounts, int[] priorityWindowCounts,
+				int lastDestAction, int lastPriorityBin) {
+			this.windowDecisionCount = windowDecisionCount;
+			this.destWindowCounts = copyInt1D(destWindowCounts);
+			this.priorityWindowCounts = copyInt1D(priorityWindowCounts);
+			this.lastDestAction = lastDestAction;
+			this.lastPriorityBin = lastPriorityBin;
 		}
 	}
 
@@ -233,6 +257,7 @@ public class MAPPOManager {
 		int selectedVm = selectedAgent >= 0 ? state.candidates[selectedAgent].vmIndex : -1;
 		int selectedPriorityBin = PRIORITY_BIN_MAP[priorityAction];
 		applyPriorityDecision(task, selectedVm, selectedPriorityBin);
+		updateTelemetry(selectedAgent, selectedPriorityBin);
 
 		task.setMetaData(new MAPPOMeta(state.localObs, state.globalState, state.actionMask, destAction, priorityAction,
 				selectedAgent, selectedVm, selectedPriorityBin, stepId));
@@ -294,6 +319,11 @@ public class MAPPOManager {
 		rewardSum = 0.0;
 		rewardNum = 0;
 		return avg;
+	}
+
+	public synchronized MAPPOTelemetrySnapshot getTelemetrySnapshot() {
+		return new MAPPOTelemetrySnapshot(destWindow.size(), destWindowCounts, priorityWindowCounts, lastDestAction,
+				lastPriorityBin);
 	}
 
 	private StateBundle buildState(Task task, String[] architecture) {
@@ -657,6 +687,42 @@ public class MAPPOManager {
 	private void updateAvgReward(double reward) {
 		rewardSum += reward;
 		rewardNum++;
+	}
+
+	private synchronized void updateTelemetry(int selectedAgent, int selectedPriorityBin) {
+		if (selectedAgent >= 0 && selectedAgent < AGENT_COUNT) {
+			destWindow.addLast(selectedAgent);
+			destWindowCounts[selectedAgent]++;
+			while (destWindow.size() > TELEMETRY_WINDOW_SIZE) {
+				int removed = destWindow.removeFirst();
+				if (removed >= 0 && removed < AGENT_COUNT && destWindowCounts[removed] > 0) {
+					destWindowCounts[removed]--;
+				}
+			}
+			lastDestAction = selectedAgent;
+		}
+
+		int priorityIndex = priorityIndexForBin(selectedPriorityBin);
+		if (selectedAgent >= 0 && selectedAgent < AGENT_COUNT && priorityIndex >= 0) {
+			priorityWindow.addLast(priorityIndex);
+			priorityWindowCounts[priorityIndex]++;
+			while (priorityWindow.size() > TELEMETRY_WINDOW_SIZE) {
+				int removed = priorityWindow.removeFirst();
+				if (removed >= 0 && removed < PRIORITY_ACTIONS && priorityWindowCounts[removed] > 0) {
+					priorityWindowCounts[removed]--;
+				}
+			}
+			lastPriorityBin = selectedPriorityBin;
+		}
+	}
+
+	private int priorityIndexForBin(int priorityBin) {
+		for (int i = 0; i < PRIORITY_BIN_MAP.length; i++) {
+			if (PRIORITY_BIN_MAP[i] == priorityBin) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	private synchronized void initializeTraceWriter() {

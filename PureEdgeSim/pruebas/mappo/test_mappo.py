@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import torch
 
+from analyze_mappo import analyze_episode
 from env_client import MAPPOClient
 from models import SharedActor
 from runtime_support import (
@@ -36,7 +38,7 @@ DEFAULT_TEST_VARIANTS = os.getenv("PUREEDGESIM_MAPPO_TEST_VARIANTS", "base")
 
 TEST_EPISODES_OVERRIDE: Optional[int] = None
 TEST_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
-TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = None
+TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 30
 
 
 def main() -> None:
@@ -93,6 +95,7 @@ def main() -> None:
                         / f"seed_{seed if seed is not None else 'default'}"
                         / f"episode_{episode:03d}"
                     )
+                    trajectory_before = _trajectory_snapshot()
                     process = start_java_episode(config, settings_dir, output_dir, label, logger)
                     client = MAPPOClient(host=config.host, port=config.port, connect_timeout_s=1.0)
                     episode_done = False
@@ -179,6 +182,16 @@ def main() -> None:
                     finally:
                         client.close()
                         wait_for_java_exit(process)
+                    trajectory_path = _resolve_episode_trajectory(trajectory_before)
+                    analysis_dir = output_dir / "analysis"
+                    analyze_episode(trajectory_path, output_dir, analysis_dir)
+                    print(
+                        f"episode={episode}/{test_episodes} "
+                        f"variant={variant} "
+                        f"seed={seed if seed is not None else 'default'} "
+                        f"analysis_dir={analysis_dir}",
+                        flush=True,
+                    )
     finally:
         logger.close()
 
@@ -187,6 +200,33 @@ def _normalize_optional_limit(value: Optional[int]) -> Optional[int]:
     if value is None:
         return None
     return max(1, int(value))
+
+
+def _trajectory_dir() -> Path:
+    return Path(__file__).resolve().parent / "trajectory"
+
+
+def _trajectory_snapshot() -> dict[str, float]:
+    snapshot: dict[str, float] = {}
+    for path in _trajectory_dir().glob("mappo_trajectories_*.csv"):
+        snapshot[str(path.resolve())] = path.stat().st_mtime
+    return snapshot
+
+
+def _resolve_episode_trajectory(before: dict[str, float]) -> Path:
+    candidates = list(_trajectory_dir().glob("mappo_trajectories_*.csv"))
+    if not candidates:
+        raise FileNotFoundError(f"No MAPPO trajectory files found in {_trajectory_dir()}")
+
+    new_files = []
+    for path in candidates:
+        resolved = str(path.resolve())
+        mtime = path.stat().st_mtime
+        if resolved not in before or mtime > before[resolved]:
+            new_files.append(path)
+    if new_files:
+        return max(new_files, key=lambda item: item.stat().st_mtime).resolve()
+    return max(candidates, key=lambda item: item.stat().st_mtime).resolve()
 
 
 def _parse_seeds(raw: str) -> list[Optional[int]]:

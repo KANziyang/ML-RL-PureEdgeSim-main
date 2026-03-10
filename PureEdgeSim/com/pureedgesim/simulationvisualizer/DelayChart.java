@@ -35,6 +35,7 @@ public class DelayChart extends Chart {
 	private List<Double> currentTime = new ArrayList<>();
 	private List<Double> averageExecutionDelayList = new ArrayList<>();
 	private List<Double> averageWaitingDelayList = new ArrayList<>();
+	private List<Double> averageTotalDelayList = new ArrayList<>();
 	
 	public DelayChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
@@ -46,10 +47,19 @@ public class DelayChart extends Chart {
 		// Avanzo en el tiempo
 		currentTime.add(simulationManager.getSimulation().clock());
 
-		averageWaitingDelayList.add(simulationManager.getTotalWaitingTime() / simulationManager.getExecutedTasksCount());
-		averageExecutionDelayList.add(simulationManager.getTotalExecutionTime() / simulationManager.getExecutedTasksCount());
+		int executedTasks = simulationManager.getExecutedTasksCount();
+		double averageWaiting = 0.0;
+		double averageExecution = 0.0;
+		if (executedTasks > 0) {
+			averageWaiting = simulationManager.getTotalWaitingTime() / executedTasks;
+			averageExecution = simulationManager.getTotalExecutionTime() / executedTasks;
+		}
+		averageWaitingDelayList.add(averageWaiting);
+		averageExecutionDelayList.add(averageExecution);
+		averageTotalDelayList.add(averageWaiting + averageExecution);
 
 		updateSeries(getChart(), "Average Waiting", toArray(currentTime), toArray(averageWaitingDelayList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Average Execution", toArray(currentTime), toArray(averageExecutionDelayList), SeriesMarkers.NONE, Color.BLACK);
+		updateSeries(getChart(), "Average Total (Approx)", toArray(currentTime), toArray(averageTotalDelayList), SeriesMarkers.NONE, Color.BLACK);
 	}
 }
