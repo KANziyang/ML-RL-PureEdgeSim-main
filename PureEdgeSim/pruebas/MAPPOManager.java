@@ -344,7 +344,7 @@ public class MAPPOManager {
 			DataCenter dc = agentNodes.get(i);
 			VmCandidate candidate = findBestVmForAgent(task, i, architecture);
 			candidates[i] = candidate;
-			actionMask[i] = candidate.vmIndex >= 0 ? 1 : 0;
+			actionMask[i] = candidate.vmIndex >= 0 && candidate.networkAdmissible ? 1 : 0;
 
 			localObs[i][0] = taskLengthNorm;
 			localObs[i][1] = taskDeadlineNorm;
