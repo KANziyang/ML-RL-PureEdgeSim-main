@@ -15,9 +15,11 @@ from models import CentralCritic, SharedActor
 from runtime_support import (
     RunLogger,
     RuntimeConfig,
+    apply_run_layout,
     build_output_dir,
     compile_java_project,
     connect_client_with_retry,
+    create_train_run_layout,
     create_run_logger,
     describe_runtime,
     load_config,
@@ -26,6 +28,8 @@ from runtime_support import (
     resolve_model_path,
     start_java_episode,
     wait_for_java_exit,
+    write_latest_run_pointer,
+    write_run_manifest,
 )
 
 
@@ -49,7 +53,7 @@ EPISODES_PER_UPDATE = int(os.getenv("PUREEDGESIM_MAPPO_EPISODES_PER_UPDATE", "4"
 
 TRAIN_EPISODES_OVERRIDE: Optional[int] = 4
 TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
-TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 10
+TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 5
 TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 
@@ -257,6 +261,8 @@ def save_checkpoint(
     critic: CentralCritic,
     config: RuntimeConfig,
     episode: int,
+    run_id: str,
+    run_root: Path,
     latest_only: bool = False,
 ) -> List[Path]:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -265,6 +271,9 @@ def save_checkpoint(
         "actor": actor.state_dict(),
         "critic": critic.state_dict(),
         "episode": episode,
+        "run_id": run_id,
+        "run_root": str(run_root.resolve()),
+        "artifacts_version": 2,
         "config": {
             "num_agents": NUM_AGENTS,
             "local_obs_dim": LOCAL_OBS_DIM,
@@ -308,8 +317,7 @@ def current_entropy_coef(current_episode: int, total_episodes: int) -> float:
 
 def main() -> None:
     config = load_config()
-    config.model_dir.mkdir(parents=True, exist_ok=True)
-    config.output_root.mkdir(parents=True, exist_ok=True)
+    base_output_root = config.output_root.resolve()
     if TRAIN_EPISODES_OVERRIDE is not None:
         config.episodes = max(1, int(TRAIN_EPISODES_OVERRIDE))
     max_env_steps = _normalize_optional_limit(TRAIN_MAX_ENV_STEPS_OVERRIDE)
@@ -317,7 +325,12 @@ def main() -> None:
     display_real_time_charts_override = TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE
     auto_close_real_time_charts_override = TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE
 
-    logger = create_run_logger(config, "train", "train_run")
+    run_layout = create_train_run_layout(base_output_root)
+    apply_run_layout(config, run_layout)
+    write_run_manifest(run_layout)
+
+    run_timestamp = run_layout.run_id[len("train_run_") :]
+    logger = create_run_logger(config, "train", "train_run", timestamp_override=run_timestamp)
     print(f"train_log={logger.log_path}", flush=True)
 
     try:
@@ -327,11 +340,12 @@ def main() -> None:
             config,
             config.settings_dir,
             "train",
-            logger.log_path.stem,
+            run_layout.run_id,
             simulation_minutes_override,
             logger,
             display_real_time_charts_override=display_real_time_charts_override,
             auto_close_real_time_charts_override=auto_close_real_time_charts_override,
+            clone_even_if_unmodified=True,
         )
         display_real_time_charts = read_boolean_setting(settings_dir, "display_real_time_charts")
         auto_close_real_time_charts = read_boolean_setting(settings_dir, "auto_close_real_time_charts")
@@ -405,8 +419,13 @@ def main() -> None:
                 critic,
                 config,
                 episode,
+                run_layout.run_id,
+                run_layout.run_root,
                 latest_only=(episode % config.save_interval != 0),
             )
+            latest_path = resolve_model_path(config, "latest.pt")
+            write_latest_run_pointer(base_output_root, run_layout, latest_path)
+            write_run_manifest(run_layout, latest_model_path=latest_path, last_episode=episode)
             for path in saved_paths:
                 print(f"saved model: {path}", flush=True)
     finally:

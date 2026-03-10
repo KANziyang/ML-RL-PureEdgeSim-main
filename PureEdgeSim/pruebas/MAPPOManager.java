@@ -41,6 +41,7 @@ public class MAPPOManager {
 	private static final String ENV_SERVER_ENABLED_PROP = "mappo.env.server";
 	private static final String ENV_SERVER_PORT_PROP = "mappo.env.port";
 	private static final String ENV_SERVER_TIMEOUT_PROP = "mappo.env.action_timeout_ms";
+	private static final String TRACE_DIR_PROP = "mappo.trajectory.dir";
 
 	private final SimulationManager simulationManager;
 	private final List<List<Integer>> orchestrationHistory;
@@ -156,7 +157,7 @@ public class MAPPOManager {
 		this.simulationManager = simulationManager;
 		this.orchestrationHistory = orchestrationHistory;
 		this.vmList = vmList;
-		this.tracePath = Paths.get("PureEdgeSim", "pruebas", "mappo", "trajectory", buildTraceFileName());
+		this.tracePath = resolveTracePath();
 		initializeAgentMapping();
 		initializeVmLookup();
 		initializeNormalizationStats();
@@ -839,6 +840,14 @@ public class MAPPOManager {
 		}
 		String randomSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
 		return "mappo_trajectories_" + suffix + "_pid" + pid + "_" + randomSuffix + ".csv";
+	}
+
+	private Path resolveTracePath() {
+		String traceDir = System.getProperty(TRACE_DIR_PROP, "").trim();
+		if (!traceDir.isEmpty()) {
+			return Paths.get(traceDir).resolve(buildTraceFileName());
+		}
+		return Paths.get("PureEdgeSim", "pruebas", "mappo", "trajectory", buildTraceFileName());
 	}
 
 	private double normalize(double value, double maxValue, double maxOutput) {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -11,20 +12,24 @@ from analyze_mappo import analyze_episode
 from env_client import MAPPOClient
 from models import SharedActor
 from runtime_support import (
-    build_output_dir,
+    apply_run_layout,
+    build_eval_output_dir,
     compile_java_project,
-    connect_client_with_retry,
     create_run_logger,
+    connect_client_with_retry,
     describe_runtime,
     load_config,
     prepare_effective_settings_dir,
     prepare_stress_settings_dir,
     read_simulation_minutes,
-    resolve_model_path,
+    resolve_eval_run_layout,
+    resolve_model_path_for_test,
+    resolve_trajectory_dir,
     start_java_episode,
     wait_for_java_exit,
     write_settings_overrides,
     clone_settings_dir,
+    write_run_manifest,
 )
 
 
@@ -38,28 +43,40 @@ DEFAULT_TEST_VARIANTS = os.getenv("PUREEDGESIM_MAPPO_TEST_VARIANTS", "base")
 
 TEST_EPISODES_OVERRIDE: Optional[int] = None
 TEST_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
-TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 10
+TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 5
 
 
 def main() -> None:
     config = load_config()
+    base_output_root = config.output_root.resolve()
     test_episodes = TEST_EPISODES_OVERRIDE if TEST_EPISODES_OVERRIDE is not None else DEFAULT_TEST_EPISODES
     test_episodes = max(1, int(test_episodes))
     max_env_steps = _normalize_optional_limit(TEST_MAX_ENV_STEPS_OVERRIDE)
     simulation_minutes_override = _normalize_optional_limit(TEST_SIMULATION_MINUTES_OVERRIDE)
 
-    logger = create_run_logger(config, "eval", "test_run")
-    print(f"test_log={logger.log_path}", flush=True)
-
+    eval_layout = None
+    logger = None
     try:
-        describe_runtime(config, logger)
-        compile_java_project(config, logger)
-        model_path = resolve_model_path(config, "latest.pt")
+        model_path = resolve_model_path_for_test(config, base_output_root, "latest.pt")
         if not model_path.exists():
             raise FileNotFoundError(f"No MAPPO model found at {model_path}")
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt = torch.load(model_path, map_location=device)
+        eval_layout = resolve_eval_run_layout(
+            base_output_root,
+            model_path,
+            ckpt,
+            fallback_timestamp=datetime_now_compact(),
+        )
+        apply_run_layout(config, eval_layout)
+        write_run_manifest(eval_layout, model_source=model_path)
+
+        logger = create_run_logger(config, "eval", "test_run")
+        print(f"test_log={logger.log_path}", flush=True)
+
+        describe_runtime(config, logger)
+        compile_java_project(config, logger)
         model_cfg = ckpt.get("config", {})
         local_obs_dim = int(model_cfg.get("local_obs_dim", LOCAL_OBS_DIM))
         priority_bins = int(model_cfg.get("priority_bins", PRIORITY_BINS))
@@ -88,14 +105,8 @@ def main() -> None:
 
                 for episode in range(1, test_episodes + 1):
                     label = f"java-eval-{variant}-seed{seed if seed is not None else 'default'}-ep{episode:03d}"
-                    output_dir = (
-                        config.output_root
-                        / "eval"
-                        / variant
-                        / f"seed_{seed if seed is not None else 'default'}"
-                        / f"episode_{episode:03d}"
-                    )
-                    trajectory_before = _trajectory_snapshot()
+                    output_dir = build_eval_output_dir(config, variant, seed, episode)
+                    trajectory_before = _trajectory_snapshot(resolve_trajectory_dir(config))
                     process = start_java_episode(config, settings_dir, output_dir, label, logger)
                     client = MAPPOClient(host=config.host, port=config.port, connect_timeout_s=1.0)
                     episode_done = False
@@ -182,7 +193,7 @@ def main() -> None:
                     finally:
                         client.close()
                         wait_for_java_exit(process)
-                    trajectory_path = _resolve_episode_trajectory(trajectory_before)
+                    trajectory_path = _resolve_episode_trajectory(resolve_trajectory_dir(config), trajectory_before)
                     analysis_dir = output_dir / "analysis"
                     analyze_episode(trajectory_path, output_dir, analysis_dir)
                     print(
@@ -193,7 +204,8 @@ def main() -> None:
                         flush=True,
                     )
     finally:
-        logger.close()
+        if logger is not None:
+            logger.close()
 
 
 def _normalize_optional_limit(value: Optional[int]) -> Optional[int]:
@@ -202,21 +214,21 @@ def _normalize_optional_limit(value: Optional[int]) -> Optional[int]:
     return max(1, int(value))
 
 
-def _trajectory_dir() -> Path:
-    return Path(__file__).resolve().parent / "trajectory"
+def datetime_now_compact() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-def _trajectory_snapshot() -> dict[str, float]:
+def _trajectory_snapshot(trajectory_dir: Path) -> dict[str, float]:
     snapshot: dict[str, float] = {}
-    for path in _trajectory_dir().glob("mappo_trajectories_*.csv"):
+    for path in trajectory_dir.glob("mappo_trajectories_*.csv"):
         snapshot[str(path.resolve())] = path.stat().st_mtime
     return snapshot
 
 
-def _resolve_episode_trajectory(before: dict[str, float]) -> Path:
-    candidates = list(_trajectory_dir().glob("mappo_trajectories_*.csv"))
+def _resolve_episode_trajectory(trajectory_dir: Path, before: dict[str, float]) -> Path:
+    candidates = list(trajectory_dir.glob("mappo_trajectories_*.csv"))
     if not candidates:
-        raise FileNotFoundError(f"No MAPPO trajectory files found in {_trajectory_dir()}")
+        raise FileNotFoundError(f"No MAPPO trajectory files found in {trajectory_dir}")
 
     new_files = []
     for path in candidates:
@@ -283,6 +295,7 @@ def _prepare_eval_settings(
             run_id,
             simulation_minutes_override,
             logger,
+            clone_even_if_unmodified=True,
         )
 
     settings_dir = clone_settings_dir(config, config.settings_dir.resolve(), "eval", run_id)

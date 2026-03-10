@@ -66,6 +66,51 @@ class RuntimeConfig:
         }
 
 
+@dataclass
+class RunLayout:
+    base_output_root: Path
+    runs_root: Path
+    run_id: str
+    run_root: Path
+    models_dir: Path
+    trajectories_dir: Path
+    train_logs_dir: Path
+    train_runtime_settings_dir: Path
+    train_episodes_dir: Path
+    eval_logs_dir: Path
+    eval_runtime_settings_dir: Path
+    eval_root_dir: Path
+    metadata_dir: Path
+
+    def ensure_base_dirs(self) -> None:
+        self.models_dir.mkdir(parents=True, exist_ok=True)
+        self.trajectories_dir.mkdir(parents=True, exist_ok=True)
+        self.train_logs_dir.mkdir(parents=True, exist_ok=True)
+        self.train_runtime_settings_dir.mkdir(parents=True, exist_ok=True)
+        self.train_episodes_dir.mkdir(parents=True, exist_ok=True)
+        self.eval_logs_dir.mkdir(parents=True, exist_ok=True)
+        self.eval_runtime_settings_dir.mkdir(parents=True, exist_ok=True)
+        self.eval_root_dir.mkdir(parents=True, exist_ok=True)
+        self.metadata_dir.mkdir(parents=True, exist_ok=True)
+
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            "run_id": self.run_id,
+            "base_output_root": str(self.base_output_root),
+            "runs_root": str(self.runs_root),
+            "run_root": str(self.run_root),
+            "models_dir": str(self.models_dir),
+            "trajectories_dir": str(self.trajectories_dir),
+            "train_logs_dir": str(self.train_logs_dir),
+            "train_runtime_settings_dir": str(self.train_runtime_settings_dir),
+            "train_episodes_dir": str(self.train_episodes_dir),
+            "eval_logs_dir": str(self.eval_logs_dir),
+            "eval_runtime_settings_dir": str(self.eval_runtime_settings_dir),
+            "eval_root_dir": str(self.eval_root_dir),
+            "metadata_dir": str(self.metadata_dir),
+        }
+
+
 class RunLogger:
     def __init__(self, log_path: Path) -> None:
         self.log_path = log_path
@@ -191,8 +236,13 @@ def load_config(config_path: Optional[Path] = None) -> RuntimeConfig:
     )
 
 
-def create_run_logger(config: RuntimeConfig, mode: str, file_prefix: str) -> RunLogger:
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+def create_run_logger(
+    config: RuntimeConfig,
+    mode: str,
+    file_prefix: str,
+    timestamp_override: Optional[str] = None,
+) -> RunLogger:
+    timestamp = timestamp_override or datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = config.output_root / mode / "logs" / f"{file_prefix}_{timestamp}.log"
     logger = RunLogger(log_path)
     logger.log(f"run_logger_initialized mode={mode}")
@@ -228,11 +278,14 @@ def start_java_episode(
     logger: RunLogger,
 ) -> JavaEpisodeProcess:
     output_dir.mkdir(parents=True, exist_ok=True)
+    trajectory_dir = resolve_trajectory_dir(config)
+    trajectory_dir.mkdir(parents=True, exist_ok=True)
     cmd = _resolve_launch_cmd(list(config.java_launch_cmd))
     cmd.extend(
         [
             "-Dmappo.env.server=true",
             f"-Dmappo.env.port={config.port}",
+            f"-Dmappo.trajectory.dir={trajectory_dir.resolve()}",
             f"-DsettingsPath={with_trailing_separator(settings_dir)}",
             f"-DoutputPath={with_trailing_separator(output_dir)}",
             f"-Dexec.mainClass={config.java_main_class}",
@@ -298,9 +351,12 @@ def prepare_effective_settings_dir(
     logger: RunLogger,
     display_real_time_charts_override: Optional[bool] = None,
     auto_close_real_time_charts_override: Optional[bool] = None,
+    clone_even_if_unmodified: bool = False,
 ) -> tuple[Path, int]:
     base_settings_dir = base_settings_dir.resolve()
     if (
+        not clone_even_if_unmodified
+        and
         simulation_minutes_override is None
         and display_real_time_charts_override is None
         and auto_close_real_time_charts_override is None
@@ -380,7 +436,14 @@ def prepare_stress_settings_dir(
 
 
 def build_output_dir(config: RuntimeConfig, mode: str, episode_index: int) -> Path:
+    if mode == "train":
+        return config.output_root / "train" / "episodes" / f"episode_{episode_index:03d}"
     return config.output_root / mode / f"episode_{episode_index:03d}"
+
+
+def build_eval_output_dir(config: RuntimeConfig, variant: str, seed: Optional[int], episode_index: int) -> Path:
+    seed_label = seed if seed is not None else "default"
+    return config.output_root / "eval" / variant / f"seed_{seed_label}" / f"episode_{episode_index:03d}"
 
 
 def resolve_model_path(config: RuntimeConfig, name: str = "latest.pt") -> Path:
@@ -395,6 +458,162 @@ def clone_settings_dir(config: RuntimeConfig, base_settings_dir: Path, mode: str
     runtime_settings_dir.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(base_settings_dir, runtime_settings_dir)
     return runtime_settings_dir
+
+
+def create_train_run_layout(base_output_root: Path, timestamp: Optional[str] = None) -> RunLayout:
+    run_timestamp = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
+    return _build_run_layout(base_output_root, f"train_run_{run_timestamp}")
+
+
+def create_orphan_eval_layout(base_output_root: Path, timestamp: Optional[str] = None) -> RunLayout:
+    eval_timestamp = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
+    return _build_run_layout(base_output_root, f"eval_orphan_{eval_timestamp}")
+
+
+def load_run_layout(run_root: Path, base_output_root: Optional[Path] = None) -> RunLayout:
+    run_root = run_root.resolve()
+    inferred_base_output_root = (base_output_root.resolve() if base_output_root is not None else run_root.parent.parent.resolve())
+    return _build_run_layout(inferred_base_output_root, run_root.name)
+
+
+def apply_run_layout(config: RuntimeConfig, layout: RunLayout) -> RuntimeConfig:
+    layout.ensure_base_dirs()
+    config.output_root = layout.run_root
+    config.model_dir = layout.models_dir
+    return config
+
+
+def write_run_manifest(
+    layout: RunLayout,
+    *,
+    latest_model_path: Optional[Path] = None,
+    last_episode: Optional[int] = None,
+    model_source: Optional[Path] = None,
+    manifest_name: str = "run_manifest.json",
+) -> Path:
+    layout.ensure_base_dirs()
+    manifest_path = layout.metadata_dir / manifest_name
+    payload: Dict[str, Any] = {
+        "artifacts_version": 2,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "layout": layout.to_dict(),
+    }
+    if manifest_path.exists():
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            payload = {
+                "artifacts_version": 2,
+                "layout": layout.to_dict(),
+            }
+    payload["artifacts_version"] = 2
+    payload["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    payload["layout"] = layout.to_dict()
+    if "created_at" not in payload:
+        payload["created_at"] = datetime.now().isoformat(timespec="seconds")
+    if latest_model_path is not None:
+        payload["latest_model_path"] = str(latest_model_path.resolve())
+    if model_source is not None:
+        payload["model_source"] = str(model_source.resolve())
+    if last_episode is not None:
+        payload["last_episode"] = int(last_episode)
+    manifest_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    return manifest_path
+
+
+def latest_run_pointer_path(base_output_root: Path) -> Path:
+    runs_root = resolve_runs_root(base_output_root)
+    runs_root.mkdir(parents=True, exist_ok=True)
+    return runs_root / "latest_run.json"
+
+
+def write_latest_run_pointer(base_output_root: Path, layout: RunLayout, latest_model_path: Path) -> Path:
+    pointer_path = latest_run_pointer_path(base_output_root)
+    payload = {
+        "artifacts_version": 2,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "run_id": layout.run_id,
+        "run_root": str(layout.run_root.resolve()),
+        "latest_model_path": str(latest_model_path.resolve()),
+    }
+    pointer_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    return pointer_path
+
+
+def read_latest_run_pointer(base_output_root: Path) -> Optional[Dict[str, Any]]:
+    pointer_path = latest_run_pointer_path(base_output_root)
+    if not pointer_path.exists():
+        return None
+    try:
+        payload = json.loads(pointer_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    run_root = payload.get("run_root")
+    latest_model_path = payload.get("latest_model_path")
+    if run_root is not None:
+        payload["run_root"] = str(_resolve_path(run_root))
+    if latest_model_path is not None:
+        payload["latest_model_path"] = str(_resolve_path(latest_model_path))
+    return payload
+
+
+def resolve_model_path_for_test(config: RuntimeConfig, base_output_root: Path, name: str = "latest.pt") -> Path:
+    env_model_dir = os.getenv("PUREEDGESIM_MAPPO_MODEL_DIR")
+    if env_model_dir:
+        explicit_model_path = _resolve_path(env_model_dir) / name
+        if explicit_model_path.exists():
+            return explicit_model_path.resolve()
+        raise FileNotFoundError(f"No MAPPO model found at {explicit_model_path}")
+
+    pointer = read_latest_run_pointer(base_output_root)
+    if pointer is not None:
+        latest_model_path = pointer.get("latest_model_path")
+        if latest_model_path:
+            candidate = _resolve_path(latest_model_path)
+            if candidate.exists():
+                return candidate.resolve()
+
+    legacy_model_path = resolve_model_path(config, name)
+    if legacy_model_path.exists():
+        return legacy_model_path.resolve()
+    raise FileNotFoundError(f"No MAPPO model found at {legacy_model_path}")
+
+
+def resolve_eval_run_layout(
+    base_output_root: Path,
+    model_path: Path,
+    checkpoint: Dict[str, Any],
+    fallback_timestamp: Optional[str] = None,
+) -> RunLayout:
+    run_root_value = checkpoint.get("run_root")
+    if isinstance(run_root_value, str) and run_root_value.strip():
+        checkpoint_run_root = _resolve_path(run_root_value)
+        if checkpoint_run_root.exists():
+            return load_run_layout(checkpoint_run_root, base_output_root=base_output_root)
+
+    pointer = read_latest_run_pointer(base_output_root)
+    if pointer is not None:
+        latest_model_path = pointer.get("latest_model_path")
+        run_root = pointer.get("run_root")
+        if latest_model_path and run_root:
+            pointer_model_path = _resolve_path(latest_model_path)
+            pointer_run_root = _resolve_path(run_root)
+            if pointer_model_path.resolve() == model_path.resolve() and pointer_run_root.exists():
+                return load_run_layout(pointer_run_root, base_output_root=base_output_root)
+
+    return create_orphan_eval_layout(base_output_root, timestamp=fallback_timestamp)
+
+
+def resolve_runs_root(base_output_root: Path) -> Path:
+    return base_output_root.resolve() / "runs"
+
+
+def resolve_trajectory_dir(config: RuntimeConfig) -> Path:
+    return config.output_root / "trajectories"
+
+
+def resolve_legacy_trajectory_dir() -> Path:
+    return SCRIPT_DIR / "trajectory"
 
 
 def with_trailing_separator(path: Path) -> str:
@@ -517,6 +736,27 @@ def _resolve_path(value: Any) -> Path:
     if not path.is_absolute():
         path = REPO_ROOT / path
     return path
+
+
+def _build_run_layout(base_output_root: Path, run_id: str) -> RunLayout:
+    base_output_root = base_output_root.resolve()
+    runs_root = resolve_runs_root(base_output_root)
+    run_root = runs_root / run_id
+    return RunLayout(
+        base_output_root=base_output_root,
+        runs_root=runs_root,
+        run_id=run_id,
+        run_root=run_root,
+        models_dir=run_root / "models",
+        trajectories_dir=run_root / "trajectories",
+        train_logs_dir=run_root / "train" / "logs",
+        train_runtime_settings_dir=run_root / "train" / "runtime_settings",
+        train_episodes_dir=run_root / "train" / "episodes",
+        eval_logs_dir=run_root / "eval" / "logs",
+        eval_runtime_settings_dir=run_root / "eval" / "runtime_settings",
+        eval_root_dir=run_root / "eval",
+        metadata_dir=run_root / "metadata",
+    )
 
 
 def _resolve_launch_cmd(cmd: List[str]) -> List[str]:
