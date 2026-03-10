@@ -11,7 +11,7 @@ class EpisodeBuffer:
     obs: List[np.ndarray] = field(default_factory=list)
     state: List[np.ndarray] = field(default_factory=list)
     actions: List[np.ndarray] = field(default_factory=list)
-    old_log_probs: List[np.ndarray] = field(default_factory=list)
+    old_log_probs: List[float] = field(default_factory=list)
     values: List[float] = field(default_factory=list)
     rewards: List[float] = field(default_factory=list)
     dones: List[float] = field(default_factory=list)
@@ -22,7 +22,7 @@ class EpisodeBuffer:
         obs: np.ndarray,
         state: np.ndarray,
         actions: np.ndarray,
-        old_log_probs: np.ndarray,
+        old_log_probs: float,
         value: float,
         reward: float,
         done: float,
@@ -31,11 +31,21 @@ class EpisodeBuffer:
         self.obs.append(obs.astype(np.float32))
         self.state.append(state.astype(np.float32))
         self.actions.append(actions.astype(np.int64))
-        self.old_log_probs.append(old_log_probs.astype(np.float32))
+        self.old_log_probs.append(float(old_log_probs))
         self.values.append(float(value))
         self.rewards.append(float(reward))
         self.dones.append(float(done))
         self.masks.append(mask.astype(np.float32))
+
+    def extend(self, other: "EpisodeBuffer") -> None:
+        self.obs.extend(other.obs)
+        self.state.extend(other.state)
+        self.actions.extend(other.actions)
+        self.old_log_probs.extend(other.old_log_probs)
+        self.values.extend(other.values)
+        self.rewards.extend(other.rewards)
+        self.dones.extend(other.dones)
+        self.masks.extend(other.masks)
 
     def mark_last_done(self) -> None:
         if self.dones:

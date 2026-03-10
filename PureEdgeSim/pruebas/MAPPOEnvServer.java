@@ -14,23 +14,21 @@ import java.util.Map;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 public class MAPPOEnvServer {
 	public static class ActionData {
-		public final int[][] actions;
+		public final int destAction;
+		public final int priorityAction;
 		public final boolean terminate;
 
-		public ActionData(int[][] actions, boolean terminate) {
-			this.actions = actions;
+		public ActionData(int destAction, int priorityAction, boolean terminate) {
+			this.destAction = destAction;
+			this.priorityAction = priorityAction;
 			this.terminate = terminate;
 		}
 	}
-
-	private static final int AGENT_COUNT = 5;
-	private static final int ACTION_DIM = 2;
 
 	private final int port;
 	private final int readTimeoutMs;
@@ -72,7 +70,7 @@ public class MAPPOEnvServer {
 
 	public synchronized ActionData waitForAction(double[][] obs, double[] state, int[] actionMask, long stepId) {
 		if (!isConnected()) {
-			return new ActionData(defaultActions(), false);
+			return defaultAction();
 		}
 		try {
 			writer.write(buildObsMessage(obs, state, actionMask, stepId));
@@ -82,10 +80,10 @@ public class MAPPOEnvServer {
 			String line = reader.readLine();
 			return parseAction(line);
 		} catch (SocketTimeoutException e) {
-			return new ActionData(defaultActions(), false);
+			return defaultAction();
 		} catch (IOException e) {
 			System.err.println("MAPPOEnvServer: failed waiting for action: " + e.getMessage());
-			return new ActionData(defaultActions(), false);
+			return defaultAction();
 		}
 	}
 
@@ -147,62 +145,41 @@ public class MAPPOEnvServer {
 
 	private ActionData parseAction(String line) {
 		if (line == null || line.trim().isEmpty()) {
-			return new ActionData(defaultActions(), false);
+			return defaultAction();
 		}
 		try {
 			JsonObject root = JsonParser.parseString(line).getAsJsonObject();
 			String type = root.has("type") ? root.get("type").getAsString() : "";
 			if ("control".equals(type) && root.has("command")
 					&& "terminate".equalsIgnoreCase(root.get("command").getAsString())) {
-				return new ActionData(defaultActions(), true);
+				return new ActionData(0, 0, true);
 			}
 
-			if (!root.has("actions")) {
-				return new ActionData(defaultActions(), false);
+			int destAction = 0;
+			int priorityAction = 0;
+			if (root.has("dest_action")) {
+				destAction = root.get("dest_action").getAsInt();
 			}
-
-			int[][] actions = defaultActions();
-			JsonArray actionArray = root.getAsJsonArray("actions");
-			for (int i = 0; i < AGENT_COUNT && i < actionArray.size(); i++) {
-				JsonElement el = actionArray.get(i);
-				if (el == null || el.isJsonNull()) {
-					continue;
-				}
-				int score = 0;
-				int prb = 0;
-				if (el.isJsonArray()) {
-					JsonArray pair = el.getAsJsonArray();
-					if (pair.size() > 0) {
-						score = pair.get(0).getAsInt();
-					}
-					if (pair.size() > 1) {
-						prb = pair.get(1).getAsInt();
-					}
-				} else if (el.isJsonObject()) {
-					JsonObject obj = el.getAsJsonObject();
-					if (obj.has("score_bin")) {
-						score = obj.get("score_bin").getAsInt();
-					}
-					if (obj.has("prb_bin")) {
-						prb = obj.get("prb_bin").getAsInt();
-					}
-				}
-				actions[i][0] = clampInt(score, 0, 10);
-				actions[i][1] = clampInt(prb, 0, 10);
+			if (root.has("priority_action")) {
+				priorityAction = root.get("priority_action").getAsInt();
 			}
-			return new ActionData(actions, false);
+			if (root.has("action")) {
+				JsonArray action = root.getAsJsonArray("action");
+				if (action.size() > 0) {
+					destAction = action.get(0).getAsInt();
+				}
+				if (action.size() > 1) {
+					priorityAction = action.get(1).getAsInt();
+				}
+			}
+			return new ActionData(clampInt(destAction, 0, 4), clampInt(priorityAction, 0, 4), false);
 		} catch (Exception e) {
-			return new ActionData(defaultActions(), false);
+			return defaultAction();
 		}
 	}
 
-	private int[][] defaultActions() {
-		int[][] actions = new int[AGENT_COUNT][ACTION_DIM];
-		for (int i = 0; i < AGENT_COUNT; i++) {
-			actions[i][0] = 0;
-			actions[i][1] = 0;
-		}
-		return actions;
+	private ActionData defaultAction() {
+		return new ActionData(0, 0, false);
 	}
 
 	private int clampInt(int value, int low, int high) {

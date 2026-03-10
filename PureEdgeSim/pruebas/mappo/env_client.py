@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import socket
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 class MAPPOClient:
@@ -42,8 +42,13 @@ class MAPPOClient:
             raise RuntimeError("Disconnected from MAPPOEnvServer.")
         return json.loads(line)
 
-    def send_action(self, step_id: Any, actions: List[List[int]]) -> None:
-        payload = {"type": "marl_action", "step_id": step_id, "actions": actions}
+    def send_action(self, step_id: Any, dest_action: int, priority_action: int) -> None:
+        payload = {
+            "type": "marl_action",
+            "step_id": step_id,
+            "dest_action": int(dest_action),
+            "priority_action": int(priority_action),
+        }
         self._send_json(payload)
 
     def request_termination(self) -> None:

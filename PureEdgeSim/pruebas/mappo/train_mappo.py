@@ -30,32 +30,28 @@ from runtime_support import (
 
 
 NUM_AGENTS = 5
-LOCAL_OBS_DIM = 12
-STATE_DIM = 65
-ACTION_BINS = 11
+LOCAL_OBS_DIM = 14
+STATE_DIM = 76
+PRIORITY_BINS = 5
 
 GAMMA = float(os.getenv("PUREEDGESIM_MAPPO_GAMMA", "0.99"))
 GAE_LAMBDA = float(os.getenv("PUREEDGESIM_MAPPO_GAE_LAMBDA", "0.95"))
-CLIP_EPS = float(os.getenv("PUREEDGESIM_MAPPO_CLIP", "0.2"))
+CLIP_EPS = float(os.getenv("PUREEDGESIM_MAPPO_CLIP", "0.1"))
 ACTOR_LR = float(os.getenv("PUREEDGESIM_MAPPO_ACTOR_LR", "3e-4"))
-CRITIC_LR = float(os.getenv("PUREEDGESIM_MAPPO_CRITIC_LR", "1e-3"))
-ENTROPY_COEF = float(os.getenv("PUREEDGESIM_MAPPO_ENTROPY_COEF", "0.01"))
+CRITIC_LR = float(os.getenv("PUREEDGESIM_MAPPO_CRITIC_LR", "3e-4"))
+ENTROPY_COEF_START = float(os.getenv("PUREEDGESIM_MAPPO_ENTROPY_START", "0.02"))
+ENTROPY_COEF_END = float(os.getenv("PUREEDGESIM_MAPPO_ENTROPY_END", "0.002"))
 VALUE_COEF = float(os.getenv("PUREEDGESIM_MAPPO_VALUE_COEF", "0.5"))
 MAX_GRAD_NORM = float(os.getenv("PUREEDGESIM_MAPPO_MAX_GRAD_NORM", "0.5"))
-PPO_EPOCHS = int(os.getenv("PUREEDGESIM_MAPPO_EPOCHS", "10"))
-MINIBATCH = int(os.getenv("PUREEDGESIM_MAPPO_MINIBATCH", "256"))
+PPO_EPOCHS = int(os.getenv("PUREEDGESIM_MAPPO_EPOCHS", "4"))
+MINIBATCH = int(os.getenv("PUREEDGESIM_MAPPO_MINIBATCH", "1024"))
+EPISODES_PER_UPDATE = int(os.getenv("PUREEDGESIM_MAPPO_EPISODES_PER_UPDATE", "4"))
 
-# Quick overrides for local runs. Set to None to use existing defaults.
 TRAIN_EPISODES_OVERRIDE: Optional[int] = None
 TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
 TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = None
 TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
-TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
-
-
-def masked_reduce(x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-    denom = torch.clamp(mask.sum(dim=-1), min=1.0)
-    return (x * mask).sum(dim=-1) / denom
+TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = False
 
 
 def update_policy(
@@ -65,6 +61,7 @@ def update_policy(
     critic_optim: torch.optim.Optimizer,
     buffer: EpisodeBuffer,
     device: torch.device,
+    entropy_coef: float,
 ) -> Dict[str, float]:
     arrays = buffer.as_arrays()
     advantages, returns = compute_gae(arrays["rewards"], arrays["values"], arrays["dones"], GAMMA, GAE_LAMBDA)
@@ -78,9 +75,7 @@ def update_policy(
     masks_t = torch.from_numpy(arrays["masks"]).to(device)
     returns_t = torch.from_numpy(returns).to(device)
 
-    old_team_logp = masked_reduce(old_logp_t, masks_t)
     num_steps = obs_t.size(0)
-
     stats: Dict[str, float] = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
     updates = 0
     for _ in range(PPO_EPOCHS):
@@ -94,22 +89,20 @@ def update_policy(
             state_b = state_t[batch_idx]
             actions_b = actions_t[batch_idx]
             masks_b = masks_t[batch_idx]
-            old_team_logp_b = old_team_logp[batch_idx]
+            old_logp_b = old_logp_t[batch_idx]
             adv_b = adv_t[batch_idx]
             returns_b = returns_t[batch_idx]
 
-            cur_logp_agents, entropy_agents = actor.evaluate_actions(obs_b, actions_b)
-            cur_team_logp = masked_reduce(cur_logp_agents, masks_b)
-            entropy = masked_reduce(entropy_agents, masks_b).mean()
-
-            ratio = torch.exp(cur_team_logp - old_team_logp_b)
+            cur_logp, entropy = actor.evaluate_actions(obs_b, masks_b, actions_b)
+            entropy_mean = entropy.mean()
+            ratio = torch.exp(cur_logp - old_logp_b)
             surr1 = ratio * adv_b
             surr2 = torch.clamp(ratio, 1.0 - CLIP_EPS, 1.0 + CLIP_EPS) * adv_b
             policy_loss = -torch.min(surr1, surr2).mean()
 
             values = critic(state_b)
             value_loss = F.mse_loss(values, returns_b)
-            actor_loss = policy_loss - ENTROPY_COEF * entropy
+            actor_loss = policy_loss - entropy_coef * entropy_mean
 
             actor_optim.zero_grad()
             actor_loss.backward()
@@ -123,7 +116,7 @@ def update_policy(
 
             stats["policy_loss"] += float(policy_loss.item())
             stats["value_loss"] += float(value_loss.item())
-            stats["entropy"] += float(entropy.item())
+            stats["entropy"] += float(entropy_mean.item())
             updates += 1
 
     if updates > 0:
@@ -195,11 +188,14 @@ def run_episode(
                     raise ValueError(f"Unexpected obs shape: {obs.shape}")
                 if state.shape[0] != STATE_DIM:
                     raise ValueError(f"Unexpected state size: {state.shape[0]}")
+                if mask.shape[0] != NUM_AGENTS:
+                    raise ValueError(f"Unexpected action mask shape: {mask.shape}")
 
                 with torch.no_grad():
                     obs_t = torch.from_numpy(obs).unsqueeze(0).to(device)
+                    mask_t = torch.from_numpy(mask).unsqueeze(0).to(device)
                     state_t = torch.from_numpy(state).unsqueeze(0).to(device)
-                    actions_t, logp_t, _ = actor.act(obs_t, deterministic=False)
+                    actions_t, logp_t, _ = actor.act(obs_t, mask_t, deterministic=False)
                     value_t = critic(state_t)
 
                 actions = actions_t.squeeze(0).cpu().numpy().astype(np.int64)
@@ -207,11 +203,11 @@ def run_episode(
                     "obs": obs,
                     "state": state,
                     "actions": actions,
-                    "logp": logp_t.squeeze(0).cpu().numpy().astype(np.float32),
+                    "logp": float(logp_t.item()),
                     "mask": mask,
                     "value": float(value_t.item()),
                 }
-                client.send_action(step_id, actions.tolist())
+                client.send_action(step_id, int(actions[0]), int(actions[1]))
 
             elif msg_type == "marl_transition":
                 step_id = str(msg.get("step_id", ""))
@@ -225,7 +221,7 @@ def run_episode(
                     obs=ctx["obs"],  # type: ignore[arg-type]
                     state=ctx["state"],  # type: ignore[arg-type]
                     actions=ctx["actions"],  # type: ignore[arg-type]
-                    old_log_probs=ctx["logp"],  # type: ignore[arg-type]
+                    old_log_probs=float(ctx["logp"]),  # type: ignore[arg-type]
                     value=float(ctx["value"]),  # type: ignore[arg-type]
                     reward=reward,
                     done=done,
@@ -273,7 +269,7 @@ def save_checkpoint(
             "num_agents": NUM_AGENTS,
             "local_obs_dim": LOCAL_OBS_DIM,
             "state_dim": STATE_DIM,
-            "action_bins": ACTION_BINS,
+            "priority_bins": PRIORITY_BINS,
             "runtime": config.to_dict(),
             "optimizer": {
                 "gamma": GAMMA,
@@ -281,11 +277,13 @@ def save_checkpoint(
                 "clip_eps": CLIP_EPS,
                 "actor_lr": ACTOR_LR,
                 "critic_lr": CRITIC_LR,
-                "entropy_coef": ENTROPY_COEF,
+                "entropy_coef_start": ENTROPY_COEF_START,
+                "entropy_coef_end": ENTROPY_COEF_END,
                 "value_coef": VALUE_COEF,
                 "max_grad_norm": MAX_GRAD_NORM,
                 "ppo_epochs": PPO_EPOCHS,
                 "minibatch": MINIBATCH,
+                "episodes_per_update": EPISODES_PER_UPDATE,
             },
         },
     }
@@ -299,6 +297,13 @@ def save_checkpoint(
         saved_paths.append(versioned_path)
 
     return saved_paths
+
+
+def current_entropy_coef(current_episode: int, total_episodes: int) -> float:
+    if total_episodes <= 1:
+        return ENTROPY_COEF_END
+    progress = (current_episode - 1) / float(total_episodes - 1)
+    return ENTROPY_COEF_START + (ENTROPY_COEF_END - ENTROPY_COEF_START) * progress
 
 
 def main() -> None:
@@ -341,13 +346,17 @@ def main() -> None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"using device: {device}", flush=True)
 
-        actor = SharedActor(obs_dim=LOCAL_OBS_DIM, num_agents=NUM_AGENTS, action_bins=ACTION_BINS).to(device)
+        actor = SharedActor(obs_dim=LOCAL_OBS_DIM, num_agents=NUM_AGENTS, priority_bins=PRIORITY_BINS).to(device)
         critic = CentralCritic(state_dim=STATE_DIM).to(device)
         actor_optim = torch.optim.Adam(actor.parameters(), lr=ACTOR_LR)
         critic_optim = torch.optim.Adam(critic.parameters(), lr=CRITIC_LR)
 
+        rollout_buffer = EpisodeBuffer()
+        episodes_in_rollout = 0
+        last_stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+
         for episode in range(1, config.episodes + 1):
-            buffer, episode_reward = run_episode(
+            episode_buffer, episode_reward = run_episode(
                 actor,
                 critic,
                 device,
@@ -357,19 +366,37 @@ def main() -> None:
                 settings_dir,
                 logger,
             )
+            rollout_buffer.extend(episode_buffer)
+            episodes_in_rollout += 1
 
-            if len(buffer) > 0:
-                stats = update_policy(actor, critic, actor_optim, critic_optim, buffer, device)
+            if episodes_in_rollout >= EPISODES_PER_UPDATE or episode == config.episodes:
+                if len(rollout_buffer) > 0:
+                    entropy_coef = current_entropy_coef(episode, config.episodes)
+                    last_stats = update_policy(
+                        actor,
+                        critic,
+                        actor_optim,
+                        critic_optim,
+                        rollout_buffer,
+                        device,
+                        entropy_coef=entropy_coef,
+                    )
+                else:
+                    entropy_coef = current_entropy_coef(episode, config.episodes)
+                    last_stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+                rollout_buffer = EpisodeBuffer()
+                episodes_in_rollout = 0
             else:
-                stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+                entropy_coef = current_entropy_coef(episode, config.episodes)
 
             print(
                 f"episode={episode}/{config.episodes} "
-                f"steps={len(buffer)} "
+                f"steps={len(episode_buffer)} "
                 f"reward={episode_reward:.4f} "
-                f"policy_loss={stats['policy_loss']:.6f} "
-                f"value_loss={stats['value_loss']:.6f} "
-                f"entropy={stats['entropy']:.6f}",
+                f"policy_loss={last_stats['policy_loss']:.6f} "
+                f"value_loss={last_stats['value_loss']:.6f} "
+                f"entropy={last_stats['entropy']:.6f} "
+                f"entropy_coef={entropy_coef:.6f}",
                 flush=True,
             )
 

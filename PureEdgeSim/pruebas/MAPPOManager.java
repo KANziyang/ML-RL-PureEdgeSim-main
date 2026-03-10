@@ -2,20 +2,20 @@ package pruebas;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.lang.management.ManagementFactory;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 
 import org.cloudbus.cloudsim.cloudlets.Cloudlet.Status;
@@ -25,13 +25,16 @@ import com.pureedgesim.datacentersmanager.DataCenter;
 import com.pureedgesim.network.DefaultNetworkModel;
 import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimulationManager;
+import com.pureedgesim.tasksgenerator.Application;
 import com.pureedgesim.tasksgenerator.Task;
 
 public class MAPPOManager {
 	private static final int AGENT_COUNT = 5;
-	private static final int LOCAL_OBS_SIZE = 12;
-	private static final int GLOBAL_EXTRA_SIZE = 5;
+	private static final int LOCAL_OBS_SIZE = 14;
+	private static final int GLOBAL_EXTRA_SIZE = 6;
 	private static final int GLOBAL_STATE_SIZE = AGENT_COUNT * LOCAL_OBS_SIZE + GLOBAL_EXTRA_SIZE;
+	private static final int PRIORITY_ACTIONS = 5;
+	private static final int[] PRIORITY_BIN_MAP = { 0, 2, 5, 8, 10 };
 	private static final String[] EDGE_CLOUD_ARCH = { "Cloud", "Edge" };
 
 	private static final String ENV_SERVER_ENABLED_PROP = "mappo.env.server";
@@ -42,43 +45,47 @@ public class MAPPOManager {
 	private final List<List<Integer>> orchestrationHistory;
 	private final List<Vm> vmList;
 	private final Path tracePath;
-	private BufferedWriter traceWriter;
-	private boolean traceWriterClosed = false;
 	private final boolean envServerEnabled;
 	private final MAPPOEnvServer envServer;
-	private final List<AgentNode> agentNodes = new ArrayList<>();
+	private final List<DataCenter> agentNodes = new ArrayList<>();
 	private final Map<Integer, List<Integer>> dataCenterVmIndices = new HashMap<>();
 
+	private BufferedWriter traceWriter;
+	private boolean traceWriterClosed = false;
 	private double rewardSum = 0.0;
 	private int rewardNum = 0;
-
-	private static final int ENERGY_WINDOW = 200;
-	private final ArrayDeque<Double> energyWindow = new ArrayDeque<>();
-	private double energyP95 = 1.0;
-
 	private long finishedEpisodes = 0;
 	private boolean episodeEndSent = false;
 	private double[][] lastObs = null;
 	private double[] lastState = null;
 	private int[] lastMask = null;
 
-	private static class AgentNode {
-		private final int agentIndex;
-		private final DataCenter dataCenter;
+	private static final int ENERGY_WINDOW = 200;
+	private final ArrayDeque<Double> energyWindow = new ArrayDeque<>();
+	private double energyP95 = 1.0;
 
-		private AgentNode(int agentIndex, DataCenter dataCenter) {
-			this.agentIndex = agentIndex;
-			this.dataCenter = dataCenter;
-		}
-	}
+	private double maxTaskLength = 1.0;
+	private double maxTaskDeadline = 1.0;
+	private double maxRequestSize = 1.0;
+	private double maxResultSize = 1.0;
+	private double maxContainerSize = 1.0;
+	private double maxDataCenterTotalMips = 1.0;
+	private double maxVmCountPerDataCenter = 1.0;
+	private double maxDistance = 1.0;
+	private double maxActiveTasks = 1.0;
 
 	private static class VmCandidate {
 		private final int vmIndex;
-		private final double cost;
+		private final double estimatedFinishTime;
+		private final double estimatedFinishOverDeadline;
+		private final boolean networkAdmissible;
 
-		private VmCandidate(int vmIndex, double cost) {
+		private VmCandidate(int vmIndex, double estimatedFinishTime, double estimatedFinishOverDeadline,
+				boolean networkAdmissible) {
 			this.vmIndex = vmIndex;
-			this.cost = cost;
+			this.estimatedFinishTime = estimatedFinishTime;
+			this.estimatedFinishOverDeadline = estimatedFinishOverDeadline;
+			this.networkAdmissible = networkAdmissible;
 		}
 	}
 
@@ -100,18 +107,20 @@ public class MAPPOManager {
 		private final double[][] obs;
 		private final double[] state;
 		private final int[] actionMask;
-		private final int[][] actions;
+		private final int destAction;
+		private final int priorityAction;
 		private final int selectedAgent;
 		private final int selectedVm;
 		private final int selectedPriorityBin;
 		private final long stepId;
 
-		private MAPPOMeta(double[][] obs, double[] state, int[] actionMask, int[][] actions, int selectedAgent,
-				int selectedVm, int selectedPriorityBin, long stepId) {
+		private MAPPOMeta(double[][] obs, double[] state, int[] actionMask, int destAction, int priorityAction,
+				int selectedAgent, int selectedVm, int selectedPriorityBin, long stepId) {
 			this.obs = deepCopy2D(obs);
 			this.state = copy1D(state);
 			this.actionMask = copyInt1D(actionMask);
-			this.actions = deepCopyInt2D(actions);
+			this.destAction = destAction;
+			this.priorityAction = priorityAction;
 			this.selectedAgent = selectedAgent;
 			this.selectedVm = selectedVm;
 			this.selectedPriorityBin = selectedPriorityBin;
@@ -126,6 +135,7 @@ public class MAPPOManager {
 		this.tracePath = Paths.get("PureEdgeSim", "pruebas", "mappo", "trajectory", buildTraceFileName());
 		initializeAgentMapping();
 		initializeVmLookup();
+		initializeNormalizationStats();
 		initializeTraceWriter();
 
 		this.envServerEnabled = Boolean.getBoolean(ENV_SERVER_ENABLED_PROP);
@@ -161,24 +171,45 @@ public class MAPPOManager {
 					+ edgeNodes.size() + ", cloud=" + cloudNodes.size());
 		}
 
-		int idx = 0;
-		for (int i = 0; i < edgeNodes.size(); i++) {
-			agentNodes.add(new AgentNode(idx++, edgeNodes.get(i)));
-		}
-		agentNodes.add(new AgentNode(idx, cloudNodes.get(0)));
+		agentNodes.addAll(edgeNodes);
+		agentNodes.add(cloudNodes.get(0));
 	}
 
 	private void initializeVmLookup() {
 		for (int vmIndex = 0; vmIndex < vmList.size(); vmIndex++) {
 			DataCenter dc = (DataCenter) vmList.get(vmIndex).getHost().getDatacenter();
 			int dcId = (int) dc.getId();
-			List<Integer> list = dataCenterVmIndices.get(dcId);
-			if (list == null) {
-				list = new ArrayList<>();
-				dataCenterVmIndices.put(dcId, list);
+			List<Integer> indices = dataCenterVmIndices.get(dcId);
+			if (indices == null) {
+				indices = new ArrayList<>();
+				dataCenterVmIndices.put(dcId, indices);
 			}
-			list.add(vmIndex);
+			indices.add(vmIndex);
 		}
+	}
+
+	private void initializeNormalizationStats() {
+		for (int i = 0; i < SimulationParameters.APPLICATIONS_LIST.size(); i++) {
+			Application app = SimulationParameters.APPLICATIONS_LIST.get(i);
+			maxTaskLength = Math.max(maxTaskLength, app.getTaskLength());
+			maxTaskDeadline = Math.max(maxTaskDeadline, app.getLatency());
+			maxRequestSize = Math.max(maxRequestSize, app.getRequestSize());
+			maxResultSize = Math.max(maxResultSize, app.getResultsSize());
+			maxContainerSize = Math.max(maxContainerSize, app.getContainerSize());
+		}
+
+		for (int i = 0; i < agentNodes.size(); i++) {
+			DataCenter dc = agentNodes.get(i);
+			maxDataCenterTotalMips = Math.max(maxDataCenterTotalMips, dc.getResources().getTotalMips());
+			List<Integer> vmIndices = dataCenterVmIndices.get((int) dc.getId());
+			if (vmIndices != null) {
+				maxVmCountPerDataCenter = Math.max(maxVmCountPerDataCenter, vmIndices.size());
+			}
+		}
+
+		maxDistance = Math.max(1.0,
+				Math.max(SimulationParameters.EDGE_DATACENTERS_RANGE, SimulationParameters.CLOUD_COVERAGE_DISTANCE));
+		maxActiveTasks = Math.max(1.0, vmList.size());
 	}
 
 	public int reinforcementLearning(String[] architecture, Task task) {
@@ -196,18 +227,15 @@ public class MAPPOManager {
 			simulationManager.terminateAndSaveCharts();
 		}
 
-		int[][] actions = sanitizeActions(actionData.actions);
-		int selectedAgent = selectWinningAgent(task, state.actionMask, actions, state.candidates, architecture);
+		int destAction = sanitizeDestAction(actionData.destAction);
+		int priorityAction = sanitizePriorityAction(actionData.priorityAction);
+		int selectedAgent = resolveDestination(destAction, state.actionMask, state.candidates);
 		int selectedVm = selectedAgent >= 0 ? state.candidates[selectedAgent].vmIndex : -1;
+		int selectedPriorityBin = PRIORITY_BIN_MAP[priorityAction];
+		applyPriorityDecision(task, selectedVm, selectedPriorityBin);
 
-		int selectedPriorityBin = 0;
-		if (selectedAgent >= 0) {
-			selectedPriorityBin = actions[selectedAgent][1];
-		}
-		applyPrbDecision(task, selectedVm, selectedPriorityBin);
-
-		task.setMetaData(new MAPPOMeta(state.localObs, state.globalState, state.actionMask, actions, selectedAgent,
-				selectedVm, selectedPriorityBin, stepId));
+		task.setMetaData(new MAPPOMeta(state.localObs, state.globalState, state.actionMask, destAction, priorityAction,
+				selectedAgent, selectedVm, selectedPriorityBin, stepId));
 
 		lastObs = deepCopy2D(state.localObs);
 		lastState = copy1D(state.globalState);
@@ -274,39 +302,34 @@ public class MAPPOManager {
 		int[] actionMask = new int[AGENT_COUNT];
 		VmCandidate[] candidates = new VmCandidate[AGENT_COUNT];
 
-		double taskLengthNorm = clamp(task.getLength() / 120000.0, 0.0, 2.0);
-		double taskLatencyNorm = clamp(task.getMaxLatency() / 20.0, 0.0, 2.0);
+		double taskLengthNorm = normalize(task.getLength(), maxTaskLength, 1.0);
+		double taskDeadlineNorm = normalize(task.getMaxLatency(), maxTaskDeadline, 1.0);
+		double requestSizeNorm = normalize(task.getFileSize(), maxRequestSize, 1.0);
+		double resultSizeNorm = normalize(task.getOutputSize(), maxResultSize, 1.0);
+		double containerSizeNorm = normalize(task.getContainerSize(), maxContainerSize, 1.0);
 		double prbRemaining = getPrbRemainingRatio();
-		double edgeCpuMean = getEdgeCpuMeanNorm();
-		double cloudCpu = getCloudCpuNorm();
 		double simTimeNorm = getSimulationTimeNorm();
 
 		for (int i = 0; i < AGENT_COUNT; i++) {
-			AgentNode node = agentNodes.get(i);
-			DataCenter dc = node.dataCenter;
+			DataCenter dc = agentNodes.get(i);
 			VmCandidate candidate = findBestVmForAgent(task, i, architecture);
 			candidates[i] = candidate;
 			actionMask[i] = candidate.vmIndex >= 0 ? 1 : 0;
 
-			double selfCpu = clamp(dc.getResources().getAvgCpuUtilization() / 100.0, 0.0, 1.0);
-			double selfRunning = clamp(getRunningTasksForDataCenter(dc) / 100.0, 0.0, 1.0);
-			double selfMips = clamp(dc.getResources().getTotalMips() / 2000000.0, 0.0, 2.0);
-			double srcDistance = getSourceDistanceNorm(task, dc);
-			double isCloud = dc.getType() == SimulationParameters.TYPES.CLOUD ? 1.0 : 0.0;
-			double isEdge = dc.getType() == SimulationParameters.TYPES.EDGE_DATACENTER ? 1.0 : 0.0;
-
 			localObs[i][0] = taskLengthNorm;
-			localObs[i][1] = taskLatencyNorm;
-			localObs[i][2] = selfCpu;
-			localObs[i][3] = selfRunning;
-			localObs[i][4] = selfMips;
-			localObs[i][5] = srcDistance;
-			localObs[i][6] = prbRemaining;
-			localObs[i][7] = edgeCpuMean;
-			localObs[i][8] = cloudCpu;
-			localObs[i][9] = isCloud;
-			localObs[i][10] = isEdge;
-			localObs[i][11] = simTimeNorm;
+			localObs[i][1] = taskDeadlineNorm;
+			localObs[i][2] = requestSizeNorm;
+			localObs[i][3] = resultSizeNorm;
+			localObs[i][4] = containerSizeNorm;
+			localObs[i][5] = clamp(dc.getResources().getAvgCpuUtilization() / 100.0, 0.0, 1.0);
+			localObs[i][6] = normalize(getRunningTasksForDataCenter(dc), maxVmCountPerDataCenter, 2.0);
+			localObs[i][7] = normalize(dc.getResources().getTotalMips(), maxDataCenterTotalMips, 1.0);
+			localObs[i][8] = candidate.estimatedFinishOverDeadline;
+			localObs[i][9] = getSourceDistanceNorm(task, dc);
+			localObs[i][10] = candidate.networkAdmissible ? 1.0 : 0.0;
+			localObs[i][11] = prbRemaining;
+			localObs[i][12] = dc.getType() == SimulationParameters.TYPES.CLOUD ? 1.0 : 0.0;
+			localObs[i][13] = simTimeNorm;
 		}
 
 		int p = 0;
@@ -315,51 +338,63 @@ public class MAPPOManager {
 				globalState[p++] = localObs[i][j];
 			}
 		}
-		globalState[p++] = prbRemaining;
-		globalState[p++] = edgeCpuMean;
-		globalState[p++] = cloudCpu;
-		globalState[p++] = clamp(getActiveTasksNorm(), 0.0, 1.0);
+		globalState[p++] = normalize(getActiveTasks(), maxActiveTasks, 2.0);
+		globalState[p++] = getEdgeCpuMeanNorm();
+		globalState[p++] = getEdgeCpuStdNorm();
+		globalState[p++] = getCloudCpuNorm();
+		globalState[p++] = getAllocatedPrbRatio();
 		globalState[p++] = simTimeNorm;
 
 		return new StateBundle(localObs, globalState, actionMask, candidates);
 	}
 
-	private int selectWinningAgent(Task task, int[] actionMask, int[][] actions, VmCandidate[] candidates,
-			String[] architecture) {
-		int selectedAgent = -1;
-		int bestScore = Integer.MIN_VALUE;
-		double bestCost = Double.MAX_VALUE;
+	private VmCandidate findBestVmForAgent(Task task, int agentIndex, String[] architecture) {
+		if (agentIndex < 0 || agentIndex >= agentNodes.size()) {
+			return invalidCandidate();
+		}
+		DataCenter dc = agentNodes.get(agentIndex);
+		List<Integer> vmIndices = dataCenterVmIndices.get((int) dc.getId());
+		if (vmIndices == null || vmIndices.isEmpty()) {
+			return invalidCandidate();
+		}
 
-		for (int i = 0; i < AGENT_COUNT; i++) {
-			if (actionMask[i] == 0 || candidates[i].vmIndex < 0) {
+		int bestVm = -1;
+		double bestFinish = Double.MAX_VALUE;
+		double bestRatio = Double.MAX_VALUE;
+		boolean networkAdmissible = false;
+		for (int i = 0; i < vmIndices.size(); i++) {
+			int vmIndex = vmIndices.get(i);
+			Vm vm = vmList.get(vmIndex);
+			if (!offloadingIsPossible(task, vm, architecture)) {
 				continue;
 			}
-			if (!isNetworkAdmissionFeasible(task, candidates[i].vmIndex)) {
-				continue;
-			}
-			int score = clampInt(actions[i][0], 0, 10);
-			double cost = candidates[i].cost;
-			if (selectedAgent == -1 || score > bestScore || (score == bestScore && cost < bestCost)) {
-				selectedAgent = i;
-				bestScore = score;
-				bestCost = cost;
+			double estimatedFinish = estimateVmFinishTime(task, vmIndex);
+			double ratio = clamp(estimatedFinish / Math.max(task.getMaxLatency(), 1e-6), 0.0, 2.0);
+			if (bestVm == -1 || estimatedFinish < bestFinish) {
+				bestVm = vmIndex;
+				bestFinish = estimatedFinish;
+				bestRatio = ratio;
+				networkAdmissible = isNetworkAdmissionFeasible(task, vmIndex);
 			}
 		}
 
-		if (selectedAgent != -1) {
-			return selectedAgent;
+		if (bestVm < 0) {
+			return invalidCandidate();
 		}
+		return new VmCandidate(bestVm, bestFinish, bestRatio, networkAdmissible);
+	}
 
-		// Fallback: if all scores were invalid/unavailable, pick the lowest-cost feasible node.
-		double minCost = Double.MAX_VALUE;
-		for (int i = 0; i < AGENT_COUNT; i++) {
-			VmCandidate candidate = findBestVmForAgent(task, i, architecture);
-			if (candidate.vmIndex >= 0 && candidate.cost < minCost && isNetworkAdmissionFeasible(task, candidate.vmIndex)) {
-				minCost = candidate.cost;
-				selectedAgent = i;
-			}
-		}
-		return selectedAgent;
+	private VmCandidate invalidCandidate() {
+		return new VmCandidate(-1, Double.MAX_VALUE, 2.0, false);
+	}
+
+	private double estimateVmFinishTime(Task task, int vmIndex) {
+		Vm vm = vmList.get(vmIndex);
+		double vmMips = Math.max(vm.getMips(), 1e-6);
+		double running = Math.max(1.0,
+				orchestrationHistory.get(vmIndex).size() - vm.getCloudletScheduler().getCloudletFinishedList().size() + 1.0);
+		double effectiveMips = vmMips / running;
+		return task.getLength() / Math.max(effectiveMips, 1e-6);
 	}
 
 	private boolean isNetworkAdmissionFeasible(Task task, int vmIndex) {
@@ -376,51 +411,41 @@ public class MAPPOManager {
 		return network.canAdmitDynamicTransfer(task, vmList.get(vmIndex));
 	}
 
-	private VmCandidate findBestVmForAgent(Task task, int agentIndex, String[] architecture) {
-		if (agentIndex < 0 || agentIndex >= agentNodes.size()) {
-			return new VmCandidate(-1, Double.MAX_VALUE);
-		}
-		AgentNode node = agentNodes.get(agentIndex);
-		List<Integer> vmIndices = dataCenterVmIndices.get((int) node.dataCenter.getId());
-		if (vmIndices == null || vmIndices.isEmpty()) {
-			return new VmCandidate(-1, Double.MAX_VALUE);
-		}
-
-		int bestVm = -1;
-		double bestCost = Double.MAX_VALUE;
-		for (int k = 0; k < vmIndices.size(); k++) {
-			int vmIndex = vmIndices.get(k);
-			Vm vm = vmList.get(vmIndex);
-			if (!offloadingIsPossible(task, vm, architecture)) {
-				continue;
-			}
-			double cost = estimateVmCost(task, vmIndex);
-			if (bestVm == -1 || cost < bestCost) {
-				bestVm = vmIndex;
-				bestCost = cost;
-			}
-		}
-		return new VmCandidate(bestVm, bestCost);
+	private int sanitizeDestAction(int value) {
+		return clampInt(value, 0, AGENT_COUNT - 1);
 	}
 
-	private double estimateVmCost(Task task, int vmIndex) {
-		Vm vm = vmList.get(vmIndex);
-		DataCenter dc = (DataCenter) vm.getHost().getDatacenter();
-		double weight = 1.1;
-		if (dc.getType() == SimulationParameters.TYPES.CLOUD) {
-			weight = 1.8;
-		} else if (dc.getType() == SimulationParameters.TYPES.EDGE_DATACENTER) {
-			weight = 1.5;
+	private int sanitizePriorityAction(int value) {
+		return clampInt(value, 0, PRIORITY_ACTIONS - 1);
+	}
+
+	private int resolveDestination(int requestedDest, int[] actionMask, VmCandidate[] candidates) {
+		if (requestedDest >= 0 && requestedDest < AGENT_COUNT && actionMask[requestedDest] == 1
+				&& candidates[requestedDest].vmIndex >= 0) {
+			return requestedDest;
 		}
 
-		double vmMips = Math.max(vm.getMips(), 1e-6);
-		double cpu = clamp(vm.getCpuPercentUtilization(), 0.0, 1.0);
-		int running = orchestrationHistory.get(vmIndex).size()
-				- vm.getCloudletScheduler().getCloudletFinishedList().size() + 1;
-		running = Math.max(running, 1);
-		double denom = vmMips / running;
-		double taskFactor = task.getLength() / Math.max(denom, 1e-6);
-		return weight * taskFactor * (cpu * 20.0 + 1.0);
+		int best = -1;
+		double bestFinish = Double.MAX_VALUE;
+		for (int i = 0; i < AGENT_COUNT; i++) {
+			if (actionMask[i] == 0 || candidates[i].vmIndex < 0) {
+				continue;
+			}
+			if (candidates[i].estimatedFinishTime < bestFinish) {
+				best = i;
+				bestFinish = candidates[i].estimatedFinishTime;
+			}
+		}
+		if (best != -1) {
+			return best;
+		}
+
+		for (int i = 0; i < AGENT_COUNT; i++) {
+			if (candidates[i].vmIndex >= 0) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	private boolean offloadingIsPossible(Task task, Vm vm, String[] architecture) {
@@ -430,8 +455,8 @@ public class MAPPOManager {
 						&& (sameLocation(((DataCenter) vm.getHost().getDatacenter()), task.getEdgeDevice(),
 								SimulationParameters.EDGE_DATACENTERS_RANGE)
 								|| (SimulationParameters.ENABLE_ORCHESTRATORS
-										&& sameLocation(((DataCenter) vm.getHost().getDatacenter()),
-												task.getOrchestrator(), SimulationParameters.EDGE_DATACENTERS_RANGE)))));
+										&& sameLocation(((DataCenter) vm.getHost().getDatacenter()), task.getOrchestrator(),
+												SimulationParameters.EDGE_DATACENTERS_RANGE)))));
 	}
 
 	private boolean arrayContains(String[] architecture, String value) {
@@ -459,80 +484,21 @@ public class MAPPOManager {
 		double failed = task.getStatus() == Status.FAILED ? 1.0 : 0.0;
 		double totalTime = task.getCheckTime() - task.getTime();
 		double totalEnergy = task.getTotalCost();
-		double cpuExecution = 0.0;
-		if (task.getVm() != null) {
-			cpuExecution = task.getVm().getCpuPercentUtilization(task.getTime()) / 100.0;
-		}
 
 		updateEnergyStats(totalEnergy);
 		double delayNorm = clamp(totalTime / Math.max(task.getMaxLatency(), 1e-6), 0.0, 2.0);
 		double energyNorm = clamp(totalEnergy / energyP95, 0.0, 2.0);
-		double cpuNorm = clamp(cpuExecution, 0.0, 1.0);
 		double prbReject = task.isPrbRejected() ? 1.0 : 0.0;
-		double prbRemaining = getPrbRemainingRatio();
-		double edgeBalance = getEdgeBalance();
 
-		return 8.0 * success - 4.0 * failed - 1.0 * delayNorm - 0.4 * energyNorm - 0.2 * cpuNorm - 1.5 * prbReject
-				+ 0.2 * prbRemaining + 0.4 * edgeBalance;
+		return 2.0 * success - 2.0 * failed - 1.0 * delayNorm - 0.3 * prbReject - 0.1 * energyNorm;
 	}
 
-	private double getEdgeBalance() {
-		double[] values = new double[4];
-		int count = 0;
-		for (int i = 0; i < agentNodes.size(); i++) {
-			DataCenter dc = agentNodes.get(i).dataCenter;
-			if (dc.getType() == SimulationParameters.TYPES.EDGE_DATACENTER) {
-				values[count++] = clamp(dc.getResources().getAvgCpuUtilization() / 100.0, 0.0, 1.0);
-			}
-		}
-		if (count == 0) {
-			return 0.0;
-		}
-		double mean = 0.0;
-		for (int i = 0; i < count; i++) {
-			mean += values[i];
-		}
-		mean /= count;
-		double variance = 0.0;
-		for (int i = 0; i < count; i++) {
-			double d = values[i] - mean;
-			variance += d * d;
-		}
-		variance /= count;
-		double std = Math.sqrt(Math.max(variance, 0.0));
-		return clamp(1.0 - std, 0.0, 1.0);
-	}
-
-	private int[][] sanitizeActions(int[][] actions) {
-		int[][] normalized = new int[AGENT_COUNT][2];
-		if (actions == null) {
-			return normalized;
-		}
-		for (int i = 0; i < AGENT_COUNT; i++) {
-			int score = 0;
-			int prb = 0;
-			if (i < actions.length && actions[i] != null) {
-				if (actions[i].length > 0) {
-					score = actions[i][0];
-				}
-				if (actions[i].length > 1) {
-					prb = actions[i][1];
-				}
-			}
-			normalized[i][0] = clampInt(score, 0, 10);
-			normalized[i][1] = clampInt(prb, 0, 10);
-		}
-		return normalized;
-	}
-
-	private void applyPrbDecision(Task task, int selectedVm, int priorityBin) {
+	private void applyPriorityDecision(Task task, int selectedVm, int priorityBin) {
+		task.setRequestedLanPrbBlocks(-1);
 		if (selectedVm < 0) {
-			task.setRequestedLanPrbBlocks(-1);
 			task.setLanPriorityBin(0);
 			return;
 		}
-		// MAPPO uses dynamic transfer-level scheduling; do not reserve fixed PRBs per task.
-		task.setRequestedLanPrbBlocks(-1);
 		task.setLanPriorityBin(clampInt(priorityBin, 0, 10));
 	}
 
@@ -553,25 +519,63 @@ public class MAPPOManager {
 		return clamp(remaining, 0.0, 1.0);
 	}
 
+	private double getAllocatedPrbRatio() {
+		if (simulationManager == null || simulationManager.getNetworkModel() == null) {
+			return 0.0;
+		}
+		if (!(simulationManager.getNetworkModel() instanceof DefaultNetworkModel)) {
+			return 0.0;
+		}
+		DefaultNetworkModel network = (DefaultNetworkModel) simulationManager.getNetworkModel();
+		int total = SimulationParameters.WLAN_PRB_BLOCKS;
+		if (total <= 0) {
+			return 0.0;
+		}
+		return clamp(network.getCurrentAllocatedLanPrbBlocks() / (double) total, 0.0, 1.0);
+	}
+
 	private double getEdgeCpuMeanNorm() {
 		double sum = 0.0;
 		int count = 0;
 		for (int i = 0; i < agentNodes.size(); i++) {
-			DataCenter dc = agentNodes.get(i).dataCenter;
+			DataCenter dc = agentNodes.get(i);
 			if (dc.getType() == SimulationParameters.TYPES.EDGE_DATACENTER) {
 				sum += clamp(dc.getResources().getAvgCpuUtilization() / 100.0, 0.0, 1.0);
 				count++;
 			}
 		}
+		return count == 0 ? 0.0 : sum / count;
+	}
+
+	private double getEdgeCpuStdNorm() {
+		double[] values = new double[AGENT_COUNT];
+		int count = 0;
+		for (int i = 0; i < agentNodes.size(); i++) {
+			DataCenter dc = agentNodes.get(i);
+			if (dc.getType() == SimulationParameters.TYPES.EDGE_DATACENTER) {
+				values[count++] = clamp(dc.getResources().getAvgCpuUtilization() / 100.0, 0.0, 1.0);
+			}
+		}
 		if (count == 0) {
 			return 0.0;
 		}
-		return sum / count;
+		double mean = 0.0;
+		for (int i = 0; i < count; i++) {
+			mean += values[i];
+		}
+		mean /= count;
+		double variance = 0.0;
+		for (int i = 0; i < count; i++) {
+			double delta = values[i] - mean;
+			variance += delta * delta;
+		}
+		variance /= count;
+		return clamp(Math.sqrt(Math.max(variance, 0.0)), 0.0, 1.0);
 	}
 
 	private double getCloudCpuNorm() {
 		for (int i = 0; i < agentNodes.size(); i++) {
-			DataCenter dc = agentNodes.get(i).dataCenter;
+			DataCenter dc = agentNodes.get(i);
 			if (dc.getType() == SimulationParameters.TYPES.CLOUD) {
 				return clamp(dc.getResources().getAvgCpuUtilization() / 100.0, 0.0, 1.0);
 			}
@@ -587,8 +591,7 @@ public class MAPPOManager {
 			return 1.0;
 		}
 		double distance = target.getMobilityManager().distanceTo(task.getEdgeDevice());
-		double norm = distance / Math.max(SimulationParameters.EDGE_DATACENTERS_RANGE, 1.0);
-		return clamp(norm, 0.0, 2.0);
+		return normalize(distance, maxDistance, 1.0);
 	}
 
 	private double getSimulationTimeNorm() {
@@ -597,15 +600,16 @@ public class MAPPOManager {
 		return clamp(current / total, 0.0, 1.0);
 	}
 
-	private double getActiveTasksNorm() {
+	private double getActiveTasks() {
 		double active = 0.0;
 		for (int i = 0; i < vmList.size(); i++) {
-			int running = orchestrationHistory.get(i).size() - vmList.get(i).getCloudletScheduler().getCloudletFinishedList().size();
+			int running = orchestrationHistory.get(i).size()
+					- vmList.get(i).getCloudletScheduler().getCloudletFinishedList().size();
 			if (running > 0) {
 				active += running;
 			}
 		}
-		return active / 500.0;
+		return active;
 	}
 
 	private double getRunningTasksForDataCenter(DataCenter dataCenter) {
@@ -672,7 +676,8 @@ public class MAPPOManager {
 		}
 	}
 
-	private synchronized void appendTrace(Task task, MAPPOMeta meta, double reward, double[][] nextObs, double[] nextState, boolean done) {
+	private synchronized void appendTrace(Task task, MAPPOMeta meta, double reward, double[][] nextObs, double[] nextState,
+			boolean done) {
 		if (traceWriterClosed) {
 			return;
 		}
@@ -685,16 +690,13 @@ public class MAPPOManager {
 		try {
 			StringBuilder line = new StringBuilder();
 			line.append(String.format(Locale.US, "%.4f", task.getTime())).append(",").append(task.getId()).append(",")
-					.append(String.format(Locale.US, "%.6f", reward)).append(",").append(meta.selectedAgent).append(",")
-					.append(meta.selectedVm).append(",")
-					.append(meta.selectedPriorityBin).append(",")
+					.append(String.format(Locale.US, "%.6f", reward)).append(",").append(meta.destAction).append(",")
+					.append(meta.selectedAgent).append(",").append(meta.selectedVm).append(",")
+					.append(meta.priorityAction).append(",").append(meta.selectedPriorityBin).append(",")
 					.append(done ? 1 : 0);
 
 			for (int i = 0; i < AGENT_COUNT; i++) {
 				line.append(",").append(meta.actionMask[i]);
-			}
-			for (int i = 0; i < AGENT_COUNT; i++) {
-				line.append(",").append(meta.actions[i][0]).append(",").append(meta.actions[i][1]);
 			}
 			for (int i = 0; i < AGENT_COUNT; i++) {
 				for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
@@ -705,6 +707,12 @@ public class MAPPOManager {
 				for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
 					line.append(",").append(String.format(Locale.US, "%.6f", nextObs[i][j]));
 				}
+			}
+			for (int i = 0; i < meta.state.length; i++) {
+				line.append(",").append(String.format(Locale.US, "%.6f", meta.state[i]));
+			}
+			for (int i = 0; i < nextState.length; i++) {
+				line.append(",").append(String.format(Locale.US, "%.6f", nextState[i]));
 			}
 			traceWriter.write(line.toString());
 			traceWriter.newLine();
@@ -731,12 +739,9 @@ public class MAPPOManager {
 
 	private String buildTraceHeader() {
 		StringBuilder header = new StringBuilder();
-		header.append("time,task_id,reward,selected_agent,selected_vm,selected_priority_bin,done");
+		header.append("time,task_id,reward,dest_action,selected_dest,selected_vm,priority_action,selected_priority_bin,done");
 		for (int i = 0; i < AGENT_COUNT; i++) {
 			header.append(",mask_").append(i);
-		}
-		for (int i = 0; i < AGENT_COUNT; i++) {
-			header.append(",a").append(i).append("_score,a").append(i).append("_priority_bin");
 		}
 		for (int i = 0; i < AGENT_COUNT; i++) {
 			for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
@@ -747,6 +752,12 @@ public class MAPPOManager {
 			for (int j = 0; j < LOCAL_OBS_SIZE; j++) {
 				header.append(",s_next_").append(i).append("_").append(j);
 			}
+		}
+		for (int i = 0; i < GLOBAL_STATE_SIZE; i++) {
+			header.append(",g_").append(i);
+		}
+		for (int i = 0; i < GLOBAL_STATE_SIZE; i++) {
+			header.append(",g_next_").append(i);
 		}
 		return header.toString();
 	}
@@ -762,6 +773,13 @@ public class MAPPOManager {
 		}
 		String randomSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
 		return "mappo_trajectories_" + suffix + "_pid" + pid + "_" + randomSuffix + ".csv";
+	}
+
+	private double normalize(double value, double maxValue, double maxOutput) {
+		if (Double.isNaN(value) || Double.isInfinite(value) || maxValue <= 0.0) {
+			return 0.0;
+		}
+		return clamp(value / maxValue, 0.0, maxOutput);
 	}
 
 	private double clamp(double value, double low, double high) {
@@ -780,17 +798,6 @@ public class MAPPOManager {
 			return null;
 		}
 		double[][] dst = new double[src.length][];
-		for (int i = 0; i < src.length; i++) {
-			dst[i] = src[i] == null ? null : src[i].clone();
-		}
-		return dst;
-	}
-
-	private static int[][] deepCopyInt2D(int[][] src) {
-		if (src == null) {
-			return null;
-		}
-		int[][] dst = new int[src.length][];
 		for (int i = 0; i < src.length; i++) {
 			dst[i] = src[i] == null ? null : src[i].clone();
 		}

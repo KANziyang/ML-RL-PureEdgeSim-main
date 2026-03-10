@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import threading
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -315,11 +316,6 @@ def prepare_effective_settings_dir(
         )
         return base_settings_dir, simulation_minutes
 
-    runtime_settings_dir = config.output_root / mode / "runtime_settings" / run_id
-    if runtime_settings_dir.exists():
-        shutil.rmtree(runtime_settings_dir)
-    runtime_settings_dir.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(base_settings_dir, runtime_settings_dir)
     overrides: Dict[str, str] = {}
     if simulation_minutes_override is not None:
         overrides["simulation_time"] = str(max(1, int(simulation_minutes_override)))
@@ -327,6 +323,7 @@ def prepare_effective_settings_dir(
         overrides["display_real_time_charts"] = str(display_real_time_charts_override).lower()
     if auto_close_real_time_charts_override is not None:
         overrides["auto_close_real_time_charts"] = str(auto_close_real_time_charts_override).lower()
+    runtime_settings_dir = clone_settings_dir(config, base_settings_dir, mode, run_id)
     write_settings_overrides(runtime_settings_dir, overrides)
     simulation_minutes = read_simulation_minutes(runtime_settings_dir)
     display_real_time_charts = read_boolean_setting(runtime_settings_dir, "display_real_time_charts")
@@ -340,6 +337,48 @@ def prepare_effective_settings_dir(
     return runtime_settings_dir, simulation_minutes
 
 
+def prepare_stress_settings_dir(
+    config: RuntimeConfig,
+    base_settings_dir: Path,
+    mode: str,
+    run_id: str,
+    logger: RunLogger,
+    simulation_minutes_override: Optional[int] = None,
+    random_seed_override: Optional[int] = None,
+    edge_datacenters_coverage: int = 110,
+    application_rate_scale: float = 1.5,
+    display_real_time_charts_override: Optional[bool] = None,
+    auto_close_real_time_charts_override: Optional[bool] = None,
+) -> tuple[Path, int]:
+    runtime_settings_dir = clone_settings_dir(config, base_settings_dir.resolve(), mode, run_id)
+    overrides: Dict[str, str] = {
+        "edge_datacenters_coverage": str(int(edge_datacenters_coverage)),
+    }
+    if simulation_minutes_override is not None:
+        overrides["simulation_time"] = str(max(1, int(simulation_minutes_override)))
+    if random_seed_override is not None:
+        overrides["random_seed"] = str(int(random_seed_override))
+    if display_real_time_charts_override is not None:
+        overrides["display_real_time_charts"] = str(display_real_time_charts_override).lower()
+    if auto_close_real_time_charts_override is not None:
+        overrides["auto_close_real_time_charts"] = str(auto_close_real_time_charts_override).lower()
+
+    write_settings_overrides(runtime_settings_dir, overrides)
+    scale_application_rates(runtime_settings_dir, application_rate_scale)
+
+    simulation_minutes = read_simulation_minutes(runtime_settings_dir)
+    logger.log(
+        "created_stress_settings_dir "
+        f"base_settings_dir={base_settings_dir.resolve()} "
+        f"runtime_settings_dir={runtime_settings_dir} "
+        f"simulation_minutes={simulation_minutes} "
+        f"random_seed={random_seed_override} "
+        f"edge_datacenters_coverage={edge_datacenters_coverage} "
+        f"application_rate_scale={application_rate_scale}"
+    )
+    return runtime_settings_dir, simulation_minutes
+
+
 def build_output_dir(config: RuntimeConfig, mode: str, episode_index: int) -> Path:
     return config.output_root / mode / f"episode_{episode_index:03d}"
 
@@ -347,6 +386,15 @@ def build_output_dir(config: RuntimeConfig, mode: str, episode_index: int) -> Pa
 def resolve_model_path(config: RuntimeConfig, name: str = "latest.pt") -> Path:
     config.model_dir.mkdir(parents=True, exist_ok=True)
     return config.model_dir / name
+
+
+def clone_settings_dir(config: RuntimeConfig, base_settings_dir: Path, mode: str, run_id: str) -> Path:
+    runtime_settings_dir = config.output_root / mode / "runtime_settings" / run_id
+    if runtime_settings_dir.exists():
+        shutil.rmtree(runtime_settings_dir)
+    runtime_settings_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(base_settings_dir, runtime_settings_dir)
+    return runtime_settings_dir
 
 
 def with_trailing_separator(path: Path) -> str:
@@ -404,6 +452,26 @@ def write_settings_overrides(settings_dir: Path, overrides: Dict[str, str]) -> N
     if missing:
         raise ValueError(f"Missing settings in {sim_file}: {', '.join(missing)}")
     sim_file.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+
+
+def scale_application_rates(settings_dir: Path, scale: float) -> None:
+    if scale <= 0:
+        raise ValueError(f"application rate scale must be positive, got {scale}")
+    app_file = settings_dir / "applications.xml"
+    tree = ET.parse(app_file)
+    root = tree.getroot()
+    changed = False
+    for app in root.findall("application"):
+        rate_el = app.find("rate")
+        if rate_el is None or rate_el.text is None:
+            continue
+        old_rate = float(rate_el.text.strip())
+        new_rate = max(1, int(round(old_rate * scale)))
+        rate_el.text = str(new_rate)
+        changed = True
+    if not changed:
+        raise ValueError(f"No application rates found in {app_file}")
+    tree.write(app_file, encoding="utf-8", xml_declaration=True)
 
 
 def _resolve_shared_settings_dir(raw: Dict[str, Any]) -> Path:
