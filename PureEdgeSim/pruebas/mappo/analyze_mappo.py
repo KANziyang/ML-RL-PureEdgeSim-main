@@ -24,6 +24,10 @@ SUMMARY_KEYS = {
     "average_execution_delay_s": "Average execution delay (s)",
     "average_total_time_s": "Average total time (s)",
     "average_real_total_time_s": "Average real total time (s)",
+    "energy_consumption_w": "Energy consumption (W)",
+    "cloud_energy_consumption_w": "Cloud energy consumption (W)",
+    "edge_energy_consumption_w": "Edge energy consumption (W)",
+    "mist_energy_consumption_w": "Mist energy consumption (W)",
 }
 
 
@@ -70,6 +74,7 @@ def analyze_episode(trajectory_path: Path, results_dir: Path, output_dir: Path) 
 
     summary_metrics = _extract_summary_metrics(summary_row)
     _plot_run_summary(summary_metrics, output_dir / "run_summary.png")
+    _plot_energy_summary(summary_metrics, output_dir / "energy_consumption.png")
 
     payload: Dict[str, object] = {
         "trajectory_path": str(trajectory_path),
@@ -257,6 +262,27 @@ def _plot_run_summary(metrics: Dict[str, float], output_path: Path) -> None:
     ax_bottom.set_title("Run Summary: Delay Metrics")
     ax_bottom.set_ylabel("Seconds")
     ax_bottom.grid(True, axis="y", alpha=0.3)
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+
+
+def _plot_energy_summary(metrics: Dict[str, float], output_path: Path) -> None:
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    labels = ["Total", "Cloud", "Edge", "Mist"]
+    values = [
+        metrics["energy_consumption_w"],
+        metrics["cloud_energy_consumption_w"],
+        metrics["edge_energy_consumption_w"],
+        metrics["mist_energy_consumption_w"],
+    ]
+    colors = ["#2f2f2f", "#1f77b4", "#ff7f0e", "#2ca02c"]
+
+    ax.bar(labels, values, color=colors)
+    ax.set_title("Energy Consumption Summary")
+    ax.set_ylabel("Consumed energy (W)")
+    ax.grid(True, axis="y", alpha=0.3)
 
     fig.tight_layout()
     fig.savefig(output_path, dpi=200)

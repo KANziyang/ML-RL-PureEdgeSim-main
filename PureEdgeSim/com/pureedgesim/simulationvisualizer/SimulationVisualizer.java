@@ -50,7 +50,7 @@ public class SimulationVisualizer {
 	private TasksFailedChart tasksFailedChart;
 	private EdgeDevicesChart edgeDeviceChart;
 	private ServersChart serversChart;
-	// private EnergyChart energyChart;
+	private EnergyChart energyChart;
 	private DelayChart delayChart;
 	private RLChart rlChart;
 	private MultiRLChart multiRLChart;
@@ -71,7 +71,7 @@ public class SimulationVisualizer {
 		tasksFailedChart = new TasksFailedChart("Tasks failures", "Time (s)", "Tasks number", simulationManager);
 		edgeDeviceChart = new EdgeDevicesChart("Edge Devices", "Time (s)", "Devices number", simulationManager);
 		serversChart = new ServersChart("Busy Servers", "Time (s)", "Devices number", simulationManager);
-		// energyChart = new EnergyChart("Energy", "Time (s)", "Power (W)", simulationManager);
+		energyChart = new EnergyChart("Energy consumption", "Time (s)", "Consumed energy (W)", simulationManager);
 		delayChart = new DelayChart("Delays", "Simulation Time (s)", "Time (s)", simulationManager);
 		rlChart = new RLChart("Rewards", "Time (s)", "Reward", simulationManager);
 		multiRLChart = new MultiRLChart("Tasks queries", "Time (s)", "Tasks", simulationManager);
@@ -84,6 +84,7 @@ public class SimulationVisualizer {
 
 		charts.add(mapChart);
 		charts.add(cpuUtilizationChart);
+		charts.add(energyChart);
 		charts.add(tasksSuccessChart);
 		charts.add(tasksFailedChart);
 		charts.add(delayChart);
@@ -103,6 +104,7 @@ public class SimulationVisualizer {
 			charts.clear();
 			charts.add(mapChart);
 			charts.add(cpuUtilizationChart);
+			charts.add(energyChart);
 			charts.add(tasksSuccessChart);
 			charts.add(tasksFailedChart);
 			charts.add(delayChart);
@@ -156,6 +158,7 @@ public class SimulationVisualizer {
 		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/allocated_prb_blocks", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/prb_blocks", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(cpuUtilizationChart.getChart(), folderName + "/cpu_usage", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(energyChart.getChart(), folderName + "/energy_consumption", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(tasksSuccessChart.getChart(), folderName + "/tasks_success_rate", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(tasksFailedChart.getChart(), folderName + "/tasks_failed", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(edgeDeviceChart.getChart(), folderName + "/edge_devices", BitmapFormat.PNG, 300);
