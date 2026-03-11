@@ -28,7 +28,7 @@ import org.knowm.xchart.style.markers.SeriesMarkers;
 import com.pureedgesim.simulationcore.SimulationManager;
 
 import pruebas.CustomEdgeOrchestrator;
-import pruebas.MAPPOManager.MAPPOTelemetrySnapshot;
+import pruebas.FiveAgentDecisionSupport.DecisionTelemetrySnapshot;
 
 public class PriorityDistributionChart extends Chart {
 	private static final String[] LABELS = { "P0", "P2", "P5", "P8", "P10" };
@@ -54,8 +54,8 @@ public class PriorityDistributionChart extends Chart {
 
 	public void update() {
 		currentTime.add(simulationManager.getSimulation().clock());
-		MAPPOTelemetrySnapshot snapshot = ((CustomEdgeOrchestrator) simulationManager.getOrchestrator()).getMAPPOManager()
-				.getTelemetrySnapshot();
+		DecisionTelemetrySnapshot snapshot = ((CustomEdgeOrchestrator) simulationManager.getOrchestrator())
+				.getFiveAgentTelemetrySnapshot();
 		double total = Math.max(snapshot.windowDecisionCount, 1);
 		for (int i = 0; i < LABELS.length; i++) {
 			double ratio = snapshot.priorityWindowCounts[i] * 100.0 / total;

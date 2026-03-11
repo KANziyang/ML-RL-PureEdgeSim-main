@@ -50,7 +50,7 @@ public class PPOChart extends Chart {
 
 	public void update() {
 		double now = simulationManager.getSimulation().clock() - SimulationParameters.INITIALIZATION_TIME;
-		double reward = ((CustomEdgeOrchestrator) simulationManager.getOrchestrator()).getPPOManager().getAvgReward();
+		double reward = ((CustomEdgeOrchestrator) simulationManager.getOrchestrator()).getPPOChartAvgReward();
 		if (emaReward == null) {
 			emaReward = reward;
 		} else {

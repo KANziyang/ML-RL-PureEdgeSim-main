@@ -100,6 +100,20 @@ public class SimulationVisualizer {
 			charts.add(multiRLChart);
 		else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("PPO"))
 			charts.add(ppoChart);
+		else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("PPO_5AGENT")) {
+			charts.clear();
+			charts.add(mapChart);
+			charts.add(cpuUtilizationChart);
+			charts.add(energyChart);
+			charts.add(tasksSuccessChart);
+			charts.add(tasksFailedChart);
+			charts.add(delayChart);
+			charts.add(serversChart);
+			charts.add(blockChart);
+			charts.add(ppoChart);
+			charts.add(destinationDistributionChart);
+			charts.add(priorityDistributionChart);
+		}
 		else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("MAPPO")) {
 			charts.clear();
 			charts.add(mapChart);
@@ -111,6 +125,18 @@ public class SimulationVisualizer {
 			charts.add(serversChart);
 			charts.add(blockChart);
 			charts.add(mappoRewardChart);
+			charts.add(destinationDistributionChart);
+			charts.add(priorityDistributionChart);
+		} else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("TRADE_OFF_5AGENT")) {
+			charts.clear();
+			charts.add(mapChart);
+			charts.add(cpuUtilizationChart);
+			charts.add(energyChart);
+			charts.add(tasksSuccessChart);
+			charts.add(tasksFailedChart);
+			charts.add(delayChart);
+			charts.add(serversChart);
+			charts.add(blockChart);
 			charts.add(destinationDistributionChart);
 			charts.add(priorityDistributionChart);
 		}

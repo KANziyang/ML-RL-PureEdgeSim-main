@@ -8,7 +8,7 @@ import org.cloudbus.cloudsim.vms.Vm;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
 
-public class MAPPOManager {
+public class PPOFiveAgentManager {
 	private static final String ENV_SERVER_ENABLED_PROP = "mappo.env.server";
 	private static final String ENV_SERVER_PORT_PROP = "mappo.env.port";
 	private static final String ENV_SERVER_TIMEOUT_PROP = "mappo.env.action_timeout_ms";
@@ -30,28 +30,30 @@ public class MAPPOManager {
 	private double[][] lastObs;
 	private double[] lastState;
 
-	public MAPPOManager(SimulationManager simulationManager, List<List<Integer>> orchestrationHistory, List<Vm> vmList) {
+	public PPOFiveAgentManager(SimulationManager simulationManager, List<List<Integer>> orchestrationHistory,
+			List<Vm> vmList) {
 		this.simulationManager = simulationManager;
 		this.decisionSupport = new FiveAgentDecisionSupport(simulationManager, orchestrationHistory, vmList);
 		this.traceWriter = new FiveAgentTraceWriter(TRACE_DIR_PROP,
-				Paths.get("PureEdgeSim", "pruebas", "mappo", "trajectory"), "mappo_trajectories");
+				Paths.get("PureEdgeSim", "pruebas", "ppo_5agent", "trajectory"), "ppo5agent_trajectories");
 
 		this.envServerEnabled = Boolean.getBoolean(ENV_SERVER_ENABLED_PROP);
 		if (envServerEnabled) {
 			int port = Integer.getInteger(ENV_SERVER_PORT_PROP, 5006);
 			int timeoutMs = Integer.getInteger(ENV_SERVER_TIMEOUT_PROP, 500);
-			System.out.println("MAPPOManager: env server enabled on port " + port);
+			System.out.println("PPOFiveAgentManager: env server enabled on port " + port);
 			this.envServer = new MAPPOEnvServer(port, timeoutMs);
 			this.envServer.start();
 		} else {
-			System.out.println("MAPPOManager: env server disabled (set -D" + ENV_SERVER_ENABLED_PROP + "=true)");
+			System.out.println(
+					"PPOFiveAgentManager: env server disabled (set -D" + ENV_SERVER_ENABLED_PROP + "=true)");
 			this.envServer = null;
 		}
 	}
 
 	public int reinforcementLearning(String[] architecture, Task task) {
 		if (!envServerEnabled || envServer == null) {
-			throw new IllegalStateException("MAPPOManager: env server is required but not enabled.");
+			throw new IllegalStateException("PPOFiveAgentManager: env server is required but not enabled.");
 		}
 		waitForEnvConnection();
 
@@ -98,7 +100,7 @@ public class MAPPOManager {
 			envServer.sendTransition(reward, nextState.localObs, nextState.globalState, false, nextState.actionMask,
 					meta.stepId);
 		} else {
-			throw new IllegalStateException("MAPPOManager: env server disconnected during feedback.");
+			throw new IllegalStateException("PPOFiveAgentManager: env server disconnected during feedback.");
 		}
 
 		lastObs = FiveAgentDecisionSupport.deepCopy2D(nextState.localObs);
@@ -149,7 +151,8 @@ public class MAPPOManager {
 				Thread.sleep(50);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
-				throw new IllegalStateException("MAPPOManager: interrupted while waiting for env server connection.");
+				throw new IllegalStateException(
+						"PPOFiveAgentManager: interrupted while waiting for env server connection.");
 			}
 		}
 	}

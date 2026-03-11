@@ -2,12 +2,22 @@ target/
 output/
 PureEdgeSim/pruebas/output/
 PureEdgeSim/pruebas/output_mappo/
+PureEdgeSim/pruebas/output_ppo_5agent/
+PureEdgeSim/pruebas/output_tradeoff_5agent/
 PureEdgeSim/output/
+
+# RL artifacts
 PureEdgeSim/pruebas/mappo/trajectory/
 PureEdgeSim/pruebas/mappo/model/
+PureEdgeSim/pruebas/mappo/runtime_config.json
+PureEdgeSim/pruebas/mappo/__pycache__/
 PureEdgeSim/pruebas/ppo/trajectory/
-PureEdgeSim/pruebas/ppo/model/*.zip
-PureEdgeSim/pruebas/ppo/model/*.png
+PureEdgeSim/pruebas/ppo/model/
+PureEdgeSim/pruebas/ppo_5agent/trajectory/
+PureEdgeSim/pruebas/ppo_5agent/runtime_config.json
+PureEdgeSim/pruebas/ppo_5agent/__pycache__/
+PureEdgeSim/pruebas/tradeoff_5agent/trajectory/
+PureEdgeSim/pruebas/tradeoff_5agent/__pycache__/
 PureEdgeSim/settings/
 PureEdgeSim/examples/
 PureEdgeSim/MyWork/

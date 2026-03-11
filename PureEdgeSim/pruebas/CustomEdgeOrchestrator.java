@@ -42,14 +42,26 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	MultiLayerRLManager multiLayerRLManager;
 	PPOManager ppoManager;
 	MAPPOManager mappoManager;
+	PPOFiveAgentManager ppoFiveAgentManager;
+	TradeOffFiveAgentManager tradeOffFiveAgentManager;
 
 	public CustomEdgeOrchestrator(SimulationManager simulationManager) {
 		super(simulationManager);
-
-		rlManager = new RLManager(simLog, simulationManager, orchestrationHistory, vmList);
-		multiLayerRLManager = new MultiLayerRLManager(simLog, simulationManager, orchestrationHistory, vmList, algorithm);
-		ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
-		mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
+		if ("RL".equals(algorithm)) {
+			rlManager = new RLManager(simLog, simulationManager, orchestrationHistory, vmList);
+		} else if ("RL_MULTILAYER".equals(algorithm) || "RL_MULTILAYER_DISABLED".equals(algorithm)
+				|| "RL_MULTILAYER_EMPTY".equals(algorithm)) {
+			multiLayerRLManager = new MultiLayerRLManager(simLog, simulationManager, orchestrationHistory, vmList,
+					algorithm);
+		} else if ("PPO".equals(algorithm)) {
+			ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
+		} else if ("MAPPO".equals(algorithm)) {
+			mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
+		} else if ("PPO_5AGENT".equals(algorithm)) {
+			ppoFiveAgentManager = new PPOFiveAgentManager(simulationManager, orchestrationHistory, vmList);
+		} else if ("TRADE_OFF_5AGENT".equals(algorithm)) {
+			tradeOffFiveAgentManager = new TradeOffFiveAgentManager(simulationManager, orchestrationHistory, vmList);
+		}
 	}
 
 	protected int findVM(String[] architecture, Task task) {		
@@ -81,6 +93,9 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				break;
 			case "TRADE_OFF":
 				bestVM = tradeOff(architecture, task);
+				break;
+			case "TRADE_OFF_5AGENT":
+				bestVM = tradeOffFiveAgentDecision(architecture, task);
 				break;
 			case "INCREASE_LIFETIME":
 				bestVM = increaseLifetime(architecture, task);
@@ -114,6 +129,9 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				break;
 			case "MAPPO":
 				bestVM = mappoDecision(architecture, task);
+				break;
+			case "PPO_5AGENT":
+				bestVM = ppoFiveAgentDecision(architecture, task);
 				break;
 	
 			default:
@@ -555,6 +573,18 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		return mappoManager.reinforcementLearning(architecture, task);
 	}
 	/************ MAPPO ************/
+
+	/************ PPO_5AGENT ************/
+	private int ppoFiveAgentDecision(String[] architecture, Task task) {
+		return ppoFiveAgentManager.reinforcementLearning(architecture, task);
+	}
+	/************ PPO_5AGENT ************/
+
+	/************ TRADE_OFF_5AGENT ************/
+	private int tradeOffFiveAgentDecision(String[] architecture, Task task) {
+		return tradeOffFiveAgentManager.reinforcementLearning(architecture, task);
+	}
+	/************ TRADE_OFF_5AGENT ************/
 	
 	public MultiLayerRLManager getMultiLayerRLManager() {
 		return multiLayerRLManager;
@@ -566,6 +596,33 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	public MAPPOManager getMAPPOManager() {
 		return mappoManager;
+	}
+
+	public PPOFiveAgentManager getPPOFiveAgentManager() {
+		return ppoFiveAgentManager;
+	}
+
+	public FiveAgentDecisionSupport.DecisionTelemetrySnapshot getFiveAgentTelemetrySnapshot() {
+		if ("MAPPO".equals(algorithm) && mappoManager != null) {
+			return mappoManager.getTelemetrySnapshot();
+		}
+		if ("PPO_5AGENT".equals(algorithm) && ppoFiveAgentManager != null) {
+			return ppoFiveAgentManager.getTelemetrySnapshot();
+		}
+		if ("TRADE_OFF_5AGENT".equals(algorithm) && tradeOffFiveAgentManager != null) {
+			return tradeOffFiveAgentManager.getTelemetrySnapshot();
+		}
+		return FiveAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
+	}
+
+	public double getPPOChartAvgReward() {
+		if ("PPO_5AGENT".equals(algorithm) && ppoFiveAgentManager != null) {
+			return ppoFiveAgentManager.getAvgReward();
+		}
+		if (ppoManager != null) {
+			return ppoManager.getAvgReward();
+		}
+		return 0.0;
 	}
 	/************ Reinforcement Learning ************/
 	
@@ -658,6 +715,10 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			ppoManager.reinforcementFeedback(task);
 		} else if(algorithm.equals("MAPPO")) {
 			mappoManager.reinforcementFeedback(task);
+		} else if(algorithm.equals("PPO_5AGENT")) {
+			ppoFiveAgentManager.reinforcementFeedback(task);
+		} else if(algorithm.equals("TRADE_OFF_5AGENT")) {
+			tradeOffFiveAgentManager.reinforcementFeedback(task);
 		}
 
 	}
@@ -666,6 +727,10 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	public void simulationFinished() {
 		if ("MAPPO".equals(algorithm)) {
 			mappoManager.simulationFinished();
+		} else if ("PPO_5AGENT".equals(algorithm)) {
+			ppoFiveAgentManager.simulationFinished();
+		} else if ("TRADE_OFF_5AGENT".equals(algorithm)) {
+			tradeOffFiveAgentManager.simulationFinished();
 		}
 	}
 
