@@ -5,7 +5,7 @@ import com.pureedgesim.simulationcore.Simulation;
 
 public class Prueba1 extends MainApplication {
 	//private static String settingsPath = "PureEdgeSim/pruebas/settings/";
-	private static String settingsPath = "PureEdgeSim/pruebas/settings_tiny/";
+	private static String settingsPath = "PureEdgeSim/pruebas/settings_mappo_5agents_train/";
 	private static String outputPath = "PureEdgeSim/pruebas/output/";
 
 	public static void main(String[] args) {
