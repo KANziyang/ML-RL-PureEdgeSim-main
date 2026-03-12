@@ -33,6 +33,7 @@ import com.pureedgesim.scenariomanager.SimulationParameters.TYPES;
 import com.pureedgesim.simulationcore.SimLog;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
+import com.pureedgesim.tasksorchestration.ArchitectureHelper;
 import com.pureedgesim.tasksorchestration.Orchestrator;
 
 import net.sourceforge.jFuzzyLogic.FIS;
@@ -151,7 +152,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	/************ Random ************/
 	private int random(String[] architecture, Task task) {
-		return SimulationParameters.ALGO_RNG.nextInt(orchestrationHistory.size());
+		return randomGood(architecture, task);
 	}
 	/************ Random ************/
 	
@@ -169,26 +170,41 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	/************ Local ************/
 	private int local(String[] architecture, Task task) {
+		if (ArchitectureHelper.allowsLocal(architecture)) {
+			int vm = getSourceLocalVm(task);
+			if (vm != -1) {
+				return vm;
+			}
+			String[] fallbackArchitecture = getLocalFallbackArchitecture(architecture);
+			if (fallbackArchitecture.length == 0) {
+				return -1;
+			}
+			return roundRobin(fallbackArchitecture, task);
+		}
+
 		int vm = -1;
-		
 		DataCenter device = (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
 		List<Vm> vmListDevice = device.getVmAllocationPolicy().getHostList().get(0).getVmList();
-		
-		if(vmListDevice.size() > 0)
+		if (vmListDevice.size() > 0)
 			vm = (int) vmListDevice.get(0).getId();
 
-		if(vm == -1) {
-			//System.out.println("Offloading to mist");
+		if (vm == -1)
 			vm = onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DEVICE);
-			
-			if(vm == -1) {
-				//System.out.println("Offloading to mist failed");
-			}
-		}
-		
+
 		return vm;
 	}
 	/************ Local ************/
+
+	private String[] getLocalFallbackArchitecture(String[] architecture) {
+		List<String> fallback = new ArrayList<String>();
+		if (ArchitectureHelper.allowsEdge(architecture)) {
+			fallback.add("Edge");
+		}
+		if (ArchitectureHelper.allowsCloud(architecture)) {
+			fallback.add("Cloud");
+		}
+		return fallback.toArray(new String[0]);
+	}
 	
 
 	/************ Closest Mist ************/
@@ -387,8 +403,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		List<Double> exedelay = new ArrayList<>();
 		List<Double> vmnum = new ArrayList<>();
 		List<Double> energylim = new ArrayList<>();
-		
-		architecture = new String[] {"Mist" , "Edge"};
 		
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			double localDistance;
@@ -604,7 +618,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	public FiveAgentDecisionSupport.DecisionTelemetrySnapshot getFiveAgentTelemetrySnapshot() {
 		if ("MAPPO".equals(algorithm) && mappoManager != null) {
-			return mappoManager.getTelemetrySnapshot();
+			return FiveAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 		}
 		if ("PPO_5AGENT".equals(algorithm) && ppoFiveAgentManager != null) {
 			return ppoFiveAgentManager.getTelemetrySnapshot();
@@ -613,6 +627,13 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			return tradeOffFiveAgentManager.getTelemetrySnapshot();
 		}
 		return FiveAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
+	}
+
+	public DeviceAgentDecisionSupport.DecisionTelemetrySnapshot getDeviceAgentTelemetrySnapshot() {
+		if ("MAPPO".equals(algorithm) && mappoManager != null) {
+			return mappoManager.getTelemetrySnapshot();
+		}
+		return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 	}
 
 	public double getPPOChartAvgReward() {

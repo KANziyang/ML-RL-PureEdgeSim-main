@@ -3,14 +3,14 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
 
 from analyze_mappo import analyze_episode
 from env_client import MAPPOClient
-from models import SharedActor
+from models import TurnActor
 from runtime_support import (
     apply_run_layout,
     build_eval_output_dir,
@@ -27,15 +27,9 @@ from runtime_support import (
     resolve_trajectory_dir,
     start_java_episode,
     wait_for_java_exit,
-    write_settings_overrides,
-    clone_settings_dir,
     write_run_manifest,
 )
 
-
-NUM_AGENTS = 5
-LOCAL_OBS_DIM = 14
-PRIORITY_BINS = 5
 
 DEFAULT_TEST_EPISODES = int(os.getenv("PUREEDGESIM_MAPPO_TEST_EPISODES", "1"))
 DEFAULT_TEST_SEEDS = os.getenv("PUREEDGESIM_MAPPO_TEST_SEEDS", "")
@@ -43,7 +37,9 @@ DEFAULT_TEST_VARIANTS = os.getenv("PUREEDGESIM_MAPPO_TEST_VARIANTS", "base")
 
 TEST_EPISODES_OVERRIDE: Optional[int] = None
 TEST_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
-TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 20
+TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 10
+TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
+TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 
 
 def main() -> None:
@@ -63,6 +59,7 @@ def main() -> None:
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt = torch.load(model_path, map_location=device)
+        model_cfg = ckpt.get("config", {})
         eval_layout = resolve_eval_run_layout(
             base_output_root,
             model_path,
@@ -77,10 +74,14 @@ def main() -> None:
 
         describe_runtime(config, logger)
         compile_java_project(config, logger)
-        model_cfg = ckpt.get("config", {})
-        local_obs_dim = int(model_cfg.get("local_obs_dim", LOCAL_OBS_DIM))
-        priority_bins = int(model_cfg.get("priority_bins", PRIORITY_BINS))
-        actor = SharedActor(obs_dim=local_obs_dim, num_agents=NUM_AGENTS, priority_bins=priority_bins).to(device)
+
+        actor = TurnActor(
+            agent_obs_dim=int(model_cfg["agent_obs_dim"]),
+            dest_feat_dim=int(model_cfg["dest_feat_dim"]),
+            num_agents=int(model_cfg["num_agents"]),
+            num_destinations=int(model_cfg["num_destinations"]),
+            prb_bins=int(model_cfg["prb_bins"]),
+        ).to(device)
         actor.load_state_dict(ckpt["actor"])
         actor.eval()
         print(f"loaded model: {model_path}", flush=True)
@@ -135,7 +136,11 @@ def main() -> None:
                                 ) from exc
 
                             msg_type = msg.get("type", "")
-                            if msg_type == "marl_obs":
+                            if msg_type == "marl_config":
+                                _validate_env_config(model_cfg, msg)
+                                continue
+
+                            if msg_type == "marl_turn_obs":
                                 if pending_terminate and not terminate_requested:
                                     client.request_termination()
                                     terminate_requested = True
@@ -153,20 +158,24 @@ def main() -> None:
                                     continue
 
                                 step_id = str(msg.get("step_id", ""))
-                                obs = np.asarray(msg["obs"], dtype=np.float32)
-                                mask = np.asarray(msg.get("action_mask", [1] * NUM_AGENTS), dtype=np.float32)
-                                if obs.shape != (NUM_AGENTS, local_obs_dim):
-                                    raise ValueError(f"Unexpected obs shape: {obs.shape}")
-                                if mask.shape[0] != NUM_AGENTS:
-                                    raise ValueError(f"Unexpected action mask shape: {mask.shape}")
+                                agent_id = int(msg["agent_id"])
+                                agent_obs = np.asarray(msg["agent_obs"], dtype=np.float32)
+                                dest_features = np.asarray(msg["dest_features"], dtype=np.float32)
+                                dest_mask = np.asarray(msg.get("dest_mask", []), dtype=np.float32)
 
-                                obs_t = torch.from_numpy(obs).unsqueeze(0).to(device)
-                                mask_t = torch.from_numpy(mask).unsqueeze(0).to(device)
                                 with torch.no_grad():
-                                    actions_t, _, _ = actor.act(obs_t, mask_t, deterministic=True)
+                                    actions_t, _, _ = actor.act(
+                                        torch.tensor([agent_id], dtype=torch.long, device=device),
+                                        torch.from_numpy(agent_obs).unsqueeze(0).to(device),
+                                        torch.from_numpy(dest_features).unsqueeze(0).to(device),
+                                        torch.from_numpy(dest_mask).unsqueeze(0).to(device),
+                                        deterministic=True,
+                                    )
                                 actions = actions_t.squeeze(0).cpu().numpy().astype(np.int64)
                                 client.send_action(step_id, int(actions[0]), int(actions[1]))
-                            elif msg_type == "marl_transition":
+                                continue
+
+                            if msg_type == "marl_transition":
                                 transition_count += 1
                                 episode_reward += float(msg.get("reward", 0.0))
                                 if max_env_steps is not None and transition_count >= max_env_steps:
@@ -180,7 +189,9 @@ def main() -> None:
                                         f"reward_so_far={episode_reward:.4f}",
                                         flush=True,
                                     )
-                            elif msg_type == "marl_episode_end":
+                                continue
+
+                            if msg_type == "marl_episode_end":
                                 episode_done = True
                                 print(
                                     f"episode={episode}/{test_episodes} "
@@ -193,6 +204,7 @@ def main() -> None:
                     finally:
                         client.close()
                         wait_for_java_exit(process)
+
                     trajectory_path = _resolve_episode_trajectory(resolve_trajectory_dir(config), trajectory_before)
                     analysis_dir = output_dir / "analysis"
                     analyze_episode(trajectory_path, output_dir, analysis_dir)
@@ -206,6 +218,20 @@ def main() -> None:
     finally:
         if logger is not None:
             logger.close()
+
+
+def _validate_env_config(model_cfg: Dict[str, Any], msg: Dict[str, Any]) -> None:
+    expected = {
+        "num_agents": int(model_cfg["num_agents"]),
+        "num_destinations": int(model_cfg["num_destinations"]),
+        "agent_obs_dim": int(model_cfg["agent_obs_dim"]),
+        "dest_feat_dim": int(model_cfg["dest_feat_dim"]),
+        "state_dim": int(model_cfg["state_dim"]),
+        "prb_bins": int(model_cfg["prb_bins"]),
+    }
+    observed = {key: int(msg[key]) for key in expected}
+    if expected != observed:
+        raise ValueError(f"MAPPO checkpoint/env config mismatch: expected={expected} observed={observed}")
 
 
 def _normalize_optional_limit(value: Optional[int]) -> Optional[int]:
@@ -260,54 +286,46 @@ def _parse_variants(raw: str) -> list[str]:
     variants = []
     for value in values:
         if value not in {"base", "stress"}:
-            raise ValueError(f"Unsupported eval variant: {value}")
+            raise ValueError(f"Unsupported test variant '{value}'. Expected one of: base, stress")
         if value not in variants:
             variants.append(value)
     return variants
 
 
 def _prepare_eval_settings(
-    config,
-    logger,
+    config: Any,
+    logger: Any,
+    *,
     variant: str,
     seed: Optional[int],
     simulation_minutes_override: Optional[int],
-):
-    run_id = f"{logger.log_path.stem}_{variant}_seed{seed if seed is not None else 'default'}"
+) -> tuple[Path, int]:
+    if variant == "base":
+        effective_dir, simulation_minutes = prepare_effective_settings_dir(
+            config,
+            config.settings_dir,
+            "test",
+            f"base_seed{seed if seed is not None else 'default'}",
+            simulation_minutes_override,
+            logger,
+            display_real_time_charts_override=TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE,
+            auto_close_real_time_charts_override=TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE,
+            clone_even_if_unmodified=True,
+        )
+        return effective_dir, simulation_minutes
     if variant == "stress":
         return prepare_stress_settings_dir(
             config,
             config.settings_dir,
-            "eval",
-            run_id,
+            "test",
+            f"stress_seed{seed if seed is not None else 'default'}",
             logger,
             simulation_minutes_override=simulation_minutes_override,
             random_seed_override=seed,
-            display_real_time_charts_override=False,
-            auto_close_real_time_charts_override=True,
+            display_real_time_charts_override=TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE,
+            auto_close_real_time_charts_override=TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE,
         )
-
-    if seed is None:
-        return prepare_effective_settings_dir(
-            config,
-            config.settings_dir,
-            "eval",
-            run_id,
-            simulation_minutes_override,
-            logger,
-            clone_even_if_unmodified=True,
-        )
-
-    settings_dir = clone_settings_dir(config, config.settings_dir.resolve(), "eval", run_id)
-    write_settings_overrides(settings_dir, {"random_seed": str(seed)})
-    simulation_minutes = _normalize_optional_limit(simulation_minutes_override)
-    if simulation_minutes is not None:
-        write_settings_overrides(settings_dir, {"simulation_time": str(simulation_minutes)})
-    logger.log(
-        f"created_seeded_eval_settings variant=base runtime_settings_dir={settings_dir} "
-        f"random_seed={seed} simulation_minutes={simulation_minutes}"
-    )
-    return settings_dir, read_simulation_minutes(settings_dir)
+    raise ValueError(f"Unsupported test variant '{variant}'")
 
 
 if __name__ == "__main__":

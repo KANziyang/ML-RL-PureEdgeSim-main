@@ -112,7 +112,7 @@ public class SimLog {
 					+ "Average real total time (s),"
 					+ "Generated tasks,Tasks successfully executed,"
 					+ "Task not executed (No resources available or long waiting time),Tasks failed (delay),Tasks failed (device dead),"
-					+ "Tasks failed (mobility),Tasks not generated due to the death of devices,Total tasks executed (Cloud),"
+					+ "Tasks failed (mobility),Tasks failed (network),Tasks not generated due to the death of devices,Total tasks executed (Cloud),"
 					+ "Tasks successfully executed (Cloud),Total tasks executed (Edge),Tasks successfully executed (Edge),"
 					+ "Total tasks executed (Mist),Tasks successfully executed (Mist),"
 					+ "Tasks success rate,"
@@ -226,6 +226,9 @@ public class SimLog {
 		print("                    Tasks execution results not returned due to devices mobility:"
 				+ padLeftSpaces(decimalFormat.format((double) tasksFailedMobility * 100 / tasksSent), 20) + " % ("
 				+ tasksFailedMobility + " tasks)");
+		print("                               Tasks rejected due to network / PRB constraints:"
+				+ padLeftSpaces(decimalFormat.format((double) tasksFailedNetwork * 100 / tasksSent), 20) + " % ("
+				+ tasksFailedNetwork + " tasks)");
 
 		print("SimLog- Tasks executed on each level                                            :" + " Cloud="
 				+ padLeftSpaces("" + tasksExecutedOnCloud, 13) + " tasks (where "
@@ -252,7 +255,8 @@ public class SimLog {
 				+ decimalFormat.format((totalWastedExecutionTime+totalWastedWaitingTime) / tasksFailedLatency) + ","
 				+ decimalFormat.format((totalExecutionTime+totalWaitingTime+totalWastedExecutionTime+totalWastedWaitingTime) / (executedTasksCount+tasksFailedLatency)) + ","
 				+ generatedTasksCount + ","	+ (tasksSent - tasksFailed) + "," + tasksFailedRessourcesUnavailable + "," + tasksFailedLatency + ","
-				+ tasksFailedBeacauseDeviceDead + "," + tasksFailedMobility + "," + notGeneratedBecDeviceDead + ","
+				+ tasksFailedBeacauseDeviceDead + "," + tasksFailedMobility + "," + tasksFailedNetwork + ","
+				+ notGeneratedBecDeviceDead + ","
 				+ tasksExecutedOnCloud + "," + (tasksExecutedOnCloud - tasksFailedCloud) + "," + tasksExecutedOnEdge
 				+ "," + (tasksExecutedOnEdge - tasksFailedEdge) + "," + tasksExecutedOnMist + ","
 				+ (tasksExecutedOnMist - tasksFailedMist) + ","

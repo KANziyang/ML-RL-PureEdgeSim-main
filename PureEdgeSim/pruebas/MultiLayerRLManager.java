@@ -14,6 +14,7 @@ import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimLog;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
+import com.pureedgesim.tasksorchestration.ArchitectureHelper;
 
 public class MultiLayerRLManager {
 	SimulationManager simulationManager;
@@ -96,7 +97,7 @@ public class MultiLayerRLManager {
 		// *** Determine the current state ***
 
 		// State of the local device
-		DataCenter device = (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+		DataCenter device = getLocalExecutionDevice(task, architecture);
 		int localDeviceId = (int) device.getId();
 		
 		List<Vm> vmListDevice = device.getVmAllocationPolicy().getHostList().get(0).getVmList();
@@ -110,7 +111,7 @@ public class MultiLayerRLManager {
 				
 		
 		// *** Determine the set of actions ***
-		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, state);
+		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, state, architecture);
 		
 
 		// *** Exploration VS Exploitation ***
@@ -126,7 +127,7 @@ public class MultiLayerRLManager {
 		// If the selected action is to query where to perform offloading
 		String askOffloading = "false";
 		if(action == 4) {
-			action = getMultiLayerRLAction(device, localDeviceId, localDevice, task);
+			action = getMultiLayerRLAction(device, localDeviceId, localDevice, task, architecture);
 			askOffloading = "true";
 			askTasks++;
 		}
@@ -197,7 +198,8 @@ public class MultiLayerRLManager {
 		return state;
 	}
 	
-	private List<Qrow> getActionsList(DataCenter device, int localDeviceId, Vm localDevice, String state) {
+	private List<Qrow> getActionsList(DataCenter device, int localDeviceId, Vm localDevice, String state,
+			String[] architecture) {
 		// *** Determine the action set ***
 		List<Qrow> actions = new LinkedList<Qrow>();
 		
@@ -207,14 +209,16 @@ public class MultiLayerRLManager {
 
 		// Offloading to mist action
 		// Considered only if there are available neighboring devices within range
-		if(getNumNeighbors(device) > 0)
+		if(ArchitectureHelper.allowsMist(architecture) && getNumNeighbors(device) > 0)
 			actions.add(getQTable(localDeviceId, state + "_1", 1));
 		
 		// Offloading to edge action
-		actions.add(getQTable(localDeviceId, state + "_2", 2));
+		if (ArchitectureHelper.allowsEdge(architecture) && SimulationParameters.NUM_OF_EDGE_DATACENTERS > 0)
+			actions.add(getQTable(localDeviceId, state + "_2", 2));
 
 		// Offloading to cloud action
-		actions.add(getQTable(localDeviceId, state + "_3", 3));
+		if (ArchitectureHelper.allowsCloud(architecture) && SimulationParameters.NUM_OF_CLOUD_DATACENTERS > 0)
+			actions.add(getQTable(localDeviceId, state + "_3", 3));
 		
 		// Ask offloading action
 		if(!disableMultiLayer && localDeviceId != -1)
@@ -253,11 +257,12 @@ public class MultiLayerRLManager {
 	}
 	
 
-	private int getMultiLayerRLAction(DataCenter device, int localDeviceId, Vm localDevice, Task task) {
+	private int getMultiLayerRLAction(DataCenter device, int localDeviceId, Vm localDevice, Task task,
+			String[] architecture) {
 		String state = getRLState(-1, localDevice, task);
 		
 		// Use the global Q-table
-		List<Qrow> actions = getActionsList(device, -1, localDevice, state);
+		List<Qrow> actions = getActionsList(device, -1, localDevice, state, architecture);
 		
 		int action = getRLAction(actions);
 		
@@ -303,7 +308,7 @@ public class MultiLayerRLManager {
 			reward *= AskReward;
 		
 		// Local device (or orchestrator if enabled)
-		DataCenter device = (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+		DataCenter device = getScenarioLocalExecutionDevice(task);
 		int localDeviceId = (int) device.getId();
 		
 		List<Vm> vmListDevice = device.getVmAllocationPolicy().getHostList().get(0).getVmList();
@@ -316,7 +321,8 @@ public class MultiLayerRLManager {
 		String nextState = getRLState(localDeviceId, localDevice, task);
 
 		// *** Determine the next action set and the greedy next action a' ***
-		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, nextState);
+		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, nextState,
+				getScenarioArchitectureTargets());
 		int nextAction = getRLAction(actions);
 		
 		double q = getQTable(localDeviceId, nextState + "_" + nextAction, nextAction).getValue();
@@ -339,6 +345,28 @@ public class MultiLayerRLManager {
 		// After each completed task, check whether it is time to update CPU utilization averages
 		if(askOffloading.equals("false"))
 			updateAvgs(localDeviceId, task);
+	}
+
+	private DataCenter getLocalExecutionDevice(Task task, String[] architecture) {
+		if (ArchitectureHelper.allowsLocal(architecture)) {
+			return task.getEdgeDevice();
+		}
+		return getLegacyExecutionDevice(task);
+	}
+
+	private DataCenter getScenarioLocalExecutionDevice(Task task) {
+		if (ArchitectureHelper.isLocalEdgeCloudScenario(simulationManager.getScenario().getStringOrchArchitecture())) {
+			return task.getEdgeDevice();
+		}
+		return getLegacyExecutionDevice(task);
+	}
+
+	private DataCenter getLegacyExecutionDevice(Task task) {
+		return (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+	}
+
+	private String[] getScenarioArchitectureTargets() {
+		return ArchitectureHelper.targetsForScenario(simulationManager.getScenario().getStringOrchArchitecture());
 	}
 
 	private void updateQTable(int vm, String rule, int action, double reward, double q) {
@@ -418,4 +446,3 @@ public class MultiLayerRLManager {
 	}
 	
 }
-

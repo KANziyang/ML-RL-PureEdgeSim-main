@@ -15,26 +15,25 @@ public class MAPPOManager {
 	private static final String TRACE_DIR_PROP = "mappo.trajectory.dir";
 
 	private final SimulationManager simulationManager;
-	private final FiveAgentDecisionSupport decisionSupport;
-	private final FiveAgentTraceWriter traceWriter;
-	private final FiveAgentDecisionSupport.DecisionTelemetryTracker telemetryTracker =
-			new FiveAgentDecisionSupport.DecisionTelemetryTracker();
-
+	private final DeviceAgentDecisionSupport decisionSupport;
+	private final DeviceAgentTraceWriter traceWriter;
+	private final DeviceAgentDecisionSupport.DecisionTelemetryTracker telemetryTracker;
 	private final boolean envServerEnabled;
 	private final MAPPOEnvServer envServer;
 
 	private double rewardSum = 0.0;
 	private int rewardNum = 0;
 	private long finishedEpisodes = 0;
+	private long fallbackCount = 0;
 	private boolean episodeEndSent = false;
-	private double[][] lastObs;
 	private double[] lastState;
 
 	public MAPPOManager(SimulationManager simulationManager, List<List<Integer>> orchestrationHistory, List<Vm> vmList) {
 		this.simulationManager = simulationManager;
-		this.decisionSupport = new FiveAgentDecisionSupport(simulationManager, orchestrationHistory, vmList);
-		this.traceWriter = new FiveAgentTraceWriter(TRACE_DIR_PROP,
-				Paths.get("PureEdgeSim", "pruebas", "mappo", "trajectory"), "mappo_trajectories");
+		this.decisionSupport = new DeviceAgentDecisionSupport(simulationManager, orchestrationHistory, vmList);
+		this.traceWriter = new DeviceAgentTraceWriter(TRACE_DIR_PROP, Paths.get("PureEdgeSim", "pruebas", "mappo", "trajectory"),
+				"mappo_trajectories", decisionSupport.getDestinationLabels());
+		this.telemetryTracker = decisionSupport.createTelemetryTracker();
 
 		this.envServerEnabled = Boolean.getBoolean(ENV_SERVER_ENABLED_PROP);
 		if (envServerEnabled) {
@@ -55,54 +54,55 @@ public class MAPPOManager {
 		}
 		waitForEnvConnection();
 
-		FiveAgentDecisionSupport.StateBundle state = decisionSupport.buildState(task, architecture);
+		DeviceAgentDecisionSupport.TurnObservation turn = decisionSupport.buildTurn(task);
 		long stepId = task.getId();
-		MAPPOEnvServer.ActionData actionData = envServer.waitForAction(state.localObs, state.globalState, state.actionMask,
-				stepId);
+		MAPPOEnvServer.ActionData actionData = envServer.waitForAction(turn.agentId, turn.agentObs, turn.destFeatures,
+				turn.globalState, turn.destMask, stepId, decisionSupport.getEnvConfig());
 
 		if (actionData.terminate) {
 			simulationManager.terminateAndSaveCharts();
 		}
 
-		int destAction = decisionSupport.sanitizeDestAction(actionData.destAction);
-		int priorityAction = decisionSupport.sanitizePriorityAction(actionData.priorityAction);
-		int selectedAgent = decisionSupport.resolveDestination(destAction, state.actionMask, state.candidates);
-		int selectedVm = selectedAgent >= 0 ? state.candidates[selectedAgent].vmIndex : -1;
-		int selectedPriorityBin = decisionSupport.priorityActionToBin(priorityAction);
-		decisionSupport.applyPriorityDecision(task, selectedVm, selectedPriorityBin);
-		telemetryTracker.update(selectedAgent, selectedPriorityBin);
+		int requestedDestAction = decisionSupport.sanitizeDestAction(actionData.destAction);
+		int requestedPrbAction = decisionSupport.sanitizePrbAction(actionData.prbAction);
+		DeviceAgentDecisionSupport.DecisionResolution resolution = decisionSupport.resolveDestination(requestedDestAction,
+				turn.destMask, turn.candidates);
+		int executedDestAction = resolution.executedDestAction;
+		int selectedVm = resolution.selectedVm;
+		int executedPrbAction = decisionSupport.isLocalDestination(executedDestAction) ? 0 : requestedPrbAction;
 
-		task.setMetaData(decisionSupport.createDecisionMeta(state, destAction, priorityAction, selectedAgent, selectedVm,
-				selectedPriorityBin, stepId));
+		decisionSupport.applyPrbDecision(task, selectedVm, executedDestAction, executedPrbAction);
+		task.setMetaData(decisionSupport.createDecisionMeta(turn, requestedDestAction, executedDestAction, requestedPrbAction,
+				executedPrbAction, selectedVm, task.getRequestedLanPrbBlocks(), resolution.destFallback, stepId));
 
-		lastObs = FiveAgentDecisionSupport.deepCopy2D(state.localObs);
-		lastState = FiveAgentDecisionSupport.copy1D(state.globalState);
+		if (resolution.destFallback) {
+			fallbackCount++;
+		}
+		telemetryTracker.update(executedDestAction, executedPrbAction,
+				selectedVm >= 0 && !decisionSupport.isLocalDestination(executedDestAction));
+		lastState = DeviceAgentDecisionSupport.copy1D(turn.globalState);
 		return selectedVm;
 	}
 
 	public void reinforcementFeedback(Task task) {
 		Object metaObj = task.getMetaData();
-		if (!(metaObj instanceof FiveAgentDecisionSupport.DecisionMeta)) {
+		if (!(metaObj instanceof DeviceAgentDecisionSupport.DecisionMeta)) {
 			return;
 		}
-		FiveAgentDecisionSupport.DecisionMeta meta = (FiveAgentDecisionSupport.DecisionMeta) metaObj;
+		DeviceAgentDecisionSupport.DecisionMeta meta = (DeviceAgentDecisionSupport.DecisionMeta) metaObj;
 
 		double reward = decisionSupport.computeReward(task);
-		FiveAgentDecisionSupport.StateBundle nextState = decisionSupport.buildState(task,
-				FiveAgentDecisionSupport.EDGE_CLOUD_ARCH);
-
-		traceWriter.appendTrace(task, meta, reward, nextState.localObs, nextState.globalState, false);
+		traceWriter.appendTrace(task, meta, reward, true);
 		updateAvgReward(reward);
 
 		if (envServerEnabled && envServer != null && envServer.isConnected()) {
-			envServer.sendTransition(reward, nextState.localObs, nextState.globalState, false, nextState.actionMask,
-					meta.stepId);
+			envServer.sendTransition(reward, meta.requestedDestAction, meta.executedDestAction, meta.requestedPrbAction,
+					meta.executedPrbAction, true, meta.destFallback, meta.stepId);
 		} else {
 			throw new IllegalStateException("MAPPOManager: env server disconnected during feedback.");
 		}
 
-		lastObs = FiveAgentDecisionSupport.deepCopy2D(nextState.localObs);
-		lastState = FiveAgentDecisionSupport.copy1D(nextState.globalState);
+		lastState = DeviceAgentDecisionSupport.copy1D(meta.state);
 	}
 
 	public synchronized void simulationFinished() {
@@ -113,11 +113,9 @@ public class MAPPOManager {
 		finishedEpisodes++;
 		try {
 			if (envServerEnabled && envServer != null && envServer.isConnected()) {
-				double[][] obs = lastObs != null ? lastObs
-						: new double[FiveAgentDecisionSupport.AGENT_COUNT][FiveAgentDecisionSupport.LOCAL_OBS_SIZE];
-				double[] state = lastState != null ? lastState
-						: new double[FiveAgentDecisionSupport.GLOBAL_STATE_SIZE];
-				envServer.sendEpisodeEnd(obs, state, finishedEpisodes);
+				envServer.sendConfigIfNeeded(decisionSupport.getEnvConfig());
+				double[] state = lastState != null ? lastState : new double[DeviceAgentDecisionSupport.GLOBAL_STATE_SIZE];
+				envServer.sendEpisodeEnd(state, finishedEpisodes, fallbackCount);
 			}
 		} finally {
 			traceWriter.close();
@@ -134,7 +132,7 @@ public class MAPPOManager {
 		return avg;
 	}
 
-	public FiveAgentDecisionSupport.DecisionTelemetrySnapshot getTelemetrySnapshot() {
+	public DeviceAgentDecisionSupport.DecisionTelemetrySnapshot getTelemetrySnapshot() {
 		return telemetryTracker.snapshot();
 	}
 

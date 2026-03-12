@@ -529,8 +529,16 @@ public class DefaultNetworkModel extends NetworkModel {
 		return allocatedLanPrbBlocks;
 	}
 
+	public int getReservedLanPrbBlocks() {
+		return allocatedLanPrbBlocks;
+	}
+
 	public int getCurrentAllocatedLanPrbBlocks() {
 		return currentAllocatedLanPrbBlocks;
+	}
+
+	public int getObservedAllocatedLanPrbBlocks() {
+		return Math.max(allocatedLanPrbBlocks, currentAllocatedLanPrbBlocks);
 	}
 
 	public boolean canAdmitDynamicTransfer(Task task) {

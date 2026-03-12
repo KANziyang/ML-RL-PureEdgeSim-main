@@ -14,6 +14,7 @@ import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimLog;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
+import com.pureedgesim.tasksorchestration.ArchitectureHelper;
 
 public class RLManager {
 	SimulationManager simulationManager;
@@ -54,7 +55,7 @@ public class RLManager {
 		// *** Determine the state ***
 		
 		// Local device state
-		DataCenter device = (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+		DataCenter device = getLocalExecutionDevice(task, architecture);
 		int localDeviceId = (int) device.getId();
 		
 		List<Vm> vmListDevice = device.getVmAllocationPolicy().getHostList().get(0).getVmList();
@@ -68,7 +69,7 @@ public class RLManager {
 		
 
 		// *** Determine the action set ***
-		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, state);
+		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, state, architecture);
 		
 		// *** Exploration VS Exploitation ***
 		int action;
@@ -146,7 +147,8 @@ public class RLManager {
 		return state;
 	}
 	
-	private List<Qrow> getActionsList(DataCenter device, int localDeviceId, Vm localDevice, String state) {
+	private List<Qrow> getActionsList(DataCenter device, int localDeviceId, Vm localDevice, String state,
+			String[] architecture) {
 		// *** Determine the action set ***
 		List<Qrow> actions = new LinkedList<Qrow>();
 		
@@ -155,14 +157,16 @@ public class RLManager {
 			actions.add(getQTable(localDeviceId, state + "_0", 0));
 		// Offloading to mist action
     	// Considered only if there are available neighboring devices within range
-		if(getNumNeighbors(device) > 0)
+		if(ArchitectureHelper.allowsMist(architecture) && getNumNeighbors(device) > 0)
 			actions.add(getQTable(localDeviceId, state + "_1", 1));
 		
 		// Offloading to edge action
-		actions.add(getQTable(localDeviceId, state + "_2", 2));
+		if (ArchitectureHelper.allowsEdge(architecture) && SimulationParameters.NUM_OF_EDGE_DATACENTERS > 0)
+			actions.add(getQTable(localDeviceId, state + "_2", 2));
 		
 		// Offloading to cloud action
-		actions.add(getQTable(localDeviceId, state + "_3", 3));
+		if (ArchitectureHelper.allowsCloud(architecture) && SimulationParameters.NUM_OF_CLOUD_DATACENTERS > 0)
+			actions.add(getQTable(localDeviceId, state + "_3", 3));
 
 		return actions;
 	}
@@ -263,7 +267,7 @@ public class RLManager {
 		int action = Integer.parseInt(((String[]) task.getMetaData())[1]);
 		
 		// Local device state (or orchestrator if enabled)
-		DataCenter device = (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+		DataCenter device = getScenarioLocalExecutionDevice(task);
 		int localDeviceId = (int) device.getId();
 		
 		List<Vm> vmListDevice = device.getVmAllocationPolicy().getHostList().get(0).getVmList();
@@ -277,7 +281,8 @@ public class RLManager {
 		String nextState = getRLState(task, localDevice);
 
 		// *** Determine the next action set and the greedy next action a' ***
-		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, nextState);
+		List<Qrow> actions = getActionsList(device, localDeviceId, localDevice, nextState,
+				getScenarioArchitectureTargets());
 		int nextAction = getRLAction(actions);
 		
 		double q = getQTable(localDeviceId, nextState + "_" + nextAction, nextAction).getValue();
@@ -341,5 +346,26 @@ public class RLManager {
 	public List<Map<String, Qrow>> getVmQTableList() {
 		return this.vmQTableList;
 	}
-}
 
+	private DataCenter getLocalExecutionDevice(Task task, String[] architecture) {
+		if (ArchitectureHelper.allowsLocal(architecture)) {
+			return task.getEdgeDevice();
+		}
+		return getLegacyExecutionDevice(task);
+	}
+
+	private DataCenter getScenarioLocalExecutionDevice(Task task) {
+		if (ArchitectureHelper.isLocalEdgeCloudScenario(simulationManager.getScenario().getStringOrchArchitecture())) {
+			return task.getEdgeDevice();
+		}
+		return getLegacyExecutionDevice(task);
+	}
+
+	private DataCenter getLegacyExecutionDevice(Task task) {
+		return (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+	}
+
+	private String[] getScenarioArchitectureTargets() {
+		return ArchitectureHelper.targetsForScenario(simulationManager.getScenario().getStringOrchArchitecture());
+	}
+}

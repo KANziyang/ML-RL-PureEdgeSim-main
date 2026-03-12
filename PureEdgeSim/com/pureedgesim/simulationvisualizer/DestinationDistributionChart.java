@@ -28,40 +28,77 @@ import org.knowm.xchart.style.markers.SeriesMarkers;
 import com.pureedgesim.simulationcore.SimulationManager;
 
 import pruebas.CustomEdgeOrchestrator;
+import pruebas.DeviceAgentDecisionSupport;
 import pruebas.FiveAgentDecisionSupport.DecisionTelemetrySnapshot;
 
 public class DestinationDistributionChart extends Chart {
-	private static final String[] LABELS = { "Edge 0", "Edge 1", "Edge 2", "Edge 3", "Cloud" };
-	private static final Color[] COLORS = {
-			new Color(31, 119, 180),
-			new Color(255, 127, 14),
-			new Color(44, 160, 44),
-			new Color(214, 39, 40),
-			new Color(148, 103, 189) };
+	private static final String[] FIVE_AGENT_LABELS = { "Edge 0", "Edge 1", "Edge 2", "Edge 3", "Cloud" };
+	private static final Color[] COLORS = { new Color(31, 119, 180), new Color(255, 127, 14), new Color(44, 160, 44),
+			new Color(214, 39, 40), new Color(148, 103, 189), new Color(140, 86, 75), new Color(227, 119, 194),
+			new Color(127, 127, 127) };
 
 	private final List<Double> currentTime = new ArrayList<>();
 	private final List<List<Double>> ratios = new ArrayList<>();
+	private final List<String> activeLabels = new ArrayList<>();
 
 	public DestinationDistributionChart(String title, String xAxisTitle, String yAxisTitle,
 			SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
 		getChart().getStyler().setDefaultSeriesRenderStyle(XYSeriesRenderStyle.Line);
 		updateSize(0.0, null, 0.0, 100.0);
-		for (int i = 0; i < LABELS.length; i++) {
-			ratios.add(new ArrayList<>());
-		}
 	}
 
 	public void update() {
 		currentTime.add(simulationManager.getSimulation().clock());
-		DecisionTelemetrySnapshot snapshot = ((CustomEdgeOrchestrator) simulationManager.getOrchestrator())
-				.getFiveAgentTelemetrySnapshot();
+		CustomEdgeOrchestrator orchestrator = (CustomEdgeOrchestrator) simulationManager.getOrchestrator();
+		if ("MAPPO".equals(simulationManager.getScenario().getStringOrchAlgorithm())) {
+			DeviceAgentDecisionSupport.DecisionTelemetrySnapshot snapshot = orchestrator.getDeviceAgentTelemetrySnapshot();
+			ensureSeries(snapshot.destLabels.length, snapshot.destLabels);
+			double total = Math.max(snapshot.destWindowDecisionCount, 1);
+			for (int i = 0; i < snapshot.destLabels.length; i++) {
+				double ratio = snapshot.destWindowCounts[i] * 100.0 / total;
+				ratios.get(i).add(ratio);
+				updateSeries(getChart(), prettifyLabel(activeLabels.get(i)), toArray(currentTime), toArray(ratios.get(i)),
+						SeriesMarkers.NONE, COLORS[i % COLORS.length]);
+			}
+			return;
+		}
+		DecisionTelemetrySnapshot snapshot = orchestrator.getFiveAgentTelemetrySnapshot();
+		ensureSeries(FIVE_AGENT_LABELS.length, FIVE_AGENT_LABELS);
 		double total = Math.max(snapshot.windowDecisionCount, 1);
-		for (int i = 0; i < LABELS.length; i++) {
+		for (int i = 0; i < FIVE_AGENT_LABELS.length; i++) {
 			double ratio = snapshot.destWindowCounts[i] * 100.0 / total;
 			ratios.get(i).add(ratio);
-			updateSeries(getChart(), LABELS[i], toArray(currentTime), toArray(ratios.get(i)), SeriesMarkers.NONE,
-					COLORS[i]);
+			updateSeries(getChart(), activeLabels.get(i), toArray(currentTime), toArray(ratios.get(i)), SeriesMarkers.NONE,
+					COLORS[i % COLORS.length]);
 		}
+	}
+
+	private void ensureSeries(int count, String[] labels) {
+		if (activeLabels.size() == count) {
+			return;
+		}
+		activeLabels.clear();
+		ratios.clear();
+		for (int i = 0; i < count; i++) {
+			activeLabels.add(labels[i]);
+			ratios.add(new ArrayList<Double>());
+		}
+	}
+
+	private String prettifyLabel(String label) {
+		if (label == null) {
+			return "Unknown";
+		}
+		if ("local".equalsIgnoreCase(label)) {
+			return "Local";
+		}
+		if (label.startsWith("edge_")) {
+			return "Edge " + label.substring("edge_".length());
+		}
+		if (label.startsWith("cloud_")) {
+			return "Cloud " + label.substring("cloud_".length());
+		}
+		return label;
 	}
 }

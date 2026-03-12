@@ -20,6 +20,7 @@ import com.pureedgesim.network.DefaultNetworkModel;
 import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
+import com.pureedgesim.tasksorchestration.ArchitectureHelper;
 
 public class PPOManager {
 	private static final int STATE_SIZE = 9;
@@ -81,7 +82,7 @@ public class PPOManager {
 	}
 
 	public int reinforcementLearning(String[] architecture, Task task) {
-		DataCenter device = (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+		DataCenter device = getLocalExecutionDevice(task, architecture);
 		int localDeviceId = (int) device.getId();
 
 		List<Vm> vmListDevice = device.getVmAllocationPolicy().getHostList().get(0).getVmList();
@@ -91,7 +92,7 @@ public class PPOManager {
 		}
 
 		double[] state = getState(task, device, localDevice, localDeviceId);
-		List<Integer> actions = getActionsList(device, localDevice);
+		List<Integer> actions = getActionsList(device, localDevice, architecture);
 
 		if (!envServerEnabled || envServer == null) {
 			throw new IllegalStateException("PPOManager: env server is required but not enabled.");
@@ -145,7 +146,7 @@ public class PPOManager {
 
 		double reward = computeReward(task);
 
-		DataCenter device = (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+		DataCenter device = getScenarioLocalExecutionDevice(task);
 		int localDeviceId = (int) device.getId();
 
 		List<Vm> vmListDevice = device.getVmAllocationPolicy().getHostList().get(0).getVmList();
@@ -230,6 +231,24 @@ public class PPOManager {
 		return state;
 	}
 
+	private DataCenter getLocalExecutionDevice(Task task, String[] architecture) {
+		if (ArchitectureHelper.allowsLocal(architecture)) {
+			return task.getEdgeDevice();
+		}
+		return getLegacyExecutionDevice(task);
+	}
+
+	private DataCenter getScenarioLocalExecutionDevice(Task task) {
+		if (ArchitectureHelper.isLocalEdgeCloudScenario(simulationManager.getScenario().getStringOrchArchitecture())) {
+			return task.getEdgeDevice();
+		}
+		return getLegacyExecutionDevice(task);
+	}
+
+	private DataCenter getLegacyExecutionDevice(Task task) {
+		return (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
+	}
+
 	private double getPrbRemainingRatio() {
 		if (simulationManager == null || simulationManager.getNetworkModel() == null) {
 			return 0.0;
@@ -247,11 +266,11 @@ public class PPOManager {
 		return clamp(remaining, 0.0, 1.0);
 	}
 
-	private List<Integer> getActionsList(DataCenter device, Vm localDevice) {
+	private List<Integer> getActionsList(DataCenter device, Vm localDevice, String[] architecture) {
 		List<Integer> actions = new ArrayList<>();
-		boolean hasMist = getNumNeighbors(device) > 0;
-		boolean hasEdge = SimulationParameters.NUM_OF_EDGE_DATACENTERS > 0;
-		boolean hasCloud = SimulationParameters.NUM_OF_CLOUD_DATACENTERS > 0;
+		boolean hasMist = ArchitectureHelper.allowsMist(architecture) && getNumNeighbors(device) > 0;
+		boolean hasEdge = ArchitectureHelper.allowsEdge(architecture) && SimulationParameters.NUM_OF_EDGE_DATACENTERS > 0;
+		boolean hasCloud = ArchitectureHelper.allowsCloud(architecture) && SimulationParameters.NUM_OF_CLOUD_DATACENTERS > 0;
 
 		if (localDevice != null) {
 			actions.add(0);

@@ -1,98 +1,122 @@
 <?xml version="1.0"?>
 <cloud_data_centers>
-	<datacenter arch="x86" os="Linux" vmm="Xen">
-		<idleConsumption>0.00015</idleConsumption>
-		<maxConsumption>0.016</maxConsumption>
-		<isOrchestrator>true</isOrchestrator>
+	<datacenter arch="x86" os="Linux" vmm="Xen"> 
+		<idleConsumption>0.00015</idleConsumption> 		
+		<maxConsumption>0.016</maxConsumption> 
+		<isOrchestrator>true</isOrchestrator>   <!-- it has a task orchestrator or not  --> 
 		<hosts>
-			<host>
-				<core>6</core>
-				<mips>140000</mips>
-				<ram>24000</ram>
+		    <host>
+				<core>8</core>
+				<mips>1200000</mips>
+				<ram>16000</ram>
 				<storage>1000000</storage>
 				<VMs>
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
+					<VM>
+						<core>1</core>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
+					<VM>
+						<core>1</core>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 				</VMs>
-			</host>
+			</host> 
 			<host>
-				<core>6</core>
-				<mips>140000</mips>
-				<ram>24000</ram>
+				<core>8</core>
+				<mips>1200000</mips>
+				<ram>16000</ram>
 				<storage>1000000</storage>
 				<VMs>
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 					<VM>
 						<core>1</core>
-						<mips>140000</mips>
-						<ram>3000</ram>
-						<storage>30000</storage>
-					</VM>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
+						<VM>
+						<core>1</core>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
+					<VM>
+						<core>1</core>
+						<mips>150000</mips>
+						<ram>2000</ram>
+						<storage>20000</storage>
+					</VM> 
 				</VMs>
 			</host>
 		</hosts>
-	</datacenter>
+	</datacenter>  
 </cloud_data_centers>

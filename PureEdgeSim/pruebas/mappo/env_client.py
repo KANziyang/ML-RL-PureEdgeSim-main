@@ -42,12 +42,12 @@ class MAPPOClient:
             raise RuntimeError("Disconnected from MAPPOEnvServer.")
         return json.loads(line)
 
-    def send_action(self, step_id: Any, dest_action: int, priority_action: int) -> None:
+    def send_action(self, step_id: Any, dest_action: int, prb_action: int) -> None:
         payload = {
             "type": "marl_action",
             "step_id": step_id,
             "dest_action": int(dest_action),
-            "priority_action": int(priority_action),
+            "prb_action": int(prb_action),
         }
         self._send_json(payload)
 

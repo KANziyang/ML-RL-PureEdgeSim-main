@@ -33,7 +33,8 @@ import com.pureedgesim.simulationcore.SimulationManager;
 
 public class BlockChart extends Chart {
 
-	private List<Double> allocatedPrbBlocks = new ArrayList<>();
+	private List<Double> activePrbBlocks = new ArrayList<>();
+	private List<Double> reservedPrbBlocks = new ArrayList<>();
 
 	public BlockChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
@@ -42,24 +43,29 @@ public class BlockChart extends Chart {
 	}
 
 	public void update() {
-		double allocatedBlocks = 0.0;
+		double activeBlocks = 0.0;
+		double reservedBlocks = 0.0;
 		if (simulationManager.getNetworkModel() instanceof DefaultNetworkModel) {
 			DefaultNetworkModel network = (DefaultNetworkModel) simulationManager.getNetworkModel();
-			allocatedBlocks = network.getCurrentAllocatedLanPrbBlocks();
+			activeBlocks = network.getCurrentAllocatedLanPrbBlocks();
+			reservedBlocks = network.getReservedLanPrbBlocks();
 		}
 
-		allocatedPrbBlocks.add(allocatedBlocks);
+		activePrbBlocks.add(activeBlocks);
+		reservedPrbBlocks.add(reservedBlocks);
 
-		while (allocatedPrbBlocks.size() > 300 / SimulationParameters.CHARTS_UPDATE_INTERVAL) {
-			allocatedPrbBlocks.remove(0);
+		while (activePrbBlocks.size() > 300 / SimulationParameters.CHARTS_UPDATE_INTERVAL) {
+			activePrbBlocks.remove(0);
+			reservedPrbBlocks.remove(0);
 		}
-		double[] time = new double[allocatedPrbBlocks.size()];
+		double[] time = new double[activePrbBlocks.size()];
 		double currentTime = simulationManager.getSimulation().clock() - SimulationParameters.INITIALIZATION_TIME;
-		for (int i = allocatedPrbBlocks.size() - 1; i > 0; i--) {
-			time[i] = currentTime - ((allocatedPrbBlocks.size() - i) * SimulationParameters.CHARTS_UPDATE_INTERVAL);
+		for (int i = activePrbBlocks.size() - 1; i > 0; i--) {
+			time[i] = currentTime - ((activePrbBlocks.size() - i) * SimulationParameters.CHARTS_UPDATE_INTERVAL);
 		}
 
 		updateSize(currentTime - 200, currentTime, 0.0, Math.max(1.0, SimulationParameters.WLAN_PRB_BLOCKS));
-		updateSeries(getChart(), "Allocated PRB (blocks)", time, toArray(allocatedPrbBlocks), SeriesMarkers.NONE, Color.BLACK);
+		updateSeries(getChart(), "Active PRB (blocks)", time, toArray(activePrbBlocks), SeriesMarkers.NONE, Color.BLACK);
+		updateSeries(getChart(), "Reserved PRB (blocks)", time, toArray(reservedPrbBlocks), SeriesMarkers.NONE, Color.BLUE);
 	}
 }

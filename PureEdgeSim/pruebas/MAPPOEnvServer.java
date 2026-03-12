@@ -20,12 +20,14 @@ import com.google.gson.JsonParser;
 public class MAPPOEnvServer {
 	public static class ActionData {
 		public final int destAction;
+		public final int prbAction;
 		public final int priorityAction;
 		public final boolean terminate;
 
-		public ActionData(int destAction, int priorityAction, boolean terminate) {
+		public ActionData(int destAction, int prbAction, boolean terminate) {
 			this.destAction = destAction;
-			this.priorityAction = priorityAction;
+			this.prbAction = prbAction;
+			this.priorityAction = prbAction;
 			this.terminate = terminate;
 		}
 	}
@@ -38,6 +40,7 @@ public class MAPPOEnvServer {
 	private Socket clientSocket;
 	private BufferedReader reader;
 	private BufferedWriter writer;
+	private boolean configSent = false;
 
 	public MAPPOEnvServer(int port, int readTimeoutMs) {
 		this.port = port;
@@ -59,6 +62,7 @@ public class MAPPOEnvServer {
 			clientSocket.setSoTimeout(readTimeoutMs);
 			reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), StandardCharsets.UTF_8));
 			writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream(), StandardCharsets.UTF_8));
+			configSent = false;
 		} catch (IOException e) {
 			System.err.println("MAPPOEnvServer: failed to start: " + e.getMessage());
 		}
@@ -68,12 +72,28 @@ public class MAPPOEnvServer {
 		return clientSocket != null && clientSocket.isConnected() && !clientSocket.isClosed();
 	}
 
-	public synchronized ActionData waitForAction(double[][] obs, double[] state, int[] actionMask, long stepId) {
+	public synchronized void sendConfigIfNeeded(DeviceAgentDecisionSupport.EnvConfig config) {
+		if (!isConnected() || configSent || config == null) {
+			return;
+		}
+		try {
+			writer.write(buildConfigMessage(config));
+			writer.newLine();
+			writer.flush();
+			configSent = true;
+		} catch (IOException e) {
+			System.err.println("MAPPOEnvServer: failed sending config: " + e.getMessage());
+		}
+	}
+
+	public synchronized ActionData waitForAction(int agentId, double[] agentObs, double[][] destFeatures, double[] state,
+			int[] destMask, long stepId, DeviceAgentDecisionSupport.EnvConfig config) {
 		if (!isConnected()) {
 			return defaultAction();
 		}
 		try {
-			writer.write(buildObsMessage(obs, state, actionMask, stepId));
+			sendConfigIfNeeded(config);
+			writer.write(buildTurnObsMessage(agentId, agentObs, destFeatures, state, destMask, stepId));
 			writer.newLine();
 			writer.flush();
 
@@ -87,13 +107,32 @@ public class MAPPOEnvServer {
 		}
 	}
 
-	public synchronized void sendTransition(double reward, double[][] nextObs, double[] nextState, boolean done,
-			int[] nextActionMask, long stepId) {
+	public synchronized ActionData waitForAction(double[][] obs, double[] state, int[] actionMask, long stepId) {
+		if (!isConnected()) {
+			return defaultAction();
+		}
+		try {
+			writer.write(buildLegacyObsMessage(obs, state, actionMask, stepId));
+			writer.newLine();
+			writer.flush();
+			String line = reader.readLine();
+			return parseAction(line);
+		} catch (SocketTimeoutException e) {
+			return defaultAction();
+		} catch (IOException e) {
+			System.err.println("MAPPOEnvServer: failed waiting for legacy action: " + e.getMessage());
+			return defaultAction();
+		}
+	}
+
+	public synchronized void sendTransition(double reward, int requestedDestAction, int executedDestAction,
+			int requestedPrbAction, int executedPrbAction, boolean done, boolean destFallback, long stepId) {
 		if (!isConnected()) {
 			return;
 		}
 		try {
-			writer.write(buildTransitionMessage(reward, nextObs, nextState, done, nextActionMask, stepId));
+			writer.write(buildTransitionMessage(reward, requestedDestAction, executedDestAction, requestedPrbAction,
+					executedPrbAction, done, destFallback, stepId));
 			writer.newLine();
 			writer.flush();
 		} catch (IOException e) {
@@ -101,17 +140,31 @@ public class MAPPOEnvServer {
 		}
 	}
 
-	public synchronized void sendEpisodeEnd(double[][] finalObs, double[] finalState, long episodeIndex) {
+	public synchronized void sendTransition(double reward, double[][] nextObs, double[] nextState, boolean done,
+			int[] nextActionMask, long stepId) {
 		if (!isConnected()) {
 			return;
 		}
 		try {
-			Map<String, Object> payload = new LinkedHashMap<>();
+			writer.write(buildLegacyTransitionMessage(reward, nextObs, nextState, done, nextActionMask, stepId));
+			writer.newLine();
+			writer.flush();
+		} catch (IOException e) {
+			System.err.println("MAPPOEnvServer: failed sending legacy transition: " + e.getMessage());
+		}
+	}
+
+	public synchronized void sendEpisodeEnd(double[] finalState, long episodeIndex, long fallbackCount) {
+		if (!isConnected()) {
+			return;
+		}
+		try {
+			Map<String, Object> payload = new LinkedHashMap<String, Object>();
 			payload.put("type", "marl_episode_end");
 			payload.put("done", true);
-			payload.put("episode_index", episodeIndex);
-			payload.put("final_obs", finalObs);
+			payload.put("episode_index", Long.valueOf(episodeIndex));
 			payload.put("final_state", finalState);
+			payload.put("fallback_count", Long.valueOf(fallbackCount));
 			writer.write(gson.toJson(payload));
 			writer.newLine();
 			writer.flush();
@@ -120,23 +173,84 @@ public class MAPPOEnvServer {
 		}
 	}
 
-	private String buildObsMessage(double[][] obs, double[] state, int[] actionMask, long stepId) {
-		Map<String, Object> payload = new LinkedHashMap<>();
+	public synchronized void sendEpisodeEnd(double[][] finalObs, double[] finalState, long episodeIndex) {
+		if (!isConnected()) {
+			return;
+		}
+		try {
+			Map<String, Object> payload = new LinkedHashMap<String, Object>();
+			payload.put("type", "marl_episode_end");
+			payload.put("done", true);
+			payload.put("episode_index", Long.valueOf(episodeIndex));
+			payload.put("final_obs", finalObs);
+			payload.put("final_state", finalState);
+			writer.write(gson.toJson(payload));
+			writer.newLine();
+			writer.flush();
+		} catch (IOException e) {
+			System.err.println("MAPPOEnvServer: failed sending legacy episode end: " + e.getMessage());
+		}
+	}
+
+	private String buildConfigMessage(DeviceAgentDecisionSupport.EnvConfig config) {
+		Map<String, Object> payload = new LinkedHashMap<String, Object>();
+		payload.put("type", "marl_config");
+		payload.put("num_agents", Integer.valueOf(config.numAgents));
+		payload.put("num_destinations", Integer.valueOf(config.numDestinations));
+		payload.put("agent_obs_dim", Integer.valueOf(config.agentObsDim));
+		payload.put("dest_feat_dim", Integer.valueOf(config.destFeatDim));
+		payload.put("state_dim", Integer.valueOf(config.stateDim));
+		payload.put("prb_bins", Integer.valueOf(config.prbBins));
+		payload.put("destination_labels", config.destinationLabels);
+		payload.put("prb_bin_labels", config.prbBinLabels);
+		return gson.toJson(payload);
+	}
+
+	private String buildTurnObsMessage(int agentId, double[] agentObs, double[][] destFeatures, double[] state, int[] destMask,
+			long stepId) {
+		Map<String, Object> payload = new LinkedHashMap<String, Object>();
+		payload.put("type", "marl_turn_obs");
+		payload.put("step_id", Long.valueOf(stepId));
+		payload.put("agent_id", Integer.valueOf(agentId));
+		payload.put("agent_obs", agentObs);
+		payload.put("dest_features", destFeatures);
+		payload.put("dest_mask", destMask);
+		payload.put("state", state);
+		return gson.toJson(payload);
+	}
+
+	private String buildLegacyObsMessage(double[][] obs, double[] state, int[] actionMask, long stepId) {
+		Map<String, Object> payload = new LinkedHashMap<String, Object>();
 		payload.put("type", "marl_obs");
-		payload.put("step_id", stepId);
+		payload.put("step_id", Long.valueOf(stepId));
 		payload.put("obs", obs);
 		payload.put("state", state);
 		payload.put("action_mask", actionMask);
 		return gson.toJson(payload);
 	}
 
-	private String buildTransitionMessage(double reward, double[][] obs, double[] state, boolean done, int[] actionMask,
-			long stepId) {
-		Map<String, Object> payload = new LinkedHashMap<>();
+	private String buildTransitionMessage(double reward, int requestedDestAction, int executedDestAction,
+			int requestedPrbAction, int executedPrbAction, boolean done, boolean destFallback, long stepId) {
+		Map<String, Object> payload = new LinkedHashMap<String, Object>();
 		payload.put("type", "marl_transition");
-		payload.put("step_id", stepId);
-		payload.put("reward", reward);
-		payload.put("done", done);
+		payload.put("step_id", Long.valueOf(stepId));
+		payload.put("reward", Double.valueOf(reward));
+		payload.put("done", Boolean.valueOf(done));
+		payload.put("requested_dest_action", Integer.valueOf(requestedDestAction));
+		payload.put("executed_dest_action", Integer.valueOf(executedDestAction));
+		payload.put("requested_prb_action", Integer.valueOf(requestedPrbAction));
+		payload.put("executed_prb_action", Integer.valueOf(executedPrbAction));
+		payload.put("dest_fallback", Boolean.valueOf(destFallback));
+		return gson.toJson(payload);
+	}
+
+	private String buildLegacyTransitionMessage(double reward, double[][] obs, double[] state, boolean done, int[] actionMask,
+			long stepId) {
+		Map<String, Object> payload = new LinkedHashMap<String, Object>();
+		payload.put("type", "marl_transition");
+		payload.put("step_id", Long.valueOf(stepId));
+		payload.put("reward", Double.valueOf(reward));
+		payload.put("done", Boolean.valueOf(done));
 		payload.put("next_obs", obs);
 		payload.put("next_state", state);
 		payload.put("next_action_mask", actionMask);
@@ -156,12 +270,15 @@ public class MAPPOEnvServer {
 			}
 
 			int destAction = 0;
-			int priorityAction = 0;
+			int prbAction = 0;
 			if (root.has("dest_action")) {
 				destAction = root.get("dest_action").getAsInt();
 			}
+			if (root.has("prb_action")) {
+				prbAction = root.get("prb_action").getAsInt();
+			}
 			if (root.has("priority_action")) {
-				priorityAction = root.get("priority_action").getAsInt();
+				prbAction = root.get("priority_action").getAsInt();
 			}
 			if (root.has("action")) {
 				JsonArray action = root.getAsJsonArray("action");
@@ -169,10 +286,10 @@ public class MAPPOEnvServer {
 					destAction = action.get(0).getAsInt();
 				}
 				if (action.size() > 1) {
-					priorityAction = action.get(1).getAsInt();
+					prbAction = action.get(1).getAsInt();
 				}
 			}
-			return new ActionData(clampInt(destAction, 0, 4), clampInt(priorityAction, 0, 4), false);
+			return new ActionData(destAction, prbAction, false);
 		} catch (Exception e) {
 			return defaultAction();
 		}
@@ -180,9 +297,5 @@ public class MAPPOEnvServer {
 
 	private ActionData defaultAction() {
 		return new ActionData(0, 0, false);
-	}
-
-	private int clampInt(int value, int low, int high) {
-		return Math.max(low, Math.min(high, value));
 	}
 }
