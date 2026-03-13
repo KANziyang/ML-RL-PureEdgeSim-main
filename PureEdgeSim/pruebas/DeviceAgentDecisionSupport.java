@@ -402,24 +402,25 @@ public class DeviceAgentDecisionSupport {
 
 	public double computeReward(Task task) {
 		boolean failed = task.getStatus() == Status.FAILED;
-		double success = failed ? 0.0 : 1.0;
-		double fail = failed ? 1.0 : 0.0;
+
+		if (failed) {
+			return -5.0;
+		}
 
 		double totalTime = Math.max(0.0, task.getCheckTime() - task.getTime());
+		double deadline = Math.max(task.getMaxLatency(), 1e-6);
 		double totalEnergy = Math.max(0.0, task.getTotalCost());
 		updateEnergyStats(totalEnergy);
 
-		double latencyNorm = clamp(totalTime / Math.max(task.getMaxLatency(), 1e-6), 0.0, 2.0);
+		double latencyRatio = clamp(totalTime / deadline, 0.0, 2.0);
 		double energyNorm = clamp(totalEnergy / Math.max(energyP95, 1e-6), 0.0, 2.0);
-		double prbReject = task.isPrbRejected() ? 1.0 : 0.0;
-		int maxPerTask = getMaxPrbPerTask();
-		double prbWaste = (task.getRequestedLanPrbBlocks() > 0)
-				? clamp(task.getRequestedLanPrbBlocks() / (double) Math.max(maxPerTask, 1), 0.0, 1.0)
-				: 0.0;
-		double destCpuImbalanceNorm = computeDestinationCpuImbalanceStd();
 
-		return 5.0 * success - 5.0 * fail - 1.5 * latencyNorm - 0.5 * energyNorm - 3.0 * prbReject
-				- 0.5 * prbWaste - 0.5 * destCpuImbalanceNorm;
+		// Network resource cost: local=0, offload=actualPrbBlocks/maxPerTask
+		double networkCost = (task.getRequestedLanPrbBlocks() > 0)
+				? clamp(task.getRequestedLanPrbBlocks() / (double) Math.max(getMaxPrbPerTask(), 1), 0.0, 1.0)
+				: 0.0;
+
+		return 5.0 - 2.0 * latencyRatio - 0.5 * energyNorm - 1.0 * networkCost;
 	}
 
 	public int sanitizeDestAction(int value) {
