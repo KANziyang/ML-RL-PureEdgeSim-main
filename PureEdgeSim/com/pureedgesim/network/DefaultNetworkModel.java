@@ -51,6 +51,10 @@ public class DefaultNetworkModel extends NetworkModel {
 	private static class TaskPrbAllocation {
 		private int lanBlocks;
 		private boolean lanAllocated;
+		// true after upload finishes: PRB count released from allocatedLanPrbBlocks,
+		// but lanBlocks retained so the result-return transfer can reuse the same
+		// fixed block count without a capacity check.
+		private boolean countReleased;
 	}
 
 	public DefaultNetworkModel(SimulationManager simulationManager) {
@@ -453,6 +457,10 @@ public class DefaultNetworkModel extends NetworkModel {
 		// If it is a task (or offloading request) that is sent to the destination
 		else if (transfer.getTransferType() == FileTransferProgress.Type.TASK) {
 			transfer.getTask().setReceptionTime(simulationManager.getSimulation().clock());
+			// Upload done — release the reserved PRB count so other tasks can use it
+			// during CPU execution.  The allocation record is kept (with countReleased=true)
+			// so the result-return transfer reuses the same fixed block count.
+			releaseTaskPrbCount(transfer.getTask());
 			executeTaskOrDownloadContainer(transfer);
 			updateEnergyConsumption(transfer, "Destination");
 		}
@@ -529,6 +537,10 @@ public class DefaultNetworkModel extends NetworkModel {
 		return allocatedLanPrbBlocks;
 	}
 
+	public int getAvailablePrbBlocks() {
+		return Math.max(0, SimulationParameters.WLAN_PRB_BLOCKS - allocatedLanPrbBlocks);
+	}
+
 	public int getReservedLanPrbBlocks() {
 		return allocatedLanPrbBlocks;
 	}
@@ -591,8 +603,26 @@ public class DefaultNetworkModel extends NetworkModel {
 		if (allocation == null) {
 			return;
 		}
-		if (allocation.lanAllocated) {
+		// Only subtract from the global counter if not already released after upload
+		if (allocation.lanAllocated && !allocation.countReleased) {
 			allocatedLanPrbBlocks = Math.max(0, allocatedLanPrbBlocks - allocation.lanBlocks);
 		}
+	}
+
+	/**
+	 * Release the reserved PRB count from allocatedLanPrbBlocks after the upload
+	 * transfer finishes, but keep the allocation record so the result-return
+	 * transfer can reuse the same fixed block count without a capacity check.
+	 */
+	private void releaseTaskPrbCount(Task task) {
+		if (task == null) {
+			return;
+		}
+		TaskPrbAllocation allocation = taskPrbAllocations.get(task);
+		if (allocation == null || !allocation.lanAllocated || allocation.countReleased) {
+			return;
+		}
+		allocatedLanPrbBlocks = Math.max(0, allocatedLanPrbBlocks - allocation.lanBlocks);
+		allocation.countReleased = true;
 	}
 }

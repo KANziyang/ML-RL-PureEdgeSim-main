@@ -19,17 +19,16 @@ import com.pureedgesim.tasksgenerator.Task;
 import com.pureedgesim.tasksorchestration.ArchitectureHelper;
 
 public class DeviceAgentDecisionSupport {
-	public static final int AGENT_OBS_SIZE = 12;
-	public static final int DEST_FEAT_SIZE = 10;
-	public static final int GLOBAL_STATE_SIZE = 26;
-	public static final int PRB_BINS = 5;
+	public static final int AGENT_OBS_SIZE = 13;
+	public static final int DEST_FEAT_SIZE = 11;
+	public static final int GLOBAL_STATE_SIZE = 27;
+	public static final int PRB_BINS = 8;
 	public static final int TELEMETRY_WINDOW_SIZE = 200;
 	public static final String MAPPO_ARCHITECTURE = ArchitectureHelper.LOCAL_EDGE_CLOUD_SCENARIO;
 	private static final String[] FIXED_DESTINATION_ARCH = ArchitectureHelper.edgeCloudTargets();
 
 	private static final int ENERGY_WINDOW = 200;
-	private static final int[] PRB_PRIORITY_BIN_MAP = { 2, 4, 6, 8, 10 };
-	private static final String[] PRB_BIN_LABELS = { "20pct", "40pct", "60pct", "80pct", "100pct" };
+	private static final double[] PRB_BLOCK_RATIOS = { 0.02, 0.05, 0.10, 0.20, 0.40, 0.60, 0.80, 1.00 };
 
 	private final SimulationManager simulationManager;
 	private final List<List<Integer>> orchestrationHistory;
@@ -43,6 +42,8 @@ public class DeviceAgentDecisionSupport {
 	private final Map<Integer, Integer> agentIndexByDataCenterId = new HashMap<Integer, Integer>();
 	private final Map<Integer, List<Integer>> dataCenterVmIndices = new HashMap<Integer, List<Integer>>();
 	private final ArrayDeque<Double> energyWindow = new ArrayDeque<Double>();
+	private final int[] prbBlockMap;
+	private final String[] prbBinLabels;
 
 	private double energyP95 = 1.0;
 	private double maxTaskLength = 1.0;
@@ -241,6 +242,13 @@ public class DeviceAgentDecisionSupport {
 		this.simulationManager = simulationManager;
 		this.orchestrationHistory = orchestrationHistory;
 		this.vmList = vmList;
+		int maxPerTask = Math.max(1, (int) (SimulationParameters.WLAN_PRB_BLOCKS * SimulationParameters.PRB_TASK_MAX_RATIO));
+		prbBlockMap = new int[PRB_BLOCK_RATIOS.length];
+		prbBinLabels = new String[PRB_BLOCK_RATIOS.length];
+		for (int i = 0; i < PRB_BLOCK_RATIOS.length; i++) {
+			prbBlockMap[i] = Math.max(1, (int) (maxPerTask * PRB_BLOCK_RATIOS[i]));
+			prbBinLabels[i] = prbBlockMap[i] + "blk";
+		}
 		validateArchitecture();
 		initializeAgentDevices();
 		initializeDestinations();
@@ -261,7 +269,7 @@ public class DeviceAgentDecisionSupport {
 	}
 
 	public String[] getPrbBinLabels() {
-		return PRB_BIN_LABELS.clone();
+		return prbBinLabels.clone();
 	}
 
 	public EnvConfig getEnvConfig() {
@@ -319,15 +327,16 @@ public class DeviceAgentDecisionSupport {
 		agentObs[9] = reachableEdgeCountNorm;
 		agentObs[10] = prbRemainingRatio;
 		agentObs[11] = simTimeNorm;
+		agentObs[12] = getPrbMaxAffordableNorm();
 
-		destFeatures[0] = buildDestinationFeatures(source, source, localCandidate, true);
+		destFeatures[0] = buildDestinationFeatures(task, source, source, localCandidate, true);
 		for (int i = 0; i < fixedDestinations.size(); i++) {
 			DataCenter destination = fixedDestinations.get(i);
 			int destAction = i + 1;
 			DestinationCandidate candidate = findBestVmForDataCenter(task, destination, false);
 			candidates[destAction] = candidate;
 			destMask[destAction] = candidate.vmIndex >= 0 && candidate.networkAdmissible ? 1 : 0;
-			destFeatures[destAction] = buildDestinationFeatures(source, destination, candidate, false);
+			destFeatures[destAction] = buildDestinationFeatures(task, source, destination, candidate, false);
 		}
 
 		fillGlobalState(state, agentObs);
@@ -381,7 +390,14 @@ public class DeviceAgentDecisionSupport {
 		if (selectedVm < 0 || isLocalDestination(executedDestAction)) {
 			return;
 		}
-		task.setLanPriorityBin(prbActionToPriorityBin(executedPrbAction));
+		int requestedBlocks = prbActionToBlocks(executedPrbAction);
+		int available = getAvailablePrbBlocks();
+		int maxPerTask = getMaxPrbPerTask();
+		int actualBlocks = Math.min(requestedBlocks, Math.min(available, maxPerTask));
+		if (actualBlocks <= 0) {
+			actualBlocks = 1;
+		}
+		task.setRequestedLanPrbBlocks(actualBlocks);
 	}
 
 	public double computeReward(Task task) {
@@ -396,11 +412,14 @@ public class DeviceAgentDecisionSupport {
 		double latencyNorm = clamp(totalTime / Math.max(task.getMaxLatency(), 1e-6), 0.0, 2.0);
 		double energyNorm = clamp(totalEnergy / Math.max(energyP95, 1e-6), 0.0, 2.0);
 		double prbReject = task.isPrbRejected() ? 1.0 : 0.0;
-		double prbRequestNorm = clamp(task.getLanPriorityBin() / 10.0, 0.0, 1.0);
+		int maxPerTask = getMaxPrbPerTask();
+		double prbWaste = (task.getRequestedLanPrbBlocks() > 0)
+				? clamp(task.getRequestedLanPrbBlocks() / (double) Math.max(maxPerTask, 1), 0.0, 1.0)
+				: 0.0;
 		double destCpuImbalanceNorm = computeDestinationCpuImbalanceStd();
 
-		return 5.0 * success - 5.0 * fail - 1.5 * latencyNorm - 0.5 * energyNorm - 2.0 * prbReject
-				- 0.3 * prbRequestNorm - 0.5 * destCpuImbalanceNorm;
+		return 5.0 * success - 5.0 * fail - 1.5 * latencyNorm - 0.5 * energyNorm - 3.0 * prbReject
+				- 0.5 * prbWaste - 0.5 * destCpuImbalanceNorm;
 	}
 
 	public int sanitizeDestAction(int value) {
@@ -509,7 +528,7 @@ public class DeviceAgentDecisionSupport {
 		maxActiveTasks = Math.max(1.0, vmList.size());
 	}
 
-	private double[] buildDestinationFeatures(DataCenter source, DataCenter destination, DestinationCandidate candidate,
+	private double[] buildDestinationFeatures(Task task, DataCenter source, DataCenter destination, DestinationCandidate candidate,
 			boolean localDestination) {
 		double[] features = new double[DEST_FEAT_SIZE];
 		features[0] = getCpuNorm(destination);
@@ -522,6 +541,7 @@ public class DeviceAgentDecisionSupport {
 		features[7] = destination.getType() == SimulationParameters.TYPES.EDGE_DATACENTER ? 1.0 : 0.0;
 		features[8] = destination.getType() == SimulationParameters.TYPES.CLOUD ? 1.0 : 0.0;
 		features[9] = normalize(getVmCountForDataCenter(destination), maxVmCountPerNode, 1.0);
+		features[10] = getEstimatedTransferPrbNeed(task, source, destination, localDestination);
 		return features;
 	}
 
@@ -861,8 +881,52 @@ public class DeviceAgentDecisionSupport {
 		return clamp(Math.sqrt(Math.max(variance, 0.0)), 0.0, 1.0);
 	}
 
-	private int prbActionToPriorityBin(int prbAction) {
-		return PRB_PRIORITY_BIN_MAP[sanitizePrbAction(prbAction)];
+	private int prbActionToBlocks(int prbAction) {
+		int idx = clampInt(prbAction, 0, prbBlockMap.length - 1);
+		return prbBlockMap[idx];
+	}
+
+	private int getMaxPrbPerTask() {
+		return Math.max(1, (int) (SimulationParameters.WLAN_PRB_BLOCKS * SimulationParameters.PRB_TASK_MAX_RATIO));
+	}
+
+	private int getAvailablePrbBlocks() {
+		if (simulationManager == null || simulationManager.getNetworkModel() == null) {
+			return SimulationParameters.WLAN_PRB_BLOCKS;
+		}
+		if (!(simulationManager.getNetworkModel() instanceof DefaultNetworkModel)) {
+			return SimulationParameters.WLAN_PRB_BLOCKS;
+		}
+		return ((DefaultNetworkModel) simulationManager.getNetworkModel()).getAvailablePrbBlocks();
+	}
+
+	private double getPrbMaxAffordableNorm() {
+		int available = getAvailablePrbBlocks();
+		int maxPerTask = getMaxPrbPerTask();
+		int affordable = Math.min(available, maxPerTask);
+		return clamp(affordable / (double) Math.max(maxPerTask, 1), 0.0, 1.0);
+	}
+
+	private double getEstimatedTransferPrbNeed(Task task, DataCenter source, DataCenter destination, boolean localDestination) {
+		if (localDestination || destination == null || task == null) {
+			return 0.0;
+		}
+		double transferSizeKbits = task.getFileSize() * 8.0;
+		double deadline = Math.max(task.getMaxLatency() * 0.5, 0.1);
+		double neededBandwidthKbps = transferSizeKbits / deadline;
+		double prbBandwidthKbps = SimulationParameters.BANDWIDTH_WLAN / (double) Math.max(SimulationParameters.WLAN_PRB_BLOCKS, 1);
+		double distance = destination.getType() == SimulationParameters.TYPES.CLOUD
+				? SimulationParameters.CLOUD_COVERAGE_DISTANCE
+				: source.getMobilityManager().distanceTo(destination);
+		double d0 = SimulationParameters.PRB_DISTANCE_D0;
+		double alpha = SimulationParameters.PRB_DISTANCE_ALPHA;
+		double distFactor = (d0 > 0 && alpha > 0)
+				? Math.pow(d0 / Math.max(distance, d0), alpha)
+				: 1.0;
+		double effectivePrbBw = prbBandwidthKbps * Math.max(distFactor, 0.01);
+		double neededBlocks = neededBandwidthKbps / Math.max(effectivePrbBw, 1e-6);
+		int maxPerTask = getMaxPrbPerTask();
+		return clamp(neededBlocks / Math.max(maxPerTask, 1), 0.0, 1.0);
 	}
 
 	private double normalize(double value, double maxValue, double maxOutput) {
