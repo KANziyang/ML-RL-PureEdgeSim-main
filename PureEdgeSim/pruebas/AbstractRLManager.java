@@ -226,32 +226,18 @@ public abstract class AbstractRLManager implements RLManagerInterface {
 			}
 		}
 
-		// Auto-discover latest.pt based on algorithm
-		Path modelDir;
-		if ("MAPPO".equals(algorithm)) {
-			modelDir = Paths.get("PureEdgeSim", "pruebas", "mappo", "model");
-		} else if ("PPO_5AGENT".equals(algorithm)) {
-			modelDir = Paths.get("PureEdgeSim", "pruebas", "ppo_5agent", "model");
-		} else {
-			return null;
-		}
-
-		Path latestPt = modelDir.resolve("latest.pt");
-		if (Files.exists(latestPt)) {
-			return latestPt.toString();
-		}
-
-		// Also check output dirs for runs/*/models/latest.pt
+		// Prefer the latest training-run checkpoint (matches test_mappo.py behaviour)
 		Path outputRoot;
 		if ("MAPPO".equals(algorithm)) {
 			outputRoot = Paths.get("PureEdgeSim", "pruebas", "output_mappo");
-		} else {
+		} else if ("PPO_5AGENT".equals(algorithm)) {
 			outputRoot = Paths.get("PureEdgeSim", "pruebas", "output_ppo_5agent");
+		} else {
+			return null;
 		}
 		Path runsDir = outputRoot.resolve("runs");
 		if (Files.isDirectory(runsDir)) {
 			try {
-				// Find latest run directory
 				Path latestRun = Files.list(runsDir)
 						.filter(Files::isDirectory)
 						.sorted((a, b) -> b.getFileName().toString().compareTo(a.getFileName().toString()))
@@ -264,8 +250,20 @@ public abstract class AbstractRLManager implements RLManagerInterface {
 					}
 				}
 			} catch (IOException e) {
-				// ignore
+				// ignore, fall through to legacy path
 			}
+		}
+
+		// Fallback: legacy model directory
+		Path modelDir;
+		if ("MAPPO".equals(algorithm)) {
+			modelDir = Paths.get("PureEdgeSim", "pruebas", "mappo", "model");
+		} else {
+			modelDir = Paths.get("PureEdgeSim", "pruebas", "ppo_5agent", "model");
+		}
+		Path latestPt = modelDir.resolve("latest.pt");
+		if (Files.exists(latestPt)) {
+			return latestPt.toString();
 		}
 
 		return null;

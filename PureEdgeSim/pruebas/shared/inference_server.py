@@ -178,6 +178,21 @@ def load_ppo5_actor(model_path: str, device: torch.device):
     return actor
 
 
+def _adapt_turn_actor(actor, msg: dict) -> None:
+    """Resize TurnActor embedding / num_destinations to match the live env."""
+    env_agents = int(msg.get("num_agents", actor.num_agents))
+    if env_agents != actor.num_agents:
+        print(f"inference_server: resizing agent_embedding "
+              f"{actor.num_agents} -> {env_agents}", flush=True)
+        actor.resize_agent_embedding(env_agents)
+
+    env_dest = int(msg.get("num_destinations", actor.num_destinations))
+    if env_dest != actor.num_destinations:
+        print(f"inference_server: adjusting num_destinations "
+              f"{actor.num_destinations} -> {env_dest}", flush=True)
+        actor.num_destinations = env_dest
+
+
 # ---------------------------------------------------------------------------
 # Protocol handlers
 # ---------------------------------------------------------------------------
@@ -188,6 +203,7 @@ def run_mappo_turn(client: MAPPOClient, actor, device: torch.device) -> None:
         msg_type = msg.get("type", "")
 
         if msg_type == "marl_config":
+            _adapt_turn_actor(actor, msg)
             continue
 
         if msg_type == "marl_turn_obs":

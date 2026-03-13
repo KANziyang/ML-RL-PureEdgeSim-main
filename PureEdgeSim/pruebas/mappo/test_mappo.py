@@ -148,7 +148,7 @@ def main() -> None:
 
                             msg_type = msg.get("type", "")
                             if msg_type == "marl_config":
-                                _validate_env_config(model_cfg, msg)
+                                _adapt_actor_to_env(actor, model_cfg, msg, device)
                                 continue
 
                             if msg_type == "marl_turn_obs":
@@ -231,18 +231,38 @@ def main() -> None:
             logger.close()
 
 
-def _validate_env_config(model_cfg: Dict[str, Any], msg: Dict[str, Any]) -> None:
-    expected = {
-        "num_agents": int(model_cfg["num_agents"]),
-        "num_destinations": int(model_cfg["num_destinations"]),
-        "agent_obs_dim": int(model_cfg["agent_obs_dim"]),
-        "dest_feat_dim": int(model_cfg["dest_feat_dim"]),
-        "state_dim": int(model_cfg["state_dim"]),
-        "prb_bins": int(model_cfg["prb_bins"]),
-    }
-    observed = {key: int(msg[key]) for key in expected}
-    if expected != observed:
-        raise ValueError(f"MAPPO checkpoint/env config mismatch: expected={expected} observed={observed}")
+def _adapt_actor_to_env(actor: TurnActor, model_cfg: Dict[str, Any],
+                        msg: Dict[str, Any], device) -> None:
+    """Adapt the loaded actor to the actual environment dimensions.
+
+    num_agents / num_destinations may differ from the checkpoint if the
+    device count changed.  The embedding table is resized automatically;
+    other dimensions (agent_obs_dim, dest_feat_dim, prb_bins) must still
+    match because they affect layer widths.
+    """
+    # Hard-check: layer-width-sensitive dimensions must match
+    for key in ("agent_obs_dim", "dest_feat_dim", "state_dim", "prb_bins"):
+        expected = int(model_cfg[key])
+        observed = int(msg[key])
+        if expected != observed:
+            raise ValueError(
+                f"MAPPO checkpoint / env config mismatch on {key}: "
+                f"checkpoint={expected} env={observed}"
+            )
+
+    env_num_agents = int(msg["num_agents"])
+    ckpt_num_agents = int(model_cfg["num_agents"])
+    if env_num_agents != ckpt_num_agents:
+        print(f"test_mappo: resizing agent_embedding "
+              f"{ckpt_num_agents} -> {env_num_agents}", flush=True)
+        actor.resize_agent_embedding(env_num_agents)
+
+    env_num_dest = int(msg["num_destinations"])
+    ckpt_num_dest = int(model_cfg["num_destinations"])
+    if env_num_dest != ckpt_num_dest:
+        print(f"test_mappo: adjusting num_destinations "
+              f"{ckpt_num_dest} -> {env_num_dest}", flush=True)
+        actor.num_destinations = env_num_dest
 
 
 def _normalize_optional_limit(value: Optional[int]) -> Optional[int]:

@@ -42,6 +42,26 @@ class TurnActor(nn.Module):
             nn.Linear(hidden_dim, prb_bins),
         )
 
+    def resize_agent_embedding(self, new_num_agents: int) -> None:
+        """Expand (or shrink) the agent embedding table to *new_num_agents*.
+
+        Existing rows are preserved; new rows are initialised by cycling
+        over the original embeddings so that every new agent starts with a
+        reasonable representation.
+        """
+        if new_num_agents == self.num_agents:
+            return
+        old_weight = self.agent_embedding.weight.data          # [old_N, dim]
+        embed_dim = old_weight.size(1)
+        old_n = old_weight.size(0)
+        new_emb = nn.Embedding(new_num_agents, embed_dim)
+        with torch.no_grad():
+            for i in range(new_num_agents):
+                new_emb.weight[i] = old_weight[i % old_n]
+        new_emb = new_emb.to(old_weight.device)
+        self.agent_embedding = new_emb
+        self.num_agents = new_num_agents
+
     def _mask_dest_logits(self, logits: torch.Tensor, dest_mask: torch.Tensor) -> torch.Tensor:
         mask = dest_mask > 0.5
         masked_logits = logits.masked_fill(~mask, -1e9)
