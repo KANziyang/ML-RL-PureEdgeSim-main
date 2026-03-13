@@ -49,6 +49,10 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	PPOFiveAgentManager ppoFiveAgentManager;
 	TradeOffFiveAgentManager tradeOffFiveAgentManager;
 
+	// Generic destination tracker for non-RL algorithms
+	private final FiveAgentDecisionSupport.DecisionTelemetryTracker genericDestTracker =
+			new FiveAgentDecisionSupport.DecisionTelemetryTracker();
+
 	public CustomEdgeOrchestrator(SimulationManager simulationManager) {
 		super(simulationManager);
 		if ("RL".equals(algorithm)) {
@@ -142,7 +146,34 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				break;
 		}
 
+		// Track destination distribution for all algorithms
+		trackGenericDestination(bestVM);
+
 		return bestVM;
+	}
+
+	/**
+	 * Map a VM index to a 5-agent destination slot (Edge1-4 → 0-3, Cloud → 4)
+	 * and record it in the generic tracker so DestinationDistributionChart /
+	 * PriorityDistributionChart have data for every algorithm.
+	 */
+	private void trackGenericDestination(int vmIndex) {
+		if (vmIndex < 0 || vmIndex >= vmList.size()) {
+			return;
+		}
+		DataCenter dc = (DataCenter) vmList.get(vmIndex).getHost().getDatacenter();
+		int destSlot;
+		if (dc.getType() == SimulationParameters.TYPES.CLOUD) {
+			destSlot = FiveAgentDecisionSupport.AGENT_COUNT - 1; // last slot = Cloud
+		} else if (dc.getType() == SimulationParameters.TYPES.EDGE_DATACENTER) {
+			// Map edge datacenter ID to slots 0..(AGENT_COUNT-2)
+			int edgeSlot = ((int) dc.getId()) % (FiveAgentDecisionSupport.AGENT_COUNT - 1);
+			destSlot = edgeSlot;
+		} else {
+			// Local / Mist device → slot 0
+			destSlot = 0;
+		}
+		genericDestTracker.update(destSlot, 0);
 	}
 
 
@@ -547,7 +578,8 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		if ("TRADE_OFF_5AGENT".equals(algorithm) && tradeOffFiveAgentManager != null) {
 			return tradeOffFiveAgentManager.getTelemetrySnapshot();
 		}
-		return FiveAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
+		// For all other algorithms, use the generic tracker
+		return genericDestTracker.snapshot();
 	}
 
 	public DeviceAgentDecisionSupport.DecisionTelemetrySnapshot getDeviceAgentTelemetrySnapshot() {

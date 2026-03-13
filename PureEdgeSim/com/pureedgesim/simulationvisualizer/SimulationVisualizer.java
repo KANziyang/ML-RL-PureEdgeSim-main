@@ -82,6 +82,7 @@ public class SimulationVisualizer {
 		priorityDistributionChart = new PriorityDistributionChart("Priority Distribution", "Time (s)",
 				"Selection Rate (%)", simulationManager);
 
+		// Common charts for all algorithms
 		charts.add(mapChart);
 		charts.add(cpuUtilizationChart);
 		charts.add(energyChart);
@@ -91,55 +92,22 @@ public class SimulationVisualizer {
 		charts.add(edgeDeviceChart);
 		charts.add(serversChart);
 		charts.add(blockChart);
+		charts.add(destinationDistributionChart);
+		charts.add(priorityDistributionChart);
 
-		if (simulationManager.getScenario().getStringOrchAlgorithm().equals("RL"))
+		// Algorithm-specific extra charts
+		String algo = simulationManager.getScenario().getStringOrchAlgorithm();
+		if ("RL".equals(algo))
 			charts.add(rlChart);
-		else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER")
-				|| simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER_DISABLED")
-				|| simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER_EMPTY"))
+		else if ("RL_MULTILAYER".equals(algo) || "RL_MULTILAYER_DISABLED".equals(algo)
+				|| "RL_MULTILAYER_EMPTY".equals(algo))
 			charts.add(multiRLChart);
-		else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("PPO"))
+		else if ("PPO".equals(algo))
 			charts.add(ppoChart);
-		else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("PPO_5AGENT")) {
-			charts.clear();
-			charts.add(mapChart);
-			charts.add(cpuUtilizationChart);
-			charts.add(energyChart);
-			charts.add(tasksSuccessChart);
-			charts.add(tasksFailedChart);
-			charts.add(delayChart);
-			charts.add(serversChart);
-			charts.add(blockChart);
+		else if ("PPO_5AGENT".equals(algo))
 			charts.add(ppoChart);
-			charts.add(destinationDistributionChart);
-			charts.add(priorityDistributionChart);
-		}
-		else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("MAPPO")) {
-			charts.clear();
-			charts.add(mapChart);
-			charts.add(cpuUtilizationChart);
-			charts.add(energyChart);
-			charts.add(tasksSuccessChart);
-			charts.add(tasksFailedChart);
-			charts.add(delayChart);
-			charts.add(serversChart);
-			charts.add(blockChart);
+		else if ("MAPPO".equals(algo))
 			charts.add(mappoRewardChart);
-			charts.add(destinationDistributionChart);
-			charts.add(priorityDistributionChart);
-		} else if (simulationManager.getScenario().getStringOrchAlgorithm().equals("TRADE_OFF_5AGENT")) {
-			charts.clear();
-			charts.add(mapChart);
-			charts.add(cpuUtilizationChart);
-			charts.add(energyChart);
-			charts.add(tasksSuccessChart);
-			charts.add(tasksFailedChart);
-			charts.add(delayChart);
-			charts.add(serversChart);
-			charts.add(blockChart);
-			charts.add(destinationDistributionChart);
-			charts.add(priorityDistributionChart);
-		}
 	}
 
 	public void updateCharts() {
