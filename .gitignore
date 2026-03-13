@@ -22,6 +22,7 @@ PureEdgeSim/pruebas/tradeoff_5agent/trajectory/
 PureEdgeSim/pruebas/tradeoff_5agent/__pycache__/
 PureEdgeSim/pruebas/**/runs/
 PureEdgeSim/pruebas/**/__pycache__/
+PureEdgeSim/pruebas/shared/__pycache__/
 PureEdgeSim/settings/
 PureEdgeSim/examples/
 PureEdgeSim/MyWork/

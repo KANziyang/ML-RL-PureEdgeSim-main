@@ -6,9 +6,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import sys
+from pathlib import Path as _Path
+
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+_SCRIPT_DIR = _Path(__file__).resolve().parent
+_SHARED_DIR = str(_SCRIPT_DIR.parent / "shared")
+if _SHARED_DIR not in sys.path:
+    sys.path.insert(0, _SHARED_DIR)
+_CONFIG_PATH = _SCRIPT_DIR / "runtime_config.json"
 
 from buffer import EpisodeBuffer
 from env_client import MAPPOClient
@@ -42,15 +51,19 @@ ENTROPY_COEF_START = float(os.getenv("PUREEDGESIM_MAPPO_ENTROPY_START", "0.02"))
 ENTROPY_COEF_END = float(os.getenv("PUREEDGESIM_MAPPO_ENTROPY_END", "0.002"))
 VALUE_COEF = float(os.getenv("PUREEDGESIM_MAPPO_VALUE_COEF", "0.5"))
 MAX_GRAD_NORM = float(os.getenv("PUREEDGESIM_MAPPO_MAX_GRAD_NORM", "0.5"))
-PPO_EPOCHS = int(os.getenv("PUREEDGESIM_MAPPO_EPOCHS", "1"))
+PPO_EPOCHS = int(os.getenv("PUREEDGESIM_MAPPO_EPOCHS", "4"))
 MINIBATCH = int(os.getenv("PUREEDGESIM_MAPPO_MINIBATCH", "1024"))
-EPISODES_PER_UPDATE = int(os.getenv("PUREEDGESIM_MAPPO_EPISODES_PER_UPDATE", "4"))
+EPISODES_PER_UPDATE = int(os.getenv("PUREEDGESIM_MAPPO_EPISODES_PER_UPDATE", "1"))
 
-TRAIN_EPISODES_OVERRIDE: Optional[int] = 20
+TRAIN_EPISODES_OVERRIDE: Optional[int] = 10
 TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
 TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 20
 TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
+
+# Algorithm/architecture overrides — applied to settings_base at runtime
+ALGORITHM_OVERRIDE: Optional[str] = "MAPPO"
+ARCHITECTURE_OVERRIDE: Optional[str] = "LOCAL_EDGE_CLOUD"
 
 
 @dataclass
@@ -410,7 +423,7 @@ def current_entropy_coef(current_episode: int, total_episodes: int) -> float:
 
 
 def main() -> None:
-    config = load_config()
+    config = load_config(_CONFIG_PATH)
     base_output_root = config.output_root.resolve()
     if TRAIN_EPISODES_OVERRIDE is not None:
         config.episodes = max(1, int(TRAIN_EPISODES_OVERRIDE))
@@ -440,6 +453,8 @@ def main() -> None:
             display_real_time_charts_override=display_real_time_charts_override,
             auto_close_real_time_charts_override=auto_close_real_time_charts_override,
             clone_even_if_unmodified=True,
+            algorithm_override=ALGORITHM_OVERRIDE,
+            architecture_override=ARCHITECTURE_OVERRIDE,
         )
         display_real_time_charts = read_boolean_setting(settings_dir, "display_real_time_charts")
         auto_close_real_time_charts = read_boolean_setting(settings_dir, "auto_close_real_time_charts")

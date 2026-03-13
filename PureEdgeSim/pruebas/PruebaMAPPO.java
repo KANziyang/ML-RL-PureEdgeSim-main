@@ -4,7 +4,7 @@ import com.pureedgesim.MainApplication;
 import com.pureedgesim.simulationcore.Simulation;
 
 public class PruebaMAPPO extends MainApplication {
-	private static final String DEFAULT_SETTINGS_PATH = "PureEdgeSim/pruebas/settings_mappo_5agents_train/";
+	private static final String DEFAULT_SETTINGS_PATH = "PureEdgeSim/pruebas/settings_base/";
 	private static final String DEFAULT_OUTPUT_PATH = "PureEdgeSim/pruebas/output_mappo/";
 
 	public static void main(String[] args) {

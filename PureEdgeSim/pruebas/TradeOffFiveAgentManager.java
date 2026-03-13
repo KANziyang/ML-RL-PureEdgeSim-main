@@ -9,7 +9,7 @@ import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
 
-public class TradeOffFiveAgentManager {
+public class TradeOffFiveAgentManager implements RLManagerInterface {
 	private static final String TRACE_DIR_PROP = "tradeoff5agent.trajectory.dir";
 
 	private final FiveAgentDecisionSupport decisionSupport;
@@ -58,6 +58,10 @@ public class TradeOffFiveAgentManager {
 
 	public void simulationFinished() {
 		traceWriter.close();
+	}
+
+	public double getAvgReward() {
+		return 0.0;
 	}
 
 	public FiveAgentDecisionSupport.DecisionTelemetrySnapshot getTelemetrySnapshot() {

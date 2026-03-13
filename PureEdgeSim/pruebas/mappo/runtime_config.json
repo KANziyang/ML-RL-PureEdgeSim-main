@@ -8,7 +8,7 @@
   "java_main_class": "pruebas.PruebaMAPPO",
   "host": "127.0.0.1",
   "port": 5006,
-  "settings_dir": "PureEdgeSim/pruebas/settings_mappo_5agents_train",
+  "settings_dir": "PureEdgeSim/pruebas/settings_base",
   "episodes": 10,
   "save_interval": 1,
   "progress_log_interval": 500,

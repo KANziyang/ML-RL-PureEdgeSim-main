@@ -17,7 +17,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-public class MAPPOEnvServer {
+public class RLEnvServer {
 	public static class ActionData {
 		public final int destAction;
 		public final int prbAction;
@@ -42,7 +42,7 @@ public class MAPPOEnvServer {
 	private BufferedWriter writer;
 	private boolean configSent = false;
 
-	public MAPPOEnvServer(int port, int readTimeoutMs) {
+	public RLEnvServer(int port, int readTimeoutMs) {
 		this.port = port;
 		this.readTimeoutMs = readTimeoutMs;
 	}
@@ -56,15 +56,15 @@ public class MAPPOEnvServer {
 	private void runServer() {
 		try {
 			serverSocket = new ServerSocket(port);
-			System.out.println("MAPPOEnvServer: listening on port " + port);
+			System.out.println("RLEnvServer: listening on port " + port);
 			clientSocket = serverSocket.accept();
-			System.out.println("MAPPOEnvServer: client connected");
+			System.out.println("RLEnvServer: client connected");
 			clientSocket.setSoTimeout(readTimeoutMs);
 			reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), StandardCharsets.UTF_8));
 			writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream(), StandardCharsets.UTF_8));
 			configSent = false;
 		} catch (IOException e) {
-			System.err.println("MAPPOEnvServer: failed to start: " + e.getMessage());
+			System.err.println("RLEnvServer: failed to start: " + e.getMessage());
 		}
 	}
 
@@ -82,7 +82,7 @@ public class MAPPOEnvServer {
 			writer.flush();
 			configSent = true;
 		} catch (IOException e) {
-			System.err.println("MAPPOEnvServer: failed sending config: " + e.getMessage());
+			System.err.println("RLEnvServer: failed sending config: " + e.getMessage());
 		}
 	}
 
@@ -102,7 +102,7 @@ public class MAPPOEnvServer {
 		} catch (SocketTimeoutException e) {
 			return defaultAction();
 		} catch (IOException e) {
-			System.err.println("MAPPOEnvServer: failed waiting for action: " + e.getMessage());
+			System.err.println("RLEnvServer: failed waiting for action: " + e.getMessage());
 			return defaultAction();
 		}
 	}
@@ -120,7 +120,7 @@ public class MAPPOEnvServer {
 		} catch (SocketTimeoutException e) {
 			return defaultAction();
 		} catch (IOException e) {
-			System.err.println("MAPPOEnvServer: failed waiting for legacy action: " + e.getMessage());
+			System.err.println("RLEnvServer: failed waiting for legacy action: " + e.getMessage());
 			return defaultAction();
 		}
 	}
@@ -136,7 +136,7 @@ public class MAPPOEnvServer {
 			writer.newLine();
 			writer.flush();
 		} catch (IOException e) {
-			System.err.println("MAPPOEnvServer: failed sending transition: " + e.getMessage());
+			System.err.println("RLEnvServer: failed sending transition: " + e.getMessage());
 		}
 	}
 
@@ -150,7 +150,7 @@ public class MAPPOEnvServer {
 			writer.newLine();
 			writer.flush();
 		} catch (IOException e) {
-			System.err.println("MAPPOEnvServer: failed sending legacy transition: " + e.getMessage());
+			System.err.println("RLEnvServer: failed sending legacy transition: " + e.getMessage());
 		}
 	}
 
@@ -169,7 +169,7 @@ public class MAPPOEnvServer {
 			writer.newLine();
 			writer.flush();
 		} catch (IOException e) {
-			System.err.println("MAPPOEnvServer: failed sending episode end: " + e.getMessage());
+			System.err.println("RLEnvServer: failed sending episode end: " + e.getMessage());
 		}
 	}
 
@@ -188,7 +188,7 @@ public class MAPPOEnvServer {
 			writer.newLine();
 			writer.flush();
 		} catch (IOException e) {
-			System.err.println("MAPPOEnvServer: failed sending legacy episode end: " + e.getMessage());
+			System.err.println("RLEnvServer: failed sending legacy episode end: " + e.getMessage());
 		}
 	}
 

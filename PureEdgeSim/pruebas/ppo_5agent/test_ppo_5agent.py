@@ -14,9 +14,13 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from models import CentralCritic, SingleAgentActor
 
-MAPPO_DIR = SCRIPT_DIR.parent / "mappo"
-if str(MAPPO_DIR) not in sys.path:
-    sys.path.append(str(MAPPO_DIR))
+SHARED_DIR = str(SCRIPT_DIR.parent / "shared")
+if SHARED_DIR not in sys.path:
+    sys.path.insert(0, SHARED_DIR)
+
+MAPPO_DIR = str(SCRIPT_DIR.parent / "mappo")
+if MAPPO_DIR not in sys.path:
+    sys.path.append(MAPPO_DIR)
 
 from analyze_mappo import analyze_episode
 from env_client import MAPPOClient
@@ -46,6 +50,10 @@ PRIORITY_BINS = 5
 DEFAULT_TEST_EPISODES = int(os.getenv("PUREEDGESIM_PPO5_TEST_EPISODES", "1"))
 TEST_DISPLAY_REAL_TIME_CHARTS = os.getenv("PUREEDGESIM_PPO5_TEST_DISPLAY_CHARTS", "true").lower() == "true"
 TEST_AUTO_CLOSE_REAL_TIME_CHARTS = os.getenv("PUREEDGESIM_PPO5_TEST_AUTO_CLOSE_CHARTS", "true").lower() == "true"
+
+# Algorithm/architecture overrides — applied to settings_base at runtime
+ALGORITHM_OVERRIDE: Optional[str] = "PPO_5AGENT"
+ARCHITECTURE_OVERRIDE: Optional[str] = "EDGE_AND_CLOUD"
 
 
 def load_checkpoint(model_path: Path, device: torch.device) -> tuple[SingleAgentActor, CentralCritic]:
@@ -119,6 +127,8 @@ def main() -> None:
             display_real_time_charts_override=TEST_DISPLAY_REAL_TIME_CHARTS,
             auto_close_real_time_charts_override=TEST_AUTO_CLOSE_REAL_TIME_CHARTS,
             clone_even_if_unmodified=True,
+            algorithm_override=ALGORITHM_OVERRIDE,
+            architecture_override=ARCHITECTURE_OVERRIDE,
         )
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -4,7 +4,7 @@ import com.pureedgesim.MainApplication;
 import com.pureedgesim.simulationcore.Simulation;
 
 public class PruebaPPO5Agent extends MainApplication {
-	private static final String DEFAULT_SETTINGS_PATH = "PureEdgeSim/pruebas/settings_ppo_5agents_train/";
+	private static final String DEFAULT_SETTINGS_PATH = "PureEdgeSim/pruebas/settings_base/";
 	private static final String DEFAULT_OUTPUT_PATH = "PureEdgeSim/pruebas/output_ppo_5agent/";
 
 	public static void main(String[] args) {

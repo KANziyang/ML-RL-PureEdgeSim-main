@@ -16,9 +16,9 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from models import CentralCritic, SingleAgentActor
 
-MAPPO_DIR = SCRIPT_DIR.parent / "mappo"
-if str(MAPPO_DIR) not in sys.path:
-    sys.path.append(str(MAPPO_DIR))
+SHARED_DIR = str(SCRIPT_DIR.parent / "shared")
+if SHARED_DIR not in sys.path:
+    sys.path.insert(0, SHARED_DIR)
 
 from buffer import EpisodeBuffer, compute_gae
 from env_client import MAPPOClient
@@ -67,6 +67,10 @@ TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
 TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 20
 TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
+
+# Algorithm/architecture overrides — applied to settings_base at runtime
+ALGORITHM_OVERRIDE: Optional[str] = "PPO_5AGENT"
+ARCHITECTURE_OVERRIDE: Optional[str] = "EDGE_AND_CLOUD"
 
 
 def update_policy(
@@ -319,6 +323,8 @@ def main() -> None:
             display_real_time_charts_override=TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE,
             auto_close_real_time_charts_override=TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE,
             clone_even_if_unmodified=True,
+            algorithm_override=ALGORITHM_OVERRIDE,
+            architecture_override=ARCHITECTURE_OVERRIDE,
         )
         display_real_time_charts = read_boolean_setting(settings_dir, "display_real_time_charts")
         auto_close_real_time_charts = read_boolean_setting(settings_dir, "auto_close_real_time_charts")

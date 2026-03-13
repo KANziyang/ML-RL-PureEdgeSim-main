@@ -15,8 +15,8 @@ from typing import Dict, List, Optional, Sequence
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 DEFAULT_OUTPUT_ROOT = SCRIPT_DIR / "output_builtin"
-DEFAULT_SETTINGS_DIR = SCRIPT_DIR / "settings_mappo_5agents_train"
-DEFAULT_JAVA_MAIN_CLASS = "pruebas.PruebaMAPPO"
+DEFAULT_SETTINGS_DIR = SCRIPT_DIR / "settings_base"
+DEFAULT_JAVA_MAIN_CLASS = "pruebas.Prueba1"
 DEFAULT_DIRECT_COMMAND = "run-all"
 REQUIRED_SETTINGS_FILES = (
     "simulation_parameters.properties",
@@ -46,12 +46,12 @@ OFFLINE_ALGORITHMS = {
     "RL_MULTILAYER_DISABLED",
     "RL_MULTILAYER_EMPTY",
     "FUZZY_LOGIC",
+    "MAPPO",
+    "PPO_5AGENT",
 }
 
 INTERACTIVE_ALGORITHMS = {
     "PPO",
-    "MAPPO",
-    "PPO_5AGENT",
 }
 
 

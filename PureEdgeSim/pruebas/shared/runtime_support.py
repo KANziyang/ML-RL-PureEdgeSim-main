@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Optional
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
-DEFAULT_CONFIG_PATH = SCRIPT_DIR / "runtime_config.json"
 
 _INT_KEYS = {"port", "episodes", "save_interval", "progress_log_interval"}
 _ENV_OVERRIDES = {
@@ -189,7 +188,16 @@ class JavaEpisodeProcess:
 
 
 def load_config(config_path: Optional[Path] = None) -> RuntimeConfig:
-    path = config_path or Path(os.getenv("PUREEDGESIM_MAPPO_CONFIG", DEFAULT_CONFIG_PATH))
+    env_config = os.getenv("PUREEDGESIM_MAPPO_CONFIG", "")
+    if config_path is not None:
+        path = config_path
+    elif env_config:
+        path = Path(env_config)
+    else:
+        raise ValueError(
+            "No runtime config path provided. Pass config_path to load_config() "
+            "or set PUREEDGESIM_MAPPO_CONFIG environment variable."
+        )
     if not path.is_absolute():
         path = REPO_ROOT / path
 
@@ -352,15 +360,19 @@ def prepare_effective_settings_dir(
     display_real_time_charts_override: Optional[bool] = None,
     auto_close_real_time_charts_override: Optional[bool] = None,
     clone_even_if_unmodified: bool = False,
+    algorithm_override: Optional[str] = None,
+    architecture_override: Optional[str] = None,
 ) -> tuple[Path, int]:
     base_settings_dir = base_settings_dir.resolve()
-    if (
-        not clone_even_if_unmodified
-        and
-        simulation_minutes_override is None
-        and display_real_time_charts_override is None
-        and auto_close_real_time_charts_override is None
-    ):
+    has_overrides = (
+        clone_even_if_unmodified
+        or simulation_minutes_override is not None
+        or display_real_time_charts_override is not None
+        or auto_close_real_time_charts_override is not None
+        or algorithm_override is not None
+        or architecture_override is not None
+    )
+    if not has_overrides:
         simulation_minutes = read_simulation_minutes(base_settings_dir)
         display_real_time_charts = read_boolean_setting(base_settings_dir, "display_real_time_charts")
         auto_close_real_time_charts = read_boolean_setting(base_settings_dir, "auto_close_real_time_charts")
@@ -379,6 +391,10 @@ def prepare_effective_settings_dir(
         overrides["display_real_time_charts"] = str(display_real_time_charts_override).lower()
     if auto_close_real_time_charts_override is not None:
         overrides["auto_close_real_time_charts"] = str(auto_close_real_time_charts_override).lower()
+    if algorithm_override is not None:
+        overrides["orchestration_algorithms"] = algorithm_override
+    if architecture_override is not None:
+        overrides["orchestration_architectures"] = architecture_override
     runtime_settings_dir = clone_settings_dir(config, base_settings_dir, mode, run_id)
     write_settings_overrides(runtime_settings_dir, overrides)
     simulation_minutes = read_simulation_minutes(runtime_settings_dir)
@@ -387,6 +403,7 @@ def prepare_effective_settings_dir(
     logger.log(
         f"created_runtime_settings_dir mode={mode} base_settings_dir={base_settings_dir} "
         f"runtime_settings_dir={runtime_settings_dir} simulation_minutes={simulation_minutes} "
+        f"algorithm={algorithm_override or 'default'} architecture={architecture_override or 'default'} "
         f"display_real_time_charts={str(display_real_time_charts).lower()} "
         f"auto_close_real_time_charts={str(auto_close_real_time_charts).lower()}"
     )
@@ -610,10 +627,6 @@ def resolve_runs_root(base_output_root: Path) -> Path:
 
 def resolve_trajectory_dir(config: RuntimeConfig) -> Path:
     return config.output_root / "trajectories"
-
-
-def resolve_legacy_trajectory_dir() -> Path:
-    return SCRIPT_DIR / "trajectory"
 
 
 def with_trailing_separator(path: Path) -> str:

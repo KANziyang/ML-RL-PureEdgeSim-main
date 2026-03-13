@@ -1,5 +1,5 @@
 /**
- *     PureEdgeSim:  A Simulation Framework for Performance Evaluation of Cloud, Edge and Mist Computing Environments 
+ *     PureEdgeSim:  A Simulation Framework for Performance Evaluation of Cloud, Edge and Mist Computing Environments
  *
  *     This file is part of PureEdgeSim Project.
  *
@@ -15,7 +15,7 @@
  *
  *     You should have received a copy of the GNU General Public License
  *     along with PureEdgeSim. If not, see <http://www.gnu.org/licenses/>.
- *     
+ *
  *     @author Mechalikh
  **/
 package pruebas;
@@ -42,6 +42,9 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	RLManager rlManager;
 	MultiLayerRLManager multiLayerRLManager;
 	PPOManager ppoManager;
+
+	// Unified RL manager references via interface
+	private RLManagerInterface activeRLManager;
 	MAPPOManager mappoManager;
 	PPOFiveAgentManager ppoFiveAgentManager;
 	TradeOffFiveAgentManager tradeOffFiveAgentManager;
@@ -58,14 +61,17 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
 		} else if ("MAPPO".equals(algorithm)) {
 			mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
+			activeRLManager = mappoManager;
 		} else if ("PPO_5AGENT".equals(algorithm)) {
 			ppoFiveAgentManager = new PPOFiveAgentManager(simulationManager, orchestrationHistory, vmList);
+			activeRLManager = ppoFiveAgentManager;
 		} else if ("TRADE_OFF_5AGENT".equals(algorithm)) {
 			tradeOffFiveAgentManager = new TradeOffFiveAgentManager(simulationManager, orchestrationHistory, vmList);
+			activeRLManager = tradeOffFiveAgentManager;
 		}
 	}
 
-	protected int findVM(String[] architecture, Task task) {		
+	protected int findVM(String[] architecture, Task task) {
 		int bestVM = -1;
 		switch (algorithm) {
 			case "RANDOM":
@@ -95,9 +101,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			case "TRADE_OFF":
 				bestVM = tradeOff(architecture, task);
 				break;
-			case "TRADE_OFF_5AGENT":
-				bestVM = tradeOffFiveAgentDecision(architecture, task);
-				break;
 			case "INCREASE_LIFETIME":
 				bestVM = increaseLifetime(architecture, task);
 				break;
@@ -114,11 +117,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				bestVM = reinforcementLearning(architecture, task);
 				break;
 			case "RL_MULTILAYER":
-				bestVM = multilayerreinforcementLearning(architecture, task);
-				break;
 			case "RL_MULTILAYER_EMPTY":
-				bestVM = multilayerreinforcementLearning(architecture, task);
-				break;
 			case "RL_MULTILAYER_DISABLED":
 				bestVM = multilayerreinforcementLearning(architecture, task);
 				break;
@@ -129,41 +128,39 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				bestVM = ppoDecision(architecture, task);
 				break;
 			case "MAPPO":
-				bestVM = mappoDecision(architecture, task);
-				break;
 			case "PPO_5AGENT":
-				bestVM = ppoFiveAgentDecision(architecture, task);
+			case "TRADE_OFF_5AGENT":
+				bestVM = activeRLManager.reinforcementLearning(architecture, task);
 				break;
-	
+
 			default:
 				SimLog.println("");
 				SimLog.println("Custom Orchestrator- Unknown orchestration algorithm '" + algorithm
 						+ "', please check the 'settings/simulation_parameters.properties' file you are using");
-				// Cancel the simulation
 				SimulationParameters.STOP = true;
 				simulationManager.getSimulation().terminate();
 				break;
 		}
-		
+
 		return bestVM;
 	}
 
-	
+
 
 	/************ Random ************/
 	private int random(String[] architecture, Task task) {
 		return randomGood(architecture, task);
 	}
 	/************ Random ************/
-	
+
 	/************ Random Good ************/
 	private int randomGood(String[] architecture, Task task) {
 		int max = orchestrationHistory.size();
 		int random = SimulationParameters.ALGO_RNG.nextInt(max);
-		
+
 		while (!offloadingIsPossible(task, vmList.get(random), architecture))
 			random = SimulationParameters.ALGO_RNG.nextInt(max);
-		
+
 		return random;
 	}
 	/************ Random ************/
@@ -205,14 +202,13 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		}
 		return fallback.toArray(new String[0]);
 	}
-	
+
 
 	/************ Closest Mist ************/
-	// Round-robin–based
 	private int closestMist(String[] architecture, Task task) {
 		int vm = -1;
 		double minDistance = SimulationParameters.EDGE_DEVICES_RANGE;
-		int minTasksCount = -1; 
+		int minTasksCount = -1;
 		double minCPU = 1;
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() == SimulationParameters.TYPES.EDGE_DEVICE) {
@@ -221,7 +217,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 					int assignedTasksNum = orchestrationHistory.get(i).size();
 					double localCPU = vmList.get(i).getCpuPercentUtilization();
 					double taskRunning = orchestrationHistory.get(i).size() - vmList.get(i).getCloudletScheduler().getCloudletFinishedList().size() + 1;
-					if(minTasksCount == -1 || (localDistance < minDistance && assignedTasksNum <= minTasksCount /*&& localCPU <= minCPU*/)) { // TODO : CPU
+					if(minTasksCount == -1 || (localDistance < minDistance && assignedTasksNum <= minTasksCount)) {
 						minDistance = localDistance;
 						minTasksCount = assignedTasksNum;
 						minCPU = localCPU;
@@ -230,87 +226,65 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				}
 			}
 		}
-		
+
 		return vm;
 	}
 	/************ Closest Mist ************/
-	
+
 	/************ Only Type ************/
-	// Round-robin–based
 	private int onlyType(String[] architecture, Task task, TYPES tipo) {
 		int vm = -1;
-		int minTasksCount = -1; // vm with minimum assigned tasks;
-		// get best vm for this task
+		int minTasksCount = -1;
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() == tipo) {
 				if (offloadingIsPossible(task, vmList.get(i), architecture) && (minTasksCount == -1	|| minTasksCount > orchestrationHistory.get(i).size())) {
-					//System.out.println(vmList.get(i).getMips() + " - " + vmList.get(i).getHost().getMips() + " - " + task.getLength());
 					minTasksCount = orchestrationHistory.get(i).size();
-					// if this is the first time, or new min found, so we choose it as the best VM set the first vm as the best one
 					vm = i;
-					
-					/*if(i == task.getEdgeDevice().getId() || i == task.getOrchestrator().getId())
-						System.out.println("Local offloading, " + i + ", " + task.getEdgeDevice().getId() + ", " + task.getOrchestrator().getId());*/ // Caso interesante
 				}
-				//if(/*offloadingIsPossible(task, vmList.get(i), architecture) &&*/ (vmList.get(i).getHost().getDatacenter().getId() == task.getEdgeDevice().getId() || vmList.get(i).getHost().getDatacenter().getId() == task.getOrchestrator().getId()))
-				//	System.out.println("Test local offloading, " + i + ", " + vmList.get(i).getHost().getDatacenter().getId() + ", " + task.getEdgeDevice().getId() + ", " + task.getOrchestrator().getId() + ", " + task.getEdgeDevice().getVmAllocationPolicy().getHostList().get(0).getVmList().get(0).getId()); // Caso interesante
 			}
 		}
-		
-		/*if(vm == -1)
-			System.out.println("No se env韆 a nadie");*/ // Error (enviar a si mismo si eso)
-		
-		// assign the tasks to the found vm
+
 		return vm;
 	}
 	/************ Only Type ************/
-	
-	
+
+
 	/************ Round Robin ************/
 	private int roundRobin(String[] architecture, Task task) {
 		int vm = -1;
-		int minTasksCount = -1; // vm with minimum assigned tasks;
-		// get best vm for this task
+		int minTasksCount = -1;
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
-			// Comprueba si esa vm se le puede hacer offloading y en su caso comprueba si es el primer elemento o si historial de tareas es menor
 			if (offloadingIsPossible(task, vmList.get(i), architecture) && (minTasksCount == -1	|| minTasksCount > orchestrationHistory.get(i).size())) {
 				minTasksCount = orchestrationHistory.get(i).size();
-				// if this is the first time, or new min found, so we choose it as the best VM set the first vm as the best one
 				vm = i;
 			}
 		}
-		// assign the tasks to the found vm
 		return vm;
 	}
 	/************ Round Robin ************/
-	
+
 
 	/************ Trade Off ************/
 	private int tradeOff(String[] architecture, Task task) {
 		int vm = -1;
 		double min = -1;
-		double new_min;// vm with minimum assigned tasks;
+		double new_min;
 
-		// get best vm for this task
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			if (offloadingIsPossible(task, vmList.get(i), architecture)) {
-				// the weight below represent the priority, the less it is, the more it is
-				// suitable for offloading, you can change it as you want
-				double weight = 1.2; // this is an edge server 'cloudlet', the latency is slightly high then edge devices
+				double weight = 1.2;
 				if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() == SimulationParameters.TYPES.CLOUD) {
-					weight = 1.8; // this is the cloud, it consumes more energy and results in high latency, so better to avoid it
+					weight = 1.8;
 				} else if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() == SimulationParameters.TYPES.EDGE_DEVICE) {
-					weight = 1.3;// this is an edge device, it results in an extremely low latency, but may consume more energy.
+					weight = 1.3;
 				}
 				new_min = (orchestrationHistory.get(i).size() + 1) * weight * task.getLength() / vmList.get(i).getMips();
-				if (min == -1 || min > new_min) { // if it is the first iteration, or if this vm has more cpu mips and less waiting tasks
+				if (min == -1 || min > new_min) {
 					min = new_min;
-					// set the first vm as the best one
 					vm = i;
 				}
 			}
 		}
-		// assign the tasks to the found vm
 		return vm;
 	}
 	/************ Trade Off ************/
@@ -319,54 +293,48 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	/************ Increase Lifetime ************/
 	protected int increaseLifetime(String[] architecture, Task task) {
 		int vm = -1;
-		double minTasksCount = -1; // vm with minimum assigned tasks;
+		double minTasksCount = -1;
 		double vmMips = 0;
 		double weight;
 		double minWeight = 20;
-		// get best vm for this task
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			if (offloadingIsPossible(task, vmList.get(i), architecture)) {
 				weight = getWeight(task, ((DataCenter) vmList.get(i).getHost().getDatacenter()));
 
 				if (minTasksCount == -1 || vmMips / (minTasksCount * minWeight) < vmList.get(i).getMips() / ((orchestrationHistory.get(i).size()
 						- vmList.get(i).getCloudletScheduler().getCloudletFinishedList().size() + 1) * weight)) {
-					minTasksCount = orchestrationHistory.get(i).size() - vmList.get(i).getCloudletScheduler().getCloudletFinishedList().size() + 1; 
+					minTasksCount = orchestrationHistory.get(i).size() - vmList.get(i).getCloudletScheduler().getCloudletFinishedList().size() + 1;
 					vmMips = vmList.get(i).getMips();
 					minWeight = weight;
 					vm = i;
 				}
 			}
 		}
-		// assign the tasks to the vm found
 		return vm;
 	}
 
 	private double getWeight(Task task, DataCenter dataCenter) {
-		double weight = 1;// if it is not battery powered
+		double weight = 1;
 		if (dataCenter.getEnergyModel().isBatteryPowered()) {
 			if (task.getEdgeDevice().getEnergyModel().getBatteryLevel() > dataCenter.getEnergyModel().getBatteryLevel())
-				weight = 20; // the destination device has lower remaining power than the task offloading device, 
-								// in this case it is better not to offload that's why the weight is high (20)
+				weight = 20;
 			else
-				weight = 15; // in this case the destination has higher remaining power, so it is okey to
-								// offload tasks for it, if the cloud and the edge data centers are absent.
+				weight = 15;
 		}
 		return weight;
 	}
 	/************ Increase Lifetime ************/
-	
+
 
 
 	/************ LatencyAndEnergyAware ************/
 	private int LatencyAndEnergyAware(String[] architecture, Task task) {
 		int vm = -1;
 		double min = -1;
-		double new_min;// vm with minimum affected tasks;
-		// get best vm for this task
+		double new_min;
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			if (offloadingIsPossible(task, vmList.get(i), architecture)
-					&& vmList.get(i).getStorage().getCapacity() > 0) {// &&
-				// vmList.get(i).getStorage().getCapacity()>0
+					&& vmList.get(i).getStorage().getCapacity() > 0) {
 				double latency = 1;
 				double energy = 1;
 				if (((DataCenter) vmList.get(i).getHost().getDatacenter())
@@ -379,79 +347,67 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				}
 				new_min = (orchestrationHistory.get(i).size() + 1) * latency * energy * task.getLength()
 						/ vmList.get(i).getMips();
-				if (min == -1) { // if it is the first iteration
+				if (min == -1) {
 					min = new_min;
-					// if this is the first time, set the first vm as the
-					vm = i; // best one
-				} else if (min > new_min) { // if this vm has more cpu mips and less waiting tasks
-					// idle vm, no tasks are waiting
+					vm = i;
+				} else if (min > new_min) {
 					min = new_min;
 					vm = i;
 				}
 			}
 		}
-		// affect the tasks to the vm found
 		return vm;
 	}
 	/************ LatencyAndEnergyAware ************/
-	
+
 
 	/************ weightGreedy ************/
-	// https://github.com/wjy491156866/SatEdgeSim/blob/master/SatEdgeSim/edu/weijunyong/satedgesim/TasksOrchestration/DefaultEdgeOrchestrator.java
 	private int weightGreedy(String[] architecture, Task task) {
 		List<Double> disdelay = new ArrayList<>();
 		List<Double> exedelay = new ArrayList<>();
 		List<Double> vmnum = new ArrayList<>();
 		List<Double> energylim = new ArrayList<>();
-		
+
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			double localDistance;
 			if(((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() != SimulationParameters.TYPES.CLOUD)
 				localDistance = ((DataCenter)vmList.get(i).getHost().getDatacenter()).getMobilityManager().distanceTo(task.getOrchestrator());
 			else
 				localDistance = 99999;
-			
+
 			double disdelay_tem = localDistance / SimulationParameters.PROPAGATION_SPEED;
 			disdelay.add(disdelay_tem);
 			double exedelay_tem = task.getLength()/vmList.get(i).getMips();
 			exedelay.add(exedelay_tem);
 			vmnum.add((double)orchestrationHistory.get(i).size());
 			double energyuse =10*(Math.log10(((DataCenter) vmList.get(i).getHost().getDatacenter()).getEnergyModel().getTotalEnergyConsumption()));
-			energylim.add(energyuse);	
+			energylim.add(energyuse);
 		}
-		List<Double> disdelay_stand = new ArrayList<>();
-		List<Double> exedelay_stand = new ArrayList<>();
-		List<Double> vmnum_stand = new ArrayList<>();
-		List<Double> energylim_stand = new ArrayList<>();
-		disdelay_stand = standardization(disdelay);
-		exedelay_stand = standardization(exedelay);
-		vmnum_stand = standardization(vmnum);
-		energylim_stand = standardization(energylim);
-		
+		List<Double> disdelay_stand = standardization(disdelay);
+		List<Double> exedelay_stand = standardization(exedelay);
+		List<Double> vmnum_stand = standardization(vmnum);
+		List<Double> energylim_stand = standardization(energylim);
+
 		int vm = -1;
 		double min = -1;
-		double min_factor;// vm with minimum assigned tasks;
+		double min_factor;
 		double a=0.3, b=0.3, c=0.25, d=0.15;
-		// get best vm for this task
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
 			if (offloadingIsPossible(task, vmList.get(i), architecture)) {
-				
+
 				min_factor = a*disdelay_stand.get(i) + b*exedelay_stand.get(i) + c*vmnum_stand.get(i) + d*energylim_stand.get(i);
-				if (min == -1) { // if it is the first iteration
+				if (min == -1) {
 					min = min_factor;
-					// if this is the first time, set the first vm as the
-					vm = i; // best one
-				} else if (min > min_factor) { // if this vm has more cpu mips and less waiting tasks
-					// idle vm, no tasks are waiting
+					vm = i;
+				} else if (min > min_factor) {
 					min = min_factor;
 					vm = i;
 				}
 			}
 		}
-		// assign the tasks to the found vm
 		return vm;
 	}
-	
+
 
 	public List<Double> standardization (List<Double> Pre_standar){
 		List<Double> standard = new ArrayList<>();
@@ -465,12 +421,12 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	}
 
 	/************ weightGreedy ************/
-	
+
 
 	/************ Test ************/
 	protected int test(String[] architecture, Task task) {
 		int vm = -1;
-		double minTasksCount = -1; 
+		double minTasksCount = -1;
 		double vmMips = 0;
 		double min = 0;
 		for (int i = 0; i < orchestrationHistory.size(); i++) {
@@ -481,85 +437,68 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				} else if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() == SimulationParameters.TYPES.EDGE_DATACENTER) {
 					weight = 1.5;
 				}
-				
-				
+
 				int taskRunning = orchestrationHistory.get(i).size() - vmList.get(i).getCloudletScheduler().getCloudletFinishedList().size() + 1;
-				
-				double newMin = weight * taskRunning * (task.getLength() / vmList.get(i).getMips());
-				//newMin = weight * (orchestrationHistory.get(i).size() + 1) * (task.getLength() / vmList.get(i).getMips()); 
-				//newMin = weight * taskRunning * (orchestrationHistory.get(i).size() + 1) * (task.getLength() / vmList.get(i).getMips()); 
-				
-				//newMin = 1 / (vmList.get(i).getMips() / taskRunning);
-				
-				newMin = weight * (task.getLength() / (vmList.get(i).getMips() / taskRunning)) * (vmList.get(i).getCpuPercentUtilization()*20+1);
+
+				double newMin = weight * (task.getLength() / (vmList.get(i).getMips() / taskRunning)) * (vmList.get(i).getCpuPercentUtilization()*20+1);
 
 				if (minTasksCount == -1 || newMin < min) {
-					minTasksCount = taskRunning; 
+					minTasksCount = taskRunning;
 					vmMips = vmList.get(i).getMips();
 					min = newMin;
 					vm = i;
 				}
 			}
 		}
-		
+
 		if(vm == -1) {
 			System.err.println("VM not found for offloading");
 		}
-		
+
 		return vm;
 	}
 	/************ Test ************/
-	
+
 
 	/************ Reinforcement Learning ************/
 	private int reinforcementLearning(String[] architecture, Task task) {
-		// Run the RL algorithm for this task
 		int action = rlManager.reinforcementLearning(architecture, task);
 
-		// Based on the RL decision, apply the corresponding offloading policy
-		if (action == 0) {			
+		if (action == 0) {
 			return local(architecture, task);
-		} else if (action == 1) {			
+		} else if (action == 1) {
 			String[] architecture2 = { "Mist" };
 			return test(architecture2, task);
-			//return onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DEVICE);
-		} else if (action == 2) {			
+		} else if (action == 2) {
 			String[] architecture2 = { "Edge" };
 			return test(architecture2, task);
-			//return onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DATACENTER);
-		} else {			
+		} else {
 			String[] architecture2 = { "Cloud" };
-			return test(architecture2, task);	
-			//return onlyType(architecture, task, SimulationParameters.TYPES.CLOUD);
+			return test(architecture2, task);
 		}
 	}
-	
+
 	public RLManager getRLManager() {
 		return rlManager;
 	}
 	/************ Reinforcement Learning ************/
-	
+
 
 	/************ MultiLayer Reinforcement Learning ************/
 	private int multilayerreinforcementLearning(String[] architecture, Task task) {
-		// Run the RL algorithm for this task		
 		int action = multiLayerRLManager.reinforcementLearning(architecture, task);
 
-		// Based on the RL decision, apply the corresponding offloading policy
-		if (action == 0) {			
+		if (action == 0) {
 			return local(architecture, task);
-		} else if (action == 1) {			
+		} else if (action == 1) {
 			String[] architecture2 = { "Mist" };
 			return test(architecture2, task);
-			//return onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DEVICE);
-		} else if (action == 2) {			
+		} else if (action == 2) {
 			String[] architecture2 = { "Edge" };
 			return test(architecture2, task);
-			//return onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DATACENTER);
-		} else {			
+		} else {
 			String[] architecture2 = { "Cloud" };
-			return test(architecture2, task);	
-			//return onlyType(architecture, task, SimulationParameters.TYPES.CLOUD);
+			return test(architecture2, task);
 		}
 	}
 
@@ -582,24 +521,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	}
 	/************ PPO ************/
 
-	/************ MAPPO ************/
-	private int mappoDecision(String[] architecture, Task task) {
-		return mappoManager.reinforcementLearning(architecture, task);
-	}
-	/************ MAPPO ************/
-
-	/************ PPO_5AGENT ************/
-	private int ppoFiveAgentDecision(String[] architecture, Task task) {
-		return ppoFiveAgentManager.reinforcementLearning(architecture, task);
-	}
-	/************ PPO_5AGENT ************/
-
-	/************ TRADE_OFF_5AGENT ************/
-	private int tradeOffFiveAgentDecision(String[] architecture, Task task) {
-		return tradeOffFiveAgentManager.reinforcementLearning(architecture, task);
-	}
-	/************ TRADE_OFF_5AGENT ************/
-	
 	public MultiLayerRLManager getMultiLayerRLManager() {
 		return multiLayerRLManager;
 	}
@@ -637,22 +558,20 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	}
 
 	public double getPPOChartAvgReward() {
-		if ("PPO_5AGENT".equals(algorithm) && ppoFiveAgentManager != null) {
-			return ppoFiveAgentManager.getAvgReward();
+		if (activeRLManager != null) {
+			return activeRLManager.getAvgReward();
 		}
 		if (ppoManager != null) {
 			return ppoManager.getAvgReward();
 		}
 		return 0.0;
 	}
-	/************ Reinforcement Learning ************/
-	
+
 
 	/************ Fuzzy Logic ************/
-	private int fuzzyLogic(Task task) { 
+	private int fuzzyLogic(Task task) {
 		String fileName = "PureEdgeSim/pruebas/settings/stage1.fcl";
 		FIS fis = FIS.load(fileName, true);
-		// Error while loading?
 		if (fis == null) {
 			System.err.println("Can't load file: '" + fileName + "'");
 			return -1;
@@ -668,21 +587,17 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			}
 		}
 
-		// set fuzzy inputs
 		fis.setVariable("lan", SimulationParameters.BANDWIDTH_WLAN / 1000.0 - simulationManager.getNetworkModel().getNetworkUtilization());
 		fis.setVariable("tasklength", task.getLength());
 		fis.setVariable("delay", task.getMaxLatency());
 		fis.setVariable("vm", vmUsage / count);
 
-		// Evaluate
 		fis.evaluate();
 
-		//  Offloading to the cloud is preferable
 		if (fis.getVariable("offload").defuzzify() > 50) {
 			String[] architecture2 = { "Cloud" };
 			return increaseLifetime(architecture2, task);
-			//return roundRobin(architecture2, task);
-		} else { // Offloading to the cloud is not preferable; send the task to edge or mist instead
+		} else {
 			String[] architecture2 = { "Edge", "Mist" };
 			return stage2(architecture2, task);
 		}
@@ -694,7 +609,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		int vm = -1;
 		String fileName = "PureEdgeSim/pruebas/settings/stage2.fcl";
 		FIS fis = FIS.load(fileName, true);
-		// Error while loading?
 		if (fis == null) {
 			System.err.println("Can't load file: '" + fileName + "'");
 			return -1;
@@ -717,43 +631,30 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		return vm;
 	}
 	/************ Fuzzy Logic ************/
-	
+
 
 	@Override
 	public void resultsReturned(Task task) {
-		if (task.getStatus() == Status.FAILED) {
-			//System.err.println("CustomEdgeOrchestrator, task " + task.getId() + " has been failed, failure reason is: " + task.getFailureReason());
-		} else {
-			//System.out.println("CustomEdgeOrchestrator, task " + task.getId() + " has been successfully executed");
-		}
-		
-		// Testing with the RL algorithm
-		if(algorithm.equals("RL")) {
-			rlManager.reinforcementFeedback(task);
-		} else if(algorithm.equals("RL_MULTILAYER") || algorithm.equals("RL_MULTILAYER_DISABLED") || algorithm.equals("RL_MULTILAYER_EMPTY")) {
-			multiLayerRLManager.reinforcementFeedback(task);
-		} else if(algorithm.equals("PPO")) {
-			ppoManager.reinforcementFeedback(task);
-		} else if(algorithm.equals("MAPPO")) {
-			mappoManager.reinforcementFeedback(task);
-		} else if(algorithm.equals("PPO_5AGENT")) {
-			ppoFiveAgentManager.reinforcementFeedback(task);
-		} else if(algorithm.equals("TRADE_OFF_5AGENT")) {
-			tradeOffFiveAgentManager.reinforcementFeedback(task);
+		// Unified RL feedback dispatch
+		if (activeRLManager != null) {
+			activeRLManager.reinforcementFeedback(task);
+			return;
 		}
 
+		if("RL".equals(algorithm)) {
+			rlManager.reinforcementFeedback(task);
+		} else if("RL_MULTILAYER".equals(algorithm) || "RL_MULTILAYER_DISABLED".equals(algorithm) || "RL_MULTILAYER_EMPTY".equals(algorithm)) {
+			multiLayerRLManager.reinforcementFeedback(task);
+		} else if("PPO".equals(algorithm)) {
+			ppoManager.reinforcementFeedback(task);
+		}
 	}
 
 	@Override
 	public void simulationFinished() {
-		if ("MAPPO".equals(algorithm)) {
-			mappoManager.simulationFinished();
-		} else if ("PPO_5AGENT".equals(algorithm)) {
-			ppoFiveAgentManager.simulationFinished();
-		} else if ("TRADE_OFF_5AGENT".equals(algorithm)) {
-			tradeOffFiveAgentManager.simulationFinished();
+		if (activeRLManager != null) {
+			activeRLManager.simulationFinished();
 		}
 	}
 
 }
-

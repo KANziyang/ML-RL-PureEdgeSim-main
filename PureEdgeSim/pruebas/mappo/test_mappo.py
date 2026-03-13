@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_SHARED_DIR = str(_SCRIPT_DIR.parent / "shared")
+if _SHARED_DIR not in sys.path:
+    sys.path.insert(0, _SHARED_DIR)
+_CONFIG_PATH = _SCRIPT_DIR / "runtime_config.json"
 
 from analyze_mappo import analyze_episode
 from env_client import MAPPOClient
@@ -41,9 +48,13 @@ TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 20
 TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = False
 
+# Algorithm/architecture overrides — applied to settings_base at runtime
+ALGORITHM_OVERRIDE: Optional[str] = "MAPPO"
+ARCHITECTURE_OVERRIDE: Optional[str] = "LOCAL_EDGE_CLOUD"
+
 
 def main() -> None:
-    config = load_config()
+    config = load_config(_CONFIG_PATH)
     base_output_root = config.output_root.resolve()
     test_episodes = TEST_EPISODES_OVERRIDE if TEST_EPISODES_OVERRIDE is not None else DEFAULT_TEST_EPISODES
     test_episodes = max(1, int(test_episodes))
@@ -311,6 +322,8 @@ def _prepare_eval_settings(
             display_real_time_charts_override=TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE,
             auto_close_real_time_charts_override=TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE,
             clone_even_if_unmodified=True,
+            algorithm_override=ALGORITHM_OVERRIDE,
+            architecture_override=ARCHITECTURE_OVERRIDE,
         )
         return effective_dir, simulation_minutes
     if variant == "stress":

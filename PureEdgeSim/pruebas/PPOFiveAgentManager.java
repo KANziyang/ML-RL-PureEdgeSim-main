@@ -8,59 +8,37 @@ import org.cloudbus.cloudsim.vms.Vm;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
 
-public class PPOFiveAgentManager {
-	private static final String ENV_SERVER_ENABLED_PROP = "mappo.env.server";
-	private static final String ENV_SERVER_PORT_PROP = "mappo.env.port";
-	private static final String ENV_SERVER_TIMEOUT_PROP = "mappo.env.action_timeout_ms";
+public class PPOFiveAgentManager extends AbstractRLManager {
 	private static final String TRACE_DIR_PROP = "mappo.trajectory.dir";
 
-	private final SimulationManager simulationManager;
 	private final FiveAgentDecisionSupport decisionSupport;
 	private final FiveAgentTraceWriter traceWriter;
 	private final FiveAgentDecisionSupport.DecisionTelemetryTracker telemetryTracker =
 			new FiveAgentDecisionSupport.DecisionTelemetryTracker();
 
-	private final boolean envServerEnabled;
-	private final MAPPOEnvServer envServer;
-
-	private double rewardSum = 0.0;
-	private int rewardNum = 0;
-	private long finishedEpisodes = 0;
-	private boolean episodeEndSent = false;
 	private double[][] lastObs;
 	private double[] lastState;
 
 	public PPOFiveAgentManager(SimulationManager simulationManager, List<List<Integer>> orchestrationHistory,
 			List<Vm> vmList) {
-		this.simulationManager = simulationManager;
+		super(simulationManager, true, "PPO_5AGENT");
 		this.decisionSupport = new FiveAgentDecisionSupport(simulationManager, orchestrationHistory, vmList);
 		this.traceWriter = new FiveAgentTraceWriter(TRACE_DIR_PROP,
 				Paths.get("PureEdgeSim", "pruebas", "ppo_5agent", "trajectory"), "ppo5agent_trajectories");
-
-		this.envServerEnabled = Boolean.getBoolean(ENV_SERVER_ENABLED_PROP);
-		if (envServerEnabled) {
-			int port = Integer.getInteger(ENV_SERVER_PORT_PROP, 5006);
-			int timeoutMs = Integer.getInteger(ENV_SERVER_TIMEOUT_PROP, 500);
-			System.out.println("PPOFiveAgentManager: env server enabled on port " + port);
-			this.envServer = new MAPPOEnvServer(port, timeoutMs);
-			this.envServer.start();
-		} else {
-			System.out.println(
-					"PPOFiveAgentManager: env server disabled (set -D" + ENV_SERVER_ENABLED_PROP + "=true)");
-			this.envServer = null;
-		}
 	}
 
 	public int reinforcementLearning(String[] architecture, Task task) {
-		if (!envServerEnabled || envServer == null) {
-			throw new IllegalStateException("PPOFiveAgentManager: env server is required but not enabled.");
-		}
 		waitForEnvConnection();
 
 		FiveAgentDecisionSupport.StateBundle state = decisionSupport.buildState(task, architecture);
 		long stepId = task.getId();
-		MAPPOEnvServer.ActionData actionData = envServer.waitForAction(state.localObs, state.globalState, state.actionMask,
-				stepId);
+
+		RLEnvServer.ActionData actionData;
+		if (isInferenceFailed() || !isEnvServerConnected()) {
+			actionData = new RLEnvServer.ActionData(0, 0, false);
+		} else {
+			actionData = envServer.waitForAction(state.localObs, state.globalState, state.actionMask, stepId);
+		}
 
 		if (actionData.terminate) {
 			simulationManager.terminateAndSaveCharts();
@@ -96,11 +74,9 @@ public class PPOFiveAgentManager {
 		traceWriter.appendTrace(task, meta, reward, nextState.localObs, nextState.globalState, false);
 		updateAvgReward(reward);
 
-		if (envServerEnabled && envServer != null && envServer.isConnected()) {
+		if (isEnvServerConnected()) {
 			envServer.sendTransition(reward, nextState.localObs, nextState.globalState, false, nextState.actionMask,
 					meta.stepId);
-		} else {
-			throw new IllegalStateException("PPOFiveAgentManager: env server disconnected during feedback.");
 		}
 
 		lastObs = FiveAgentDecisionSupport.deepCopy2D(nextState.localObs);
@@ -114,7 +90,7 @@ public class PPOFiveAgentManager {
 		episodeEndSent = true;
 		finishedEpisodes++;
 		try {
-			if (envServerEnabled && envServer != null && envServer.isConnected()) {
+			if (isEnvServerConnected()) {
 				double[][] obs = lastObs != null ? lastObs
 						: new double[FiveAgentDecisionSupport.AGENT_COUNT][FiveAgentDecisionSupport.LOCAL_OBS_SIZE];
 				double[] state = lastState != null ? lastState
@@ -123,37 +99,11 @@ public class PPOFiveAgentManager {
 			}
 		} finally {
 			traceWriter.close();
+			cleanupInferenceProcess();
 		}
-	}
-
-	public double getAvgReward() {
-		if (rewardNum == 0) {
-			return 0.0;
-		}
-		double avg = rewardSum / rewardNum;
-		rewardSum = 0.0;
-		rewardNum = 0;
-		return avg;
 	}
 
 	public FiveAgentDecisionSupport.DecisionTelemetrySnapshot getTelemetrySnapshot() {
 		return telemetryTracker.snapshot();
-	}
-
-	private void updateAvgReward(double reward) {
-		rewardSum += reward;
-		rewardNum++;
-	}
-
-	private void waitForEnvConnection() {
-		while (!envServer.isConnected()) {
-			try {
-				Thread.sleep(50);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				throw new IllegalStateException(
-						"PPOFiveAgentManager: interrupted while waiting for env server connection.");
-			}
-		}
 	}
 }
