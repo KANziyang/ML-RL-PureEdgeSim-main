@@ -1,167 +1,163 @@
-# ML-RL-PureEdgeSim
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 交互规则（必须严格遵守）
+
+1. **称呼规则**：每次回复前必须使用"kan"作为称呼。
+2. **决策确认**：遇到不确定的代码设计问题时，必须先询问 kan，不得直接行动。
+3. **代码兼容性**：不能写兼容性代码（向后兼容、旧格式适配等），除非 kan 主动要求。
+4. **默认使用 Plan 模式**：收到实现类任务时，默认进入 Plan 模式先做方案设计，经 kan 确认后再动手写代码。
 
 ## Project Overview
 
-Multi-agent reinforcement learning (MAPPO) integrated with PureEdgeSim edge computing simulator.
-The goal is to optimize task offloading decisions in a Local → Edge → Cloud architecture.
+Multi-agent reinforcement learning (MAPPO, PPO_5AGENT) integrated with PureEdgeSim edge computing simulator. Optimizes task offloading decisions in a Local → Edge → Cloud architecture.
 
-- **Java side**: PureEdgeSim simulation engine (based on CloudSim Plus) — handles task generation, network, energy, execution
-- **Python side**: MAPPO (Multi-Agent PPO) in PyTorch — handles policy training and inference
-- **Communication**: JSON-over-TCP socket between `MAPPOEnvServer` (Java) and `MAPPOClient` (Python)
-
-## Repository Structure
-
-```
-PureEdgeSim/
-├── com/pureedgesim/          # Core simulation framework (Java)
-│   ├── simulationcore/       # SimulationManager, SimLog, Simulation
-│   ├── tasksorchestration/   # Orchestrator, ArchitectureHelper
-│   ├── tasksgenerator/       # Task, Application
-│   ├── datacentersmanager/   # DataCenter, EnergyModel, Resources
-│   ├── network/              # DefaultNetworkModel, PRB management
-│   ├── scenariomanager/      # SimulationParameters, FilesParser
-│   ├── locationmanager/      # MobilityModel
-│   └── simulationvisualizer/ # Charts (PPOChart, MAPPORewardChart, etc.)
-├── com/fdtkit/fuzzy/         # Fuzzy logic library
-├── pruebas/                  # Experiment code (Java + Python)
-│   ├── *.java                # Orchestrators, managers, entry points
-│   ├── mappo/                # MAPPO Python code
-│   │   ├── train_mappo.py    # Training loop
-│   │   ├── test_mappo.py     # Evaluation loop
-│   │   ├── models.py         # TurnActor + CentralCritic networks
-│   │   ├── buffer.py         # EpisodeBuffer
-│   │   ├── env_client.py     # MAPPOClient (TCP client)
-│   │   ├── runtime_support.py# Config, Java process management, logging
-│   │   └── analyze_mappo.py  # Post-episode trajectory analysis
-│   ├── ppo/                  # Single-agent PPO code
-│   ├── ppo_5agent/           # 5-agent PPO variant
-│   ├── settings_mappo_5agents_train/  # MAPPO simulation config
-│   ├── settings_ppo_5agents_train/
-│   ├── settings_tradeoff_5agents_train/
-│   └── settings/             # Fuzzy logic FCL files
-└── libs/                     # jFuzzyLogic jar
-```
+- **Java side**: PureEdgeSim simulation engine (based on CloudSim Plus) — task generation, network, energy, execution
+- **Python side**: MAPPO/PPO in PyTorch — policy training and inference
+- **Communication**: JSON-over-TCP socket between `RLEnvServer` (Java) and `MAPPOClient` (Python)
 
 ## Build & Run
-
-### Prerequisites
-- Java 8+ with Maven
-- Python 3.10+ with PyTorch, NumPy
 
 ### Java compilation
 ```bash
 mvn -q -DskipTests compile
 ```
 
-### MAPPO training
+### MAPPO training (Python drives Java)
 ```bash
 cd PureEdgeSim/pruebas/mappo
 python train_mappo.py
 ```
-Training launches Java simulation per episode via Maven exec plugin.
-Config: `PureEdgeSim/pruebas/mappo/runtime_config.json` (gitignored, auto-generated).
+
+### PPO_5AGENT training
+```bash
+cd PureEdgeSim/pruebas/ppo_5agent
+python train_ppo_5agent.py
+```
 
 ### MAPPO evaluation
 ```bash
 cd PureEdgeSim/pruebas/mappo
 python test_mappo.py
 ```
-Loads `latest.pt` from the most recent training run.
 
-### Running Java simulation standalone
+### Multi-algorithm comparison (offline, no Python training needed)
 ```bash
-mvn -q -DskipTests exec:java -Dexec.mainClass=pruebas.PruebaMAPPO
+python PureEdgeSim/pruebas/run_simulation.py
 ```
-Other entry points: `pruebas.PruebaPPO5Agent`, `pruebas.PruebaTradeOff5Agent`, `pruebas.Prueba1`
+Runs all algorithms listed in `settings_base/simulation_parameters.properties` → `orchestration_algorithms=EDGE,MAPPO,...` sequentially. MAPPO/PPO_5AGENT auto-fork a Python inference subprocess.
+
+### Java simulation standalone
+```bash
+mvn -q -DskipTests exec:java -Dexec.mainClass=pruebas.Prueba1
+```
+Other entry points: `pruebas.PruebaMAPPO`, `pruebas.PruebaPPO5Agent`, `pruebas.PruebaTradeOff5Agent`
+
+## Architecture: Two Execution Modes
+
+### Training mode (`-Dmappo.env.server=true`)
+Python script launches Java per episode. Java starts `RLEnvServer` (TCP server), Python connects as client. Python drives the loop: recv obs → infer action → send action → recv transition → store → update policy.
+
+### Offline inference mode (default, no flag needed)
+Java `AbstractRLManager` detects `envServerEnabled=false`, auto-launches `RLEnvServer` on a random port, forks `inference_server.py` as a subprocess. Python loads the trained model, connects to TCP, serves actions deterministically. Used by `run_simulation.py` for multi-algorithm comparison.
 
 ## Key Java Classes
 
 | Class | Role |
 |---|---|
-| `CustomEdgeOrchestrator` | Central dispatcher — routes tasks via algorithm switch (MAPPO, PPO, TRADE_OFF, ROUND_ROBIN, etc.) |
-| `MAPPOManager` | Manages MAPPO lifecycle: builds observations, sends to env server, receives actions, computes rewards |
-| `MAPPOEnvServer` | TCP server inside Java sim — sends obs/transitions, receives actions from Python |
-| `DeviceAgentDecisionSupport` | Observation builder, reward function, destination resolution, normalization — the core MAPPO env logic |
-| `DeviceAgentTraceWriter` | Writes CSV trajectory files for offline analysis |
-| `SimulationManager` | CloudSim event loop — schedules tasks, manages network transfers, triggers orchestrator |
+| `CustomEdgeOrchestrator` | Central dispatcher — routes tasks via algorithm switch in `findVM()`. Tracks generic destination distribution for all algorithms. |
+| `AbstractRLManager` | Base class for MAPPO/PPO_5AGENT managers. Handles env server lifecycle, offline inference process forking, model path resolution, degraded mode on failure. |
+| `RLEnvServer` | TCP server — two `waitForAction` overloads: one for MAPPO (turn-based with agentId/destFeatures), one for PPO_5AGENT (flat obs/actionMask). |
+| `RLManagerInterface` | Unified interface: `reinforcementLearning()`, `reinforcementFeedback()`, `simulationFinished()`, `getAvgReward()` |
+| `MAPPOManager` | Extends `AbstractRLManager`. Uses `DeviceAgentDecisionSupport` for per-device agent observations. |
+| `PPOFiveAgentManager` | Extends `AbstractRLManager`. Uses `FiveAgentDecisionSupport` for 5-agent (4 edge + 1 cloud) observations. |
+| `DeviceAgentDecisionSupport` | MAPPO observation builder. Agent count = number of `isGeneratingTasks()` edge devices (dynamic, not hardcoded). |
+| `FiveAgentDecisionSupport` | PPO_5AGENT observation builder. Fixed 5 agents. |
+| `SimulationManager` | CloudSim event loop — `processEvent()` dispatches SEND_TO_ORCH → SEND_TASK_FROM_ORCH_TO_DESTINATION → EXECUTE_TASK → RESULT_RETURN_FINISHED |
 | `Orchestrator` | Abstract base — `initialize()` dispatches by architecture, `findVM()` dispatches by algorithm |
 
 ## Key Python Modules
 
 | Module | Role |
 |---|---|
-| `models.py` | `TurnActor` (policy with dest + PRB heads) and `CentralCritic` (state → value) |
-| `train_mappo.py` | Training loop: episode collection → rollout buffer → PPO update → checkpoint |
-| `test_mappo.py` | Eval loop: deterministic policy, supports base/stress variants |
-| `buffer.py` | `EpisodeBuffer` — stores transitions as numpy arrays |
-| `env_client.py` | `MAPPOClient` — TCP socket client, JSON message send/recv |
-| `runtime_support.py` | `RuntimeConfig`, Java process launch, settings cloning, run layout management |
+| `mappo/models.py` | `TurnActor` (agent embedding + dest encoder + dest/PRB heads) and `CentralCritic`. `resize_agent_embedding()` allows adapting to different device counts at test time. |
+| `ppo_5agent/models.py` | `SingleAgentActor` (flat obs → dest/priority heads) and `CentralCritic` |
+| `shared/env_client.py` | `MAPPOClient` — TCP socket client, JSON message send/recv |
+| `shared/inference_server.py` | Offline inference — detects model type (TurnActor/SharedActor/SingleAgentActor), adapts to env via `marl_config`, handles `marl_turn_obs` or `marl_obs` protocol |
+| `shared/runtime_support.py` | `RuntimeConfig`, Java process launch, settings cloning, run layout, model path resolution |
+| `run_simulation.py` | Multi-algorithm comparison runner. Classifies algorithms as OFFLINE (all including MAPPO/PPO_5AGENT) or INTERACTIVE (PPO only). |
+
+## TCP Protocol (RLEnvServer ↔ Python)
+
+Two protocols depending on algorithm:
+
+**MAPPO protocol** (turn-based, per-device agent):
+```
+Java → Python: marl_config {num_agents, num_destinations, agent_obs_dim, dest_feat_dim, ...}
+Java → Python: marl_turn_obs {agent_id, agent_obs, dest_features, dest_mask, step_id}
+Python → Java: marl_action {step_id, dest_action, prb_action}
+Java → Python: marl_transition {step_id, reward, done}
+Java → Python: marl_episode_end
+```
+
+**PPO_5AGENT protocol** (flat obs, 5 fixed agents):
+```
+Java → Python: marl_obs {obs, state, action_mask, step_id}
+Python → Java: marl_action {step_id, dest_action, prb_action}
+Java → Python: marl_transition {step_id, reward, done}
+Java → Python: marl_episode_end
+```
+
+## Model Path Resolution (offline inference)
+
+`AbstractRLManager.resolveModelPath()` priority:
+1. `-Dmappo.model.path=<explicit path>` system property
+2. Latest training run: `output_mappo/runs/<latest>/models/latest.pt` (or `output_ppo_5agent/...`)
+3. Legacy fallback: `mappo/model/latest.pt` (or `ppo_5agent/model/latest.pt`)
+
+This matches `test_mappo.py`'s `resolve_model_path_for_test()` behavior.
 
 ## MAPPO Agent Design
 
-**Agent**: Each task-generating edge device is an agent (device-agent mode).
+**Agent**: Each task-generating edge device is an agent (dynamic count based on `isGeneratingTasks()` in `edge_devices.xml`).
 
 **Observation per step**:
-- `agent_obs` (12D): task features (length, deadline, sizes), source device state (CPU, energy, running tasks, local VM MIPS), reachable edge count, PRB remaining, sim time
-- `dest_features` (N×10D): per-destination CPU, running tasks, MIPS, ETA/deadline ratio, distance, network admissibility, type flags, VM count
-- `global_state` (26D): agent_obs + aggregated stats (source/edge/cloud CPU, energy, running tasks means/maxes, total active tasks, PRB ratio, CPU imbalance)
+- `agent_obs` (12D): task features, source device state, reachable edge count, PRB remaining, sim time
+- `dest_features` (N×10D): per-destination CPU, running tasks, MIPS, ETA/deadline ratio, distance, network admissibility, type flags
+- `global_state` (26D): agent_obs + aggregated stats
 - `dest_mask` (ND): binary mask for available destinations
 
 **Action** (two discrete heads):
 - `dest_action`: 0=local, 1..N=edge/cloud destinations
-- `prb_action`: PRB priority bin (5 bins: 20%/40%/60%/80%/100%), only applied for non-local offloading
+- `prb_action`: PRB priority bin (5 bins: 20%/40%/60%/80%/100%), only for non-local offloading
 
-**Reward**:
-```
-R = 5×success - 5×failure - 1.5×latency_norm - 0.5×energy_norm - 2×prb_reject - 0.3×prb_request - 0.5×cpu_imbalance
-```
+**Agent embedding**: `nn.Embedding(num_agents, 16)`. Can be resized at test/inference time via `TurnActor.resize_agent_embedding()` — new agents get cycled copies of existing embeddings.
 
-## Simulation Config (settings_mappo_5agents_train/)
+## Simulation Config
 
-- Map: 200m × 200m
-- 50 edge devices (smartphones + sensors generate tasks)
-- 4 edge datacenters (each 2 hosts × 8 VMs = 16 VMs, total 64 edge VMs)
-- 1 cloud datacenter
-- 3 app types: AR (80K MI, 8s), E-Health (400K MI, 25s), Heavy Compute (120K MI, 12s)
-- Architecture: `LOCAL_EDGE_CLOUD`
-- WLAN: 1500 Mbps, 1500 PRB blocks, distance attenuation model
-- Simulation time: 20 min/episode
+Base settings: `PureEdgeSim/pruebas/settings_base/`
+- `simulation_parameters.properties`: simulation time, device counts, network, algorithms
+- `edge_devices.xml`: device types with `<generateTasks>true/false</generateTasks>` (determines MAPPO agent count)
+- `edge_datacenters.xml`, `cloud.xml`, `applications.xml`
 
-## Training Hyperparameters
+Training scripts override settings at runtime via `prepare_effective_settings_dir()` (clones settings_base, patches properties).
 
-| Parameter | Value | Env override |
-|---|---|---|
-| Gamma | 0.99 | `PUREEDGESIM_MAPPO_GAMMA` |
-| Clip epsilon | 0.1 | `PUREEDGESIM_MAPPO_CLIP` |
-| Actor LR | 3e-4 | `PUREEDGESIM_MAPPO_ACTOR_LR` |
-| Critic LR | 3e-4 | `PUREEDGESIM_MAPPO_CRITIC_LR` |
-| Entropy coef | 0.02 → 0.002 (linear decay) | `PUREEDGESIM_MAPPO_ENTROPY_START/END` |
-| PPO epochs | 1 | `PUREEDGESIM_MAPPO_EPOCHS` |
-| Minibatch | 1024 | `PUREEDGESIM_MAPPO_MINIBATCH` |
-| Episodes per update | 4 | `PUREEDGESIM_MAPPO_EPISODES_PER_UPDATE` |
-| Train episodes | 20 (hardcoded override) | — |
+## Visualization
 
-## Comparison Algorithms
+`SimulationVisualizer` shows a unified chart set for all algorithms:
+- Common: Map, CPU Utilization (includes Local Devices for LOCAL_EDGE_CLOUD), Energy, Tasks Success, Tasks Failed, Delay, Edge Devices, Servers, Block, Destination Distribution, Priority Distribution
+- Algorithm-specific extras: MAPPORewardChart (MAPPO), PPOChart (PPO/PPO_5AGENT), RLChart (RL)
 
-Implemented in `CustomEdgeOrchestrator.findVM()`:
-- **Baselines**: RANDOM, LOCAL, ROUND_ROBIN, CLOSEST
-- **Heuristics**: TRADE_OFF, INCREASE_LIFETIME, LATENCY_ENERGY_AWARE, WEIGHT_GREEDY
-- **Fuzzy logic**: FUZZY_LOGIC (two-stage FCL)
-- **Single-agent RL**: RL (Q-learning), PPO
-- **Multi-agent**: MAPPO, PPO_5AGENT, TRADE_OFF_5AGENT
-
-## Branches
-
-- `main` — stable baseline
-- `MAPPO` — active development branch (current)
-- `add-6G-(need-to-improve)` — experimental 6G features
+Destination/Priority distribution charts use `FiveAgentDecisionSupport.DecisionTelemetryTracker` — for non-RL algorithms, `CustomEdgeOrchestrator.trackGenericDestination()` maps VM type to 5-agent slots (Edge1-4 → 0-3, Cloud → 4).
 
 ## Conventions
 
 - Java source is in `PureEdgeSim/` (Maven sourceDirectory), not `src/`
-- Settings directories are per-experiment: `settings_mappo_5agents_train/`, `settings_ppo_5agents_train/`, etc.
+- Settings directories are per-experiment: `settings_base/`, `settings_mappo_5agents_train/`, etc.
 - Output directories, model checkpoints, trajectories, and `runtime_config.json` are gitignored
 - Simulation parameters use `.properties` format; device/datacenter/app configs use XML
 - The orchestration algorithm is set in `simulation_parameters.properties` → `orchestration_algorithms=`
-- For MAPPO training, the algorithm is overridden to `MAPPO` and architecture to `LOCAL_EDGE_CLOUD`
 - All paths in Java use forward slashes and are relative to repo root
+- Python conda env: `gym` (at `C:/Users/hp/anaconda3/envs/gym/python.exe`)
+- Java uses `-Dmappo.python.exe=python` to find Python; set this if the default `python` isn't the right env
