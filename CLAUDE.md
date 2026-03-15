@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multi-agent reinforcement learning (MAPPO, PPO_5AGENT) integrated with PureEdgeSim edge computing simulator. Optimizes task offloading decisions in a Local → Edge → Cloud architecture.
+Multi-agent reinforcement learning (MAPPO, PPO) integrated with PureEdgeSim edge computing simulator. Optimizes task offloading decisions in a Local → Edge → Cloud architecture.
 
 - **Java side**: PureEdgeSim simulation engine (based on CloudSim Plus) — task generation, network, energy, execution
 - **Python side**: MAPPO/PPO in PyTorch — policy training and inference
@@ -30,10 +30,10 @@ cd PureEdgeSim/pruebas/mappo
 python train_mappo.py
 ```
 
-### PPO_5AGENT training
+### PPO training (Python drives Java)
 ```bash
-cd PureEdgeSim/pruebas/ppo_5agent
-python train_ppo_5agent.py
+cd PureEdgeSim/pruebas/ppo
+python train_ppo.py
 ```
 
 ### MAPPO evaluation
@@ -42,17 +42,23 @@ cd PureEdgeSim/pruebas/mappo
 python test_mappo.py
 ```
 
+### PPO evaluation
+```bash
+cd PureEdgeSim/pruebas/ppo
+python test_ppo.py
+```
+
 ### Multi-algorithm comparison (offline, no Python training needed)
 ```bash
 python PureEdgeSim/pruebas/run_simulation.py
 ```
-Runs all algorithms listed in `settings_base/simulation_parameters.properties` → `orchestration_algorithms=EDGE,MAPPO,...` sequentially. MAPPO/PPO_5AGENT auto-fork a Python inference subprocess.
+Runs all algorithms listed in `settings_base/simulation_parameters.properties` → `orchestration_algorithms=EDGE,MAPPO,...` sequentially. MAPPO/PPO auto-fork a Python inference subprocess.
 
 ### Java simulation standalone
 ```bash
 mvn -q -DskipTests exec:java -Dexec.mainClass=pruebas.Prueba1
 ```
-Other entry points: `pruebas.PruebaMAPPO`, `pruebas.PruebaPPO5Agent`, `pruebas.PruebaTradeOff5Agent`
+Other entry points: `pruebas.PruebaMAPPO`, `pruebas.PruebaPPO`
 
 ## Architecture: Two Execution Modes
 
@@ -67,11 +73,12 @@ Java `AbstractRLManager` detects `envServerEnabled=false`, auto-launches `RLEnvS
 | Class | Role |
 |---|---|
 | `CustomEdgeOrchestrator` | Central dispatcher — routes tasks via algorithm switch in `findVM()`. Tracks generic destination distribution for all algorithms. |
-| `AbstractRLManager` | Base class for MAPPO/PPO_5AGENT managers. Handles env server lifecycle, offline inference process forking, model path resolution, degraded mode on failure. |
-| `RLEnvServer` | TCP server — two `waitForAction` overloads: one for MAPPO (turn-based with agentId/destFeatures), one for PPO_5AGENT (flat obs/actionMask). |
+| `AbstractRLManager` | Base class for MAPPO/PPO managers. Handles env server lifecycle, offline inference process forking, model path resolution, degraded mode on failure. |
+| `RLEnvServer` | TCP server — `waitForAction` overload for MAPPO/PPO (turn-based with agentId/destFeatures). |
 | `RLManagerInterface` | Unified interface: `reinforcementLearning()`, `reinforcementFeedback()`, `simulationFinished()`, `getAvgReward()` |
-| `MAPPOManager` | Extends `AbstractRLManager`. Uses `DeviceAgentDecisionSupport` for per-device agent observations. |
-| `DeviceAgentDecisionSupport` | MAPPO observation builder. Agent count = number of `isGeneratingTasks()` edge devices (dynamic, not hardcoded). Also provides `DecisionTelemetryTracker` used by all algorithms for destination/PRB distribution charts. |
+| `MAPPOManager` | Extends `AbstractRLManager`. MAPPO turn-based agent with per-device agent embedding. |
+| `PPOManager` | Extends `AbstractRLManager`. PPO shared-policy variant (no agent embedding). |
+| `DeviceAgentDecisionSupport` | Observation builder. Agent count = number of `isGeneratingTasks()` edge devices (dynamic). Also provides `DecisionTelemetryTracker` used by all algorithms for destination/PRB distribution charts. |
 | `SimulationManager` | CloudSim event loop — `processEvent()` dispatches SEND_TO_ORCH → SEND_TASK_FROM_ORCH_TO_DESTINATION → EXECUTE_TASK → RESULT_RETURN_FINISHED |
 | `Orchestrator` | Abstract base — `initialize()` dispatches by architecture, `findVM()` dispatches by algorithm |
 
@@ -80,28 +87,18 @@ Java `AbstractRLManager` detects `envServerEnabled=false`, auto-launches `RLEnvS
 | Module | Role |
 |---|---|
 | `mappo/models.py` | `TurnActor` (agent embedding + dest encoder + dest/PRB heads) and `CentralCritic`. `resize_agent_embedding()` allows adapting to different device counts at test time. |
-| `ppo_5agent/models.py` | `SingleAgentActor` (flat obs → dest/priority heads) and `CentralCritic` |
+| `ppo/models.py` | `PPOActor` (shared policy, no agent embedding, same dest encoder structure) and `PPOCritic`. |
 | `shared/env_client.py` | `MAPPOClient` — TCP socket client, JSON message send/recv |
-| `shared/inference_server.py` | Offline inference — detects model type (TurnActor/SharedActor/SingleAgentActor), adapts to env via `marl_config`, handles `marl_turn_obs` or `marl_obs` protocol |
+| `shared/inference_server.py` | Offline inference — detects model type (TurnActor/PPOActor/SharedActor), adapts to env via `marl_config`, handles `marl_turn_obs` protocol |
 | `shared/runtime_support.py` | `RuntimeConfig`, Java process launch, settings cloning, run layout, model path resolution |
-| `run_simulation.py` | Multi-algorithm comparison runner. Classifies algorithms as OFFLINE (all including MAPPO/PPO_5AGENT) or INTERACTIVE (PPO only). |
+| `run_simulation.py` | Multi-algorithm comparison runner. All algorithms run in OFFLINE mode (including MAPPO/PPO). |
 
 ## TCP Protocol (RLEnvServer ↔ Python)
 
-Two protocols depending on algorithm:
-
-**MAPPO protocol** (turn-based, per-device agent):
+**MAPPO/PPO protocol** (turn-based, per-device agent):
 ```
 Java → Python: marl_config {num_agents, num_destinations, agent_obs_dim, dest_feat_dim, ...}
 Java → Python: marl_turn_obs {agent_id, agent_obs, dest_features, dest_mask, step_id}
-Python → Java: marl_action {step_id, dest_action, prb_action}
-Java → Python: marl_transition {step_id, reward, done}
-Java → Python: marl_episode_end
-```
-
-**PPO_5AGENT protocol** (flat obs, 5 fixed agents):
-```
-Java → Python: marl_obs {obs, state, action_mask, step_id}
 Python → Java: marl_action {step_id, dest_action, prb_action}
 Java → Python: marl_transition {step_id, reward, done}
 Java → Python: marl_episode_end
@@ -111,10 +108,8 @@ Java → Python: marl_episode_end
 
 `AbstractRLManager.resolveModelPath()` priority:
 1. `-Dmappo.model.path=<explicit path>` system property
-2. Latest training run: `output_mappo/runs/<latest>/models/latest.pt` (or `output_ppo_5agent/...`)
-3. Legacy fallback: `mappo/model/latest.pt` (or `ppo_5agent/model/latest.pt`)
-
-This matches `test_mappo.py`'s `resolve_model_path_for_test()` behavior.
+2. Latest training run: `output_mappo/runs/<latest>/models/latest.pt` (or `output_ppo/...`)
+3. Legacy fallback: `mappo/model/latest.pt` (or `ppo/model/latest.pt`)
 
 ## MAPPO Agent Design
 
@@ -132,13 +127,17 @@ This matches `test_mappo.py`'s `resolve_model_path_for_test()` behavior.
 
 **Agent embedding**: `nn.Embedding(num_agents, 16)`. Can be resized at test/inference time via `TurnActor.resize_agent_embedding()` — new agents get cycled copies of existing embeddings.
 
+## PPO vs MAPPO
+
+PPO (`PPOManager` / `PPOActor`) shares the same observation space, action space, and TCP protocol as MAPPO, but removes the agent embedding — all devices share a single policy network. This makes PPO a simpler baseline for scenarios where agent identity is not important.
+
 ## PRB Network Resource Management
 
 The network model (`DefaultNetworkModel`) uses PRB (Physical Resource Block) to manage wireless bandwidth. Total PRB pool: `WLAN_PRB_BLOCKS` (configured in `simulation_parameters.properties`).
 
 ### Two allocation modes
 
-**Fixed allocation (MAPPO/RL)**: Agent directly decides PRB block count per task.
+**Fixed allocation (MAPPO/PPO)**: Agent directly decides PRB block count per task.
 - `DeviceAgentDecisionSupport.PRB_BLOCK_RATIOS = {0.02, 0.05, 0.10, 0.20, 0.40, 0.60, 0.80, 1.00}` — 8 discrete bins
 - `maxPerTask = WLAN_PRB_BLOCKS × PRB_TASK_MAX_RATIO` — single-task upper bound
 - `prbActionToBlocks(action)` → `max(1, maxPerTask × ratio)`
@@ -184,7 +183,7 @@ Training scripts override settings at runtime via `prepare_effective_settings_di
 
 `SimulationVisualizer` shows a unified chart set for all algorithms:
 - Common: Map, CPU Utilization (includes Local Devices for LOCAL_EDGE_CLOUD), Energy, Tasks Success, Tasks Failed, Delay, Edge Devices, Servers, Block, Destination Distribution, Priority Distribution
-- Algorithm-specific extras: MAPPORewardChart (MAPPO), PPOChart (PPO/PPO_5AGENT)
+- Algorithm-specific extras: MAPPORewardChart (MAPPO), PPOChart (PPO)
 
 Destination/Priority distribution charts use `DeviceAgentDecisionSupport.DecisionTelemetryTracker` — for non-RL algorithms, `CustomEdgeOrchestrator.trackGenericDestination()` maps VM type to 5 destination slots (Edge1-4 → 0-3, Cloud → 4).
 

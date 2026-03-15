@@ -41,12 +41,10 @@ OFFLINE_ALGORITHMS = {
     "WEIGHT_GREEDY",
     "TEST",
     "MAPPO",
-    "PPO_NEW",
-}
-
-INTERACTIVE_ALGORITHMS = {
     "PPO",
 }
+
+INTERACTIVE_ALGORITHMS = set()
 
 
 @dataclass
@@ -254,14 +252,8 @@ def _normalize_mode(mode: str) -> str:
 
 
 def _validate_summary_for_run(summary: SettingsSummary, mode: str) -> None:
-    interactive = [name for name, value in summary.algorithm_modes.items() if value == "interactive"]
     unknown = [name for name, value in summary.algorithm_modes.items() if value == "unknown"]
 
-    if interactive:
-        raise ValueError(
-            "The selected settings include interactive algorithms that require an env server/client flow and "
-            f"are not wired into run_simulation.py yet: {', '.join(interactive)}"
-        )
     if unknown:
         raise ValueError(
             "The selected settings include algorithms that are not recognized by run_simulation.py: "

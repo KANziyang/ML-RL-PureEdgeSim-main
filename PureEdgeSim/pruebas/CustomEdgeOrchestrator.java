@@ -38,12 +38,10 @@ import com.pureedgesim.tasksorchestration.Orchestrator;
 
 
 public class CustomEdgeOrchestrator extends Orchestrator {
-	PPOManager ppoManager;
-
 	// Unified RL manager references via interface
 	private RLManagerInterface activeRLManager;
 	MAPPOManager mappoManager;
-	PPONewManager ppoNewManager;
+	PPOManager ppoManager;
 
 	// Generic destination tracker for non-RL algorithms (5 slots: Edge1-4 + Cloud)
 	private static final String[] GENERIC_DEST_LABELS = { "Edge 1", "Edge 2", "Edge 3", "Edge 4", "Cloud" };
@@ -53,14 +51,12 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			
 	public CustomEdgeOrchestrator(SimulationManager simulationManager) {
 		super(simulationManager);
-		if ("PPO".equals(algorithm)) {
-			ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
-		} else if ("MAPPO".equals(algorithm)) {
+		if ("MAPPO".equals(algorithm)) {
 			mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
 			activeRLManager = mappoManager;
-		} else if ("PPO_NEW".equals(algorithm)) {
-			ppoNewManager = new PPONewManager(simulationManager, orchestrationHistory, vmList);
-			activeRLManager = ppoNewManager;
+		} else if ("PPO".equals(algorithm)) {
+			ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
+			activeRLManager = ppoManager;
 		}
 	}
 
@@ -106,13 +102,10 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			case "TEST":
 				bestVM = test(architecture, task);
 				break;
-			case "PPO":
-				bestVM = ppoDecision(architecture, task);
-				break;
 			case "MAPPO":
 				bestVM = activeRLManager.reinforcementLearning(architecture, task);
 				break;
-			case "PPO_NEW":
+			case "PPO":
 				bestVM = activeRLManager.reinforcementLearning(architecture, task);
 				break;
 
@@ -468,29 +461,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	/************ Test ************/
 
 
-	/************ PPO ************/
-	private int ppoDecision(String[] architecture, Task task) {
-		int action = ppoManager.reinforcementLearning(architecture, task);
-
-		if (action == 0) {
-			return local(architecture, task);
-		} else if (action == 1) {
-			String[] architecture2 = { "Mist" };
-			return test(architecture2, task);
-		} else if (action == 2) {
-			String[] architecture2 = { "Edge" };
-			return test(architecture2, task);
-		} else {
-			String[] architecture2 = { "Cloud" };
-			return test(architecture2, task);
-		}
-	}
-	/************ PPO ************/
-
-	public PPOManager getPPOManager() {
-		return ppoManager;
-	}
-
 	public MAPPOManager getMAPPOManager() {
 		return mappoManager;
 	}
@@ -499,7 +469,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		if ("MAPPO".equals(algorithm) && mappoManager != null) {
 			return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 		}
-		if ("PPO_NEW".equals(algorithm) && ppoNewManager != null) {
+		if ("PPO".equals(algorithm) && ppoManager != null) {
 			return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 		}
 		return genericDestTracker.snapshot();
@@ -509,8 +479,8 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		if ("MAPPO".equals(algorithm) && mappoManager != null) {
 			return mappoManager.getTelemetrySnapshot();
 		}
-		if ("PPO_NEW".equals(algorithm) && ppoNewManager != null) {
-			return ppoNewManager.getTelemetrySnapshot();
+		if ("PPO".equals(algorithm) && ppoManager != null) {
+			return ppoManager.getTelemetrySnapshot();
 		}
 		return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 	}
@@ -518,9 +488,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	public double getPPOChartAvgReward() {
 		if (activeRLManager != null) {
 			return activeRLManager.getAvgReward();
-		}
-		if (ppoManager != null) {
-			return ppoManager.getAvgReward();
 		}
 		return 0.0;
 	}
@@ -535,9 +502,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			return;
 		}
 
-		if("PPO".equals(algorithm)) {
-			ppoManager.reinforcementFeedback(task);
-		}
 	}
 
 	@Override

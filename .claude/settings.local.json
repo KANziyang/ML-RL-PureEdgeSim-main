@@ -22,7 +22,8 @@
       "Bash(cd \"C:\\\\Users\\\\hp\\\\Desktop\\\\ML-RL-PureEdgeSim-main\" && python -c \"\nimport torch\nckpt = torch.load\\('PureEdgeSim/pruebas/mappo/model/latest.pt', map_location='cpu', weights_only=False\\)\ncfg = ckpt['config']\nprint\\('Full config:'\\)\nfor k, v in cfg.items\\(\\):\n    if k != 'runtime' and k != 'optimizer':\n        print\\(f'  {k}: {v}'\\)\nprint\\(\\)\nprint\\('All actor keys:'\\)\nfor k, v in ckpt['actor'].items\\(\\):\n    print\\(f'  {k}: {v.shape}'\\)\nprint\\(\\)\nprint\\('All critic keys:'\\)\nfor k, v in ckpt['critic'].items\\(\\):\n    print\\(f'  {k}: {v.shape}'\\)\n\" 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\hp\\\\Desktop\\\\ML-RL-PureEdgeSim-main\" && mvn -q -DskipTests compile 2>&1 | tail -20)",
       "Bash(cd \"C:\\\\Users\\\\hp\\\\Desktop\\\\ML-RL-PureEdgeSim-main\" && mvn -q -DskipTests compile 2>&1)",
-      "Bash(find \"C:/Users/hp/Desktop/ML-RL-PureEdgeSim-main/PureEdgeSim/pruebas/\" -name \"output_comparison*\" -o -name \"output_run_sim*\" 2>/dev/null | head -10)"
+      "Bash(find \"C:/Users/hp/Desktop/ML-RL-PureEdgeSim-main/PureEdgeSim/pruebas/\" -name \"output_comparison*\" -o -name \"output_run_sim*\" 2>/dev/null | head -10)",
+      "Bash(cd:*)"
     ]
   }
 }

@@ -27,9 +27,9 @@
   - 目的地掩码（N 维）：标记当前可用的卸载目的地
 - **智能体嵌入自适应**：支持在测试/推理时通过 `resize_agent_embedding()` 适配不同数量的设备
 
-### 2. PPO_NEW 单策略算法
+### 2. PPO 单策略算法
 
-实现了共享策略的 PPO 变体（PPOActor），所有设备共享同一个策略网络（无 Agent Embedding），网络结构与 MAPPO 的 TurnActor 一致，适用于不需要区分智能体身份的场景。
+实现了共享策略的 PPO 变体（PPOActor），所有设备共享同一个策略网络（无 Agent Embedding），网络结构与 MAPPO 的 TurnActor 一致（目的地编码器 + 双动作头），适用于不需要区分智能体身份的场景。与 MAPPO 共享相同的观测空间、动作空间和 TCP 通信协议。
 
 ### 3. PRB 无线网络资源管理
 
@@ -66,7 +66,7 @@
 |------|------|
 | 基线算法 | LOCAL, EDGE, CLOUD, RANDOM, ROUND_ROBIN |
 | 启发式算法 | TRADE_OFF, LATENCY_ENERGY_AWARE, WEIGHT_GREEDY |
-| 强化学习算法 | MAPPO, PPO_NEW |
+| 强化学习算法 | MAPPO, PPO |
 
 ### 7. 可视化系统
 
@@ -85,16 +85,23 @@ ML-RL-PureEdgeSim-main/
 │   │   └── ...
 │   └── pruebas/                  # 本项目扩展代码
 │       ├── CustomEdgeOrchestrator.java   # 调度算法路由
-│       ├── DeviceAgentDecisionSupport.java  # MAPPO 观测/动作/奖励
+│       ├── DeviceAgentDecisionSupport.java  # 观测/动作/奖励构建
 │       ├── AbstractRLManager.java        # RL 管理器基类
 │       ├── MAPPOManager.java             # MAPPO 管理器
+│       ├── PPOManager.java              # PPO 管理器
 │       ├── RLEnvServer.java              # TCP 通信服务端
+│       ├── RLManagerInterface.java       # RL 管理器统一接口
+│       ├── Prueba1.java                  # 通用仿真入口
+│       ├── PruebaMAPPO.java              # MAPPO 仿真入口
+│       ├── PruebaPPO.java               # PPO 仿真入口
 │       ├── mappo/                # MAPPO Python 代码
 │       │   ├── models.py         # TurnActor + CentralCritic
 │       │   ├── train_mappo.py    # 训练脚本
 │       │   └── test_mappo.py     # 评估脚本
-│       ├── ppo/                  # PPO_NEW Python 代码
-│       │   └── models.py         # PPOActor + PPOCritic
+│       ├── ppo/                  # PPO Python 代码
+│       │   ├── models.py         # PPOActor + PPOCritic
+│       │   ├── train_ppo.py      # 训练脚本
+│       │   └── test_ppo.py       # 评估脚本
 │       ├── shared/               # 共享模块
 │       │   ├── env_client.py     # TCP 客户端
 │       │   ├── inference_server.py  # 离线推理服务
@@ -132,6 +139,20 @@ python train_mappo.py
 ```bash
 cd PureEdgeSim/pruebas/mappo
 python test_mappo.py
+```
+
+### PPO 训练
+
+```bash
+cd PureEdgeSim/pruebas/ppo
+python train_ppo.py
+```
+
+### PPO 评估
+
+```bash
+cd PureEdgeSim/pruebas/ppo
+python test_ppo.py
 ```
 
 ### 多算法对比仿真

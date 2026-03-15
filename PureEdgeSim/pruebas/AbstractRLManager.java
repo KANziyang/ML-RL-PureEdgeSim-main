@@ -232,7 +232,7 @@ public abstract class AbstractRLManager implements RLManagerInterface {
 			outputRoot = Paths.get("PureEdgeSim", "pruebas", "output_mappo");
 		} else if ("PPO_5AGENT".equals(algorithm)) {
 			outputRoot = Paths.get("PureEdgeSim", "pruebas", "output_ppo_5agent");
-		} else if ("PPO_NEW".equals(algorithm)) {
+		} else if ("PPO".equals(algorithm)) {
 			outputRoot = Paths.get("PureEdgeSim", "pruebas", "output_ppo");
 		} else {
 			return null;
@@ -260,7 +260,7 @@ public abstract class AbstractRLManager implements RLManagerInterface {
 		Path modelDir;
 		if ("MAPPO".equals(algorithm)) {
 			modelDir = Paths.get("PureEdgeSim", "pruebas", "mappo", "model");
-		} else if ("PPO_NEW".equals(algorithm)) {
+		} else if ("PPO".equals(algorithm)) {
 			modelDir = Paths.get("PureEdgeSim", "pruebas", "ppo", "model");
 		} else {
 			modelDir = Paths.get("PureEdgeSim", "pruebas", "ppo_5agent", "model");
