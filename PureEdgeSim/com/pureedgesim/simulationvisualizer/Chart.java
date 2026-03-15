@@ -29,7 +29,8 @@ import org.knowm.xchart.style.markers.Marker;
 
 import com.pureedgesim.simulationcore.SimulationManager;
 
-import java.awt.*; 
+import java.awt.*;
+import java.lang.reflect.Method;
 import java.util.List;
 
 public abstract class Chart {
@@ -77,6 +78,19 @@ public abstract class Chart {
 
 	public XYChart getChart() {
 		return chart;
+	}
+
+	public void setChartSize(int w, int h) {
+		try {
+			Method setW = org.knowm.xchart.internal.chartpart.Chart.class.getDeclaredMethod("setWidth", int.class);
+			Method setH = org.knowm.xchart.internal.chartpart.Chart.class.getDeclaredMethod("setHeight", int.class);
+			setW.setAccessible(true);
+			setH.setAccessible(true);
+			setW.invoke(chart, w);
+			setH.invoke(chart, h);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to set chart size", e);
+		}
 	}
 
 	protected double[] toArray(List<Double> list) {

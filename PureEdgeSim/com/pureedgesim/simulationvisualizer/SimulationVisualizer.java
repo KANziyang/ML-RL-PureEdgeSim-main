@@ -144,9 +144,22 @@ public class SimulationVisualizer {
 		String folderNameIteration = "iteration_" + simulationManager.getIterationId() + "__" + simulationManager.getScenario().toString()
 				+ "__seed_" + SimulationParameters.RANDOM_SEED;
 		String folderName = folderNameSimulation + "/" + folderNameIteration;
-		
+
 		new File(folderName).mkdirs();
-		
+
+		// Save individual charts with consistent size
+		final int exportWidth = 600;
+		final int exportHeight = 400;
+
+		// Store original sizes and set export size
+		int[] originalWidths = new int[charts.size()];
+		int[] originalHeights = new int[charts.size()];
+		for (int i = 0; i < charts.size(); i++) {
+			originalWidths[i] = charts.get(i).getChart().getWidth();
+			originalHeights[i] = charts.get(i).getChart().getHeight();
+			charts.get(i).setChartSize(exportWidth, exportHeight);
+		}
+
 		BitmapEncoder.saveBitmapWithDPI(mapChart.getChart(), folderName + "/map_chart", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/allocated_prb_blocks", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/prb_blocks", BitmapFormat.PNG, 300);
@@ -162,7 +175,7 @@ public class SimulationVisualizer {
 				BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(priorityDistributionChart.getChart(), folderName + "/priority_distribution",
 				BitmapFormat.PNG, 300);
-		
+
 		List<org.knowm.xchart.internal.chartpart.Chart> sCharts = new ArrayList<org.knowm.xchart.internal.chartpart.Chart>();
 		for (Chart chart : charts) {
 			sCharts.add(chart.getChart());
@@ -176,6 +189,11 @@ public class SimulationVisualizer {
 		BitmapEncoder.saveBitmap(exportCharts, rows, cols, folderName + "/final", BitmapFormat.PNG);
 		BitmapEncoder.saveBitmap(exportCharts, rows, cols, folderNameSimulation + "/" + folderNameIteration + "_final",
 				BitmapFormat.PNG);
+
+		// Restore original sizes (important for non-headless mode where charts continue to display)
+		for (int i = 0; i < charts.size(); i++) {
+			charts.get(i).setChartSize(originalWidths[i], originalHeights[i]);
+		}
 
 	}
 

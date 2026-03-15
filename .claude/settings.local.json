@@ -23,7 +23,10 @@
       "Bash(cd \"C:\\\\Users\\\\hp\\\\Desktop\\\\ML-RL-PureEdgeSim-main\" && mvn -q -DskipTests compile 2>&1 | tail -20)",
       "Bash(cd \"C:\\\\Users\\\\hp\\\\Desktop\\\\ML-RL-PureEdgeSim-main\" && mvn -q -DskipTests compile 2>&1)",
       "Bash(find \"C:/Users/hp/Desktop/ML-RL-PureEdgeSim-main/PureEdgeSim/pruebas/\" -name \"output_comparison*\" -o -name \"output_run_sim*\" 2>/dev/null | head -10)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(find . -path */xchart*.jar -name *.jar)",
+      "Read(//c/Users/hp/.m2/**)",
+      "Bash(find:*)"
     ]
   }
 }
