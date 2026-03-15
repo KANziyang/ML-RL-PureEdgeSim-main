@@ -49,7 +49,7 @@ public class PriorityDistributionChart extends Chart {
 		currentTime.add(simulationManager.getSimulation().clock());
 		CustomEdgeOrchestrator orchestrator = (CustomEdgeOrchestrator) simulationManager.getOrchestrator();
 		String algo = simulationManager.getScenario().getStringOrchAlgorithm();
-		if ("MAPPO".equals(algo) || "PPO_NEW".equals(algo)) {
+		if ("MAPPO".equals(algo) || "PPO".equals(algo)) {
 			DeviceAgentDecisionSupport.DecisionTelemetrySnapshot snapshot = orchestrator.getDeviceAgentTelemetrySnapshot();
 			ensureSeries(snapshot.prbLabels.length, snapshot.prbLabels);
 			double total = Math.max(snapshot.prbWindowDecisionCount, 1);

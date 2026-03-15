@@ -36,7 +36,7 @@ from env_client import MAPPOClient
 MODEL_TURN_ACTOR = "TurnActor"
 MODEL_SHARED_ACTOR = "SharedActor"
 MODEL_SINGLE_AGENT = "SingleAgentActor"
-MODEL_PPO_NEW = "PPOActor"
+MODEL_PPO = "PPOActor"
 
 
 def _detect_model_type(cfg: dict, actor_keys: list[str]) -> str:
@@ -179,8 +179,8 @@ def load_ppo5_actor(model_path: str, device: torch.device):
     return actor
 
 
-def load_ppo_new_actor(model_path: str, device: torch.device):
-    """Load a PPO_NEW checkpoint (PPOActor)."""
+def load_ppo_actor(model_path: str, device: torch.device):
+    """Load a PPO checkpoint (PPOActor)."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "ppo_models", str(_PRUEBAS_DIR / "ppo" / "models.py")
@@ -198,7 +198,7 @@ def load_ppo_new_actor(model_path: str, device: torch.device):
     ).to(device)
     actor.load_state_dict(ckpt["actor"])
     actor.eval()
-    print("inference_server: loaded PPOActor (PPO_NEW)", flush=True)
+    print("inference_server: loaded PPOActor (PPO)", flush=True)
     return actor
 
 
@@ -217,7 +217,7 @@ def _adapt_turn_actor(actor, msg: dict) -> None:
         actor.num_destinations = env_dest
 
 
-def _adapt_ppo_new_actor(actor, msg: dict) -> None:
+def _adapt_ppo_actor(actor, msg: dict) -> None:
     """Adjust PPOActor num_destinations to match the live env."""
     env_dest = int(msg.get("num_destinations", actor.num_destinations))
     if env_dest != actor.num_destinations:
@@ -352,14 +352,14 @@ def run_obs_protocol(client: MAPPOClient, actor, device: torch.device) -> None:
             break
 
 
-def run_ppo_new_turn(client: MAPPOClient, actor, device: torch.device) -> None:
-    """Handle marl_turn_obs protocol for PPO_NEW (PPOActor, no agent_id)."""
+def run_ppo_turn(client: MAPPOClient, actor, device: torch.device) -> None:
+    """Handle marl_turn_obs protocol for PPO (PPOActor, no agent_id)."""
     while True:
         msg = client.recv_message()
         msg_type = msg.get("type", "")
 
         if msg_type == "marl_config":
-            _adapt_ppo_new_actor(actor, msg)
+            _adapt_ppo_actor(actor, msg)
             continue
 
         if msg_type == "marl_turn_obs":
@@ -394,7 +394,7 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--model_path", required=True)
-    parser.add_argument("--algorithm", required=True, choices=["MAPPO", "PPO_5AGENT", "PPO_NEW"])
+    parser.add_argument("--algorithm", required=True, choices=["MAPPO", "PPO_5AGENT", "PPO"])
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -403,9 +403,9 @@ def main() -> None:
 
     if args.algorithm == "MAPPO":
         actor, model_type = load_mappo_actor(args.model_path, device)
-    elif args.algorithm == "PPO_NEW":
-        actor = load_ppo_new_actor(args.model_path, device)
-        model_type = MODEL_PPO_NEW
+    elif args.algorithm == "PPO":
+        actor = load_ppo_actor(args.model_path, device)
+        model_type = MODEL_PPO
     else:
         actor = load_ppo5_actor(args.model_path, device)
         model_type = MODEL_SINGLE_AGENT
@@ -415,8 +415,8 @@ def main() -> None:
         run_fn = run_mappo_turn
     elif model_type == MODEL_SHARED_ACTOR:
         run_fn = lambda c, a, d: run_shared_on_turn_obs(c, a, d)
-    elif model_type == MODEL_PPO_NEW:
-        run_fn = run_ppo_new_turn
+    elif model_type == MODEL_PPO:
+        run_fn = run_ppo_turn
     else:
         run_fn = run_obs_protocol
 

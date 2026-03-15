@@ -43,7 +43,6 @@
 *   Added MinTimeBetweenEvents to MainApplication.java .
 *   Fixed bugs (network model, charts, output).
 *   Improved tasks generator.
-*   New example "Example8" with a fuzzy logic based workload orchestration.
 
 ## Version 2.4 (apr 7th 2020)
 

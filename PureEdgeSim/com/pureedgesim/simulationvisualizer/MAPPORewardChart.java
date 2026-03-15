@@ -32,9 +32,7 @@ import com.pureedgesim.simulationcore.SimulationManager;
 import pruebas.CustomEdgeOrchestrator;
 
 public class MAPPORewardChart extends Chart {
-	private static final double WINDOW_SECONDS = 100.0;
 	private static final double EMA_ALPHA = 0.2;
-	private static final double MIN_Y_SPAN = 1.0;
 
 	private final List<Double> currentTime = new ArrayList<>();
 	private final List<Double> avgRewardList = new ArrayList<>();
@@ -44,11 +42,11 @@ public class MAPPORewardChart extends Chart {
 	public MAPPORewardChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
 		getChart().getStyler().setDefaultSeriesRenderStyle(XYSeriesRenderStyle.Line);
-		updateSize(0.0, WINDOW_SECONDS, -5.0, 1.0);
+		updateSize(SimulationParameters.INITIALIZATION_TIME, null, null, null);
 	}
 
 	public void update() {
-		double now = simulationManager.getSimulation().clock() - SimulationParameters.INITIALIZATION_TIME;
+		currentTime.add(simulationManager.getSimulation().clock());
 		double reward = ((CustomEdgeOrchestrator) simulationManager.getOrchestrator()).getMAPPOManager().getAvgReward();
 		if (emaReward == null) {
 			emaReward = reward;
@@ -56,45 +54,12 @@ public class MAPPORewardChart extends Chart {
 			emaReward = (EMA_ALPHA * reward) + ((1.0 - EMA_ALPHA) * emaReward);
 		}
 
-		currentTime.add(now);
 		avgRewardList.add(reward);
 		smoothedRewardList.add(emaReward);
-		trimOldPoints(now);
 
-		updateYAxisRange();
-		double minX = Math.max(0.0, now - WINDOW_SECONDS);
-		double maxX = Math.max(WINDOW_SECONDS, now);
-		updateSize(minX, maxX, getChart().getStyler().getYAxisMin(), getChart().getStyler().getYAxisMax());
 		updateSeries(getChart(), "Avg Reward (Raw)", toArray(currentTime), toArray(avgRewardList), SeriesMarkers.NONE,
 				Color.BLUE, new BasicStroke(1.0f));
 		updateSeries(getChart(), "Avg Reward (EMA)", toArray(currentTime), toArray(smoothedRewardList),
 				SeriesMarkers.NONE, Color.RED, new BasicStroke(2.0f));
-	}
-
-	private void trimOldPoints(double now) {
-		double threshold = now - WINDOW_SECONDS;
-		while (!currentTime.isEmpty() && currentTime.get(0) < threshold) {
-			currentTime.remove(0);
-			avgRewardList.remove(0);
-			smoothedRewardList.remove(0);
-		}
-	}
-
-	private void updateYAxisRange() {
-		if (avgRewardList.isEmpty()) {
-			return;
-		}
-		double min = Double.POSITIVE_INFINITY;
-		double max = Double.NEGATIVE_INFINITY;
-		for (int i = 0; i < avgRewardList.size(); i++) {
-			double raw = avgRewardList.get(i);
-			double smooth = smoothedRewardList.get(i);
-			min = Math.min(min, Math.min(raw, smooth));
-			max = Math.max(max, Math.max(raw, smooth));
-		}
-		double span = Math.max(MIN_Y_SPAN, max - min);
-		double margin = span * 0.1;
-		updateSize(getChart().getStyler().getXAxisMin(), getChart().getStyler().getXAxisMax(), min - margin,
-				max + margin);
 	}
 }

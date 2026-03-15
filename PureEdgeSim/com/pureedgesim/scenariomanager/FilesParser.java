@@ -124,9 +124,6 @@ public class FilesParser {
 			SimulationParameters.ORCHESTRATION_AlGORITHMS = prop.getProperty("orchestration_algorithms").split(",");
 			SimulationParameters.DEPLOY_ORCHESTRATOR = prop.getProperty("deploy_orchestrator").trim();
 
-			SimulationParameters.SAVE_QTABLES = Boolean.parseBoolean(prop.getProperty("save_qtables").trim());
-			SimulationParameters.LOAD_QTABLES = Boolean.parseBoolean(prop.getProperty("load_qtables").trim());
-
 			String seedValue = prop.getProperty("random_seed");
 			if (seedValue != null && !seedValue.trim().isEmpty()) {
 				SimulationParameters.RANDOM_SEED = Long.parseLong(seedValue.trim());

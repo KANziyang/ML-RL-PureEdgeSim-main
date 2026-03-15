@@ -4,7 +4,7 @@ import com.pureedgesim.tasksgenerator.Task;
 
 /**
  * Unified interface for all RL-based task orchestration managers.
- * Implemented by MAPPOManager, PPOFiveAgentManager, PPOManager, TradeOffFiveAgentManager.
+ * Implemented by MAPPOManager, PPOManager, PPOFiveAgentManager, TradeOffFiveAgentManager.
  */
 public interface RLManagerInterface {
 

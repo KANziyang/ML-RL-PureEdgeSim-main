@@ -100,9 +100,6 @@ public class SimulationParameters {
                                                          // end the simulation when the predifined time ends.
 	public static int WAIT_FOR_TASKS_LIMIT;
 
-	public static boolean SAVE_QTABLES = false; 	     // For Reinforcement Learning (RL) agent
-	public static boolean LOAD_QTABLES = false; 
-
 	public static long RANDOM_SEED = System.currentTimeMillis();
 	public static Random ENV_RNG = new Random(RANDOM_SEED);
 	public static Random ALGO_RNG = new Random(RANDOM_SEED);

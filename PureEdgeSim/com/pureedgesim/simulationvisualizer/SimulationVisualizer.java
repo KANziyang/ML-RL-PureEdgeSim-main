@@ -52,34 +52,32 @@ public class SimulationVisualizer {
 	private ServersChart serversChart;
 	private EnergyChart energyChart;
 	private DelayChart delayChart;
-	private RLChart rlChart;
-	private MultiRLChart multiRLChart;
 	private PPOChart ppoChart;
 	private MAPPORewardChart mappoRewardChart;
 	private DestinationDistributionChart destinationDistributionChart;
 	private PriorityDistributionChart priorityDistributionChart;
 	private List<Chart> charts = new ArrayList<Chart>();
 	private boolean firstTime = true;
+	private final boolean headless;
 
-	public SimulationVisualizer(SimulationManager simulationManager) {
+	public SimulationVisualizer(SimulationManager simulationManager, boolean headless) {
+		this.headless = headless;
 		this.simulationManager = simulationManager;
 		
-		mapChart = new MapChart("Simulation map", "Width (meters)", "Length (meters)", simulationManager);
-		cpuUtilizationChart = new CPUChart("CPU utilization", "Time (s)", "Utilization (%)", simulationManager);
-		blockChart = new BlockChart("Allocated PRB Blocks (Realtime)", "Time (s)", "PRB Blocks", simulationManager);
-		tasksSuccessChart = new TasksSuccessChart("Tasks success rate", "Time (minutes)", "Success rate (%)", simulationManager);
-		tasksFailedChart = new TasksFailedChart("Tasks failures", "Time (s)", "Tasks number", simulationManager);
-		edgeDeviceChart = new EdgeDevicesChart("Edge Devices", "Time (s)", "Devices number", simulationManager);
-		serversChart = new ServersChart("Busy Servers", "Time (s)", "Devices number", simulationManager);
-		energyChart = new EnergyChart("Energy consumption", "Time (s)", "Consumed energy (W)", simulationManager);
-		delayChart = new DelayChart("Delays", "Simulation Time (s)", "Time (s)", simulationManager);
-		rlChart = new RLChart("Rewards", "Time (s)", "Reward", simulationManager);
-		multiRLChart = new MultiRLChart("Tasks queries", "Time (s)", "Tasks", simulationManager);
-		ppoChart = new PPOChart("PPO Rewards", "Time (s)", "Reward", simulationManager);
-		mappoRewardChart = new MAPPORewardChart("MAPPO Rewards", "Time (s)", "Reward", simulationManager);
+		mapChart = new MapChart("Simulation Map", "Width (m)", "Length (m)", simulationManager);
+		cpuUtilizationChart = new CPUChart("CPU Utilization", "Time (s)", "Utilization (%)", simulationManager);
+		blockChart = new BlockChart("PRB Block Allocation", "Time (s)", "PRB Blocks", simulationManager);
+		tasksSuccessChart = new TasksSuccessChart("Task Success Rate", "Time (minutes)", "Success Rate (%)", simulationManager);
+		tasksFailedChart = new TasksFailedChart("Task Failure Breakdown", "Time (s)", "Task Count", simulationManager);
+		edgeDeviceChart = new EdgeDevicesChart("Devices", "Time (s)", "Device Count", simulationManager);
+		serversChart = new ServersChart("Server Status", "Time (s)", "Server Count", simulationManager);
+		energyChart = new EnergyChart("Energy Consumption", "Time (s)", "Energy (Wh)", simulationManager);
+		delayChart = new DelayChart("Task Delay", "Time (s)", "Delay (s)", simulationManager);
+		ppoChart = new PPOChart("PPO Rewards", "Time (s)", "Avg Reward", simulationManager);
+		mappoRewardChart = new MAPPORewardChart("MAPPO Rewards", "Time (s)", "Avg Reward", simulationManager);
 		destinationDistributionChart = new DestinationDistributionChart("Destination Distribution", "Time (s)",
 				"Selection Rate (%)", simulationManager);
-		priorityDistributionChart = new PriorityDistributionChart("Priority Distribution", "Time (s)",
+		priorityDistributionChart = new PriorityDistributionChart("PRB Priority Distribution", "Time (s)",
 				"Selection Rate (%)", simulationManager);
 
 		// Common charts for all algorithms
@@ -97,20 +95,17 @@ public class SimulationVisualizer {
 
 		// Algorithm-specific extra charts
 		String algo = simulationManager.getScenario().getStringOrchAlgorithm();
-		if ("RL".equals(algo))
-			charts.add(rlChart);
-		else if ("RL_MULTILAYER".equals(algo) || "RL_MULTILAYER_DISABLED".equals(algo)
-				|| "RL_MULTILAYER_EMPTY".equals(algo))
-			charts.add(multiRLChart);
-		else if ("PPO".equals(algo))
-			charts.add(ppoChart);
-		else if ("MAPPO".equals(algo))
+		if ("MAPPO".equals(algo))
 			charts.add(mappoRewardChart);
-		else if ("PPO_NEW".equals(algo))
+		else if ("PPO".equals(algo))
 			charts.add(ppoChart);
 	}
 
 	public void updateCharts() {
+		if (headless) {
+			charts.forEach(chart -> chart.update());
+			return;
+		}
 		if (firstTime) {
 			int cols = chooseGridColumns(charts.size(), 3);
 			int rows = (int) Math.ceil(charts.size() / (double) cols);
@@ -137,6 +132,8 @@ public class SimulationVisualizer {
 	}
 
 	public void close() {
+		if (headless)
+			return;
 		simulationResultsFrame.dispose();
 	}
 
@@ -147,9 +144,22 @@ public class SimulationVisualizer {
 		String folderNameIteration = "iteration_" + simulationManager.getIterationId() + "__" + simulationManager.getScenario().toString()
 				+ "__seed_" + SimulationParameters.RANDOM_SEED;
 		String folderName = folderNameSimulation + "/" + folderNameIteration;
-		
+
 		new File(folderName).mkdirs();
-		
+
+		// Save individual charts with consistent size
+		final int exportWidth = 600;
+		final int exportHeight = 400;
+
+		// Store original sizes and set export size
+		int[] originalWidths = new int[charts.size()];
+		int[] originalHeights = new int[charts.size()];
+		for (int i = 0; i < charts.size(); i++) {
+			originalWidths[i] = charts.get(i).getChart().getWidth();
+			originalHeights[i] = charts.get(i).getChart().getHeight();
+			charts.get(i).setChartSize(exportWidth, exportHeight);
+		}
+
 		BitmapEncoder.saveBitmapWithDPI(mapChart.getChart(), folderName + "/map_chart", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/allocated_prb_blocks", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/prb_blocks", BitmapFormat.PNG, 300);
@@ -160,15 +170,12 @@ public class SimulationVisualizer {
 		BitmapEncoder.saveBitmapWithDPI(edgeDeviceChart.getChart(), folderName + "/edge_devices", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(serversChart.getChart(), folderName + "/busy_servers", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(delayChart.getChart(), folderName + "/delays", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(rlChart.getChart(), folderName + "/rl_avg_reward", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(multiRLChart.getChart(), folderName + "/rl_multilayer", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(ppoChart.getChart(), folderName + "/ppo_avg_reward", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(mappoRewardChart.getChart(), folderName + "/mappo_reward", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(destinationDistributionChart.getChart(), folderName + "/destination_distribution",
 				BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(priorityDistributionChart.getChart(), folderName + "/priority_distribution",
 				BitmapFormat.PNG, 300);
-		
+
 		List<org.knowm.xchart.internal.chartpart.Chart> sCharts = new ArrayList<org.knowm.xchart.internal.chartpart.Chart>();
 		for (Chart chart : charts) {
 			sCharts.add(chart.getChart());
@@ -182,6 +189,11 @@ public class SimulationVisualizer {
 		BitmapEncoder.saveBitmap(exportCharts, rows, cols, folderName + "/final", BitmapFormat.PNG);
 		BitmapEncoder.saveBitmap(exportCharts, rows, cols, folderNameSimulation + "/" + folderNameIteration + "_final",
 				BitmapFormat.PNG);
+
+		// Restore original sizes (important for non-headless mode where charts continue to display)
+		for (int i = 0; i < charts.size(); i++) {
+			charts.get(i).setChartSize(originalWidths[i], originalHeights[i]);
+		}
 
 	}
 

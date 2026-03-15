@@ -90,13 +90,6 @@
 			<groupId>org.knowm.xchart</groupId>
 			<artifactId>xchart</artifactId>
 			<version>3.8.0</version>
-		</dependency> 
-		<dependency>
-			<groupId>net.sourceforge.jFuzzyLogic</groupId>
-			<artifactId>jFuzzyLogic</artifactId>
-			<version>3.0</version>
-			<scope>system</scope>
-			<systemPath>${project.basedir}/PureEdgeSim/libs/jFuzzyLogic_v3.0.jar</systemPath>
 		</dependency>
 	</dependencies>
 </project>

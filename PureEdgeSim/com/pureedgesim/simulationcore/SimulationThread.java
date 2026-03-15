@@ -98,14 +98,17 @@ public class SimulationThread {
 				loadModels(simulationManager);
 
 				// Finally launch the simulation
+				long iterStartNanos = System.nanoTime();
 				simulationManager.startSimulation();
+				long iterElapsedMs = (System.nanoTime() - iterStartNanos) / 1_000_000;
 
 				if (!SimulationParameters.PARALLEL) {
 					pause(simLog);
 				}
 				iteration++;
 				SimLog.println("");
-				SimLog.println("SimLog- Iteration finished...");
+				SimLog.println(String.format("SimLog- Iteration finished... wall time: %d.%03ds",
+						iterElapsedMs / 1000, iterElapsedMs % 1000));
 				SimLog.println("");
 				SimLog.println(
 						"######################################################################################################################################################################");

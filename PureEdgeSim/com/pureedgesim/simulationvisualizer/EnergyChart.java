@@ -78,7 +78,7 @@ public class EnergyChart extends Chart {
 				new Color(31, 119, 180));
 		updateSeries(getChart(), "Edge", toArray(currentTime), toArray(edgeEnergyConsumptionList), SeriesMarkers.NONE,
 				new Color(255, 127, 14));
-		updateSeries(getChart(), "Mist", toArray(currentTime), toArray(mistEnergyConsumptionList), SeriesMarkers.NONE,
+		updateSeries(getChart(), "Device", toArray(currentTime), toArray(mistEnergyConsumptionList), SeriesMarkers.NONE,
 				new Color(44, 160, 44));
 	}
 }

@@ -36,17 +36,12 @@ import com.pureedgesim.tasksgenerator.Task;
 import com.pureedgesim.tasksorchestration.ArchitectureHelper;
 import com.pureedgesim.tasksorchestration.Orchestrator;
 
-import net.sourceforge.jFuzzyLogic.FIS;
 
 public class CustomEdgeOrchestrator extends Orchestrator {
-	RLManager rlManager;
-	MultiLayerRLManager multiLayerRLManager;
-	PPOManager ppoManager;
-
 	// Unified RL manager references via interface
 	private RLManagerInterface activeRLManager;
 	MAPPOManager mappoManager;
-	PPONewManager ppoNewManager;
+	PPOManager ppoManager;
 
 	// Generic destination tracker for non-RL algorithms (5 slots: Edge1-4 + Cloud)
 	private static final String[] GENERIC_DEST_LABELS = { "Edge 1", "Edge 2", "Edge 3", "Edge 4", "Cloud" };
@@ -56,20 +51,12 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			
 	public CustomEdgeOrchestrator(SimulationManager simulationManager) {
 		super(simulationManager);
-		if ("RL".equals(algorithm)) {
-			rlManager = new RLManager(simLog, simulationManager, orchestrationHistory, vmList);
-		} else if ("RL_MULTILAYER".equals(algorithm) || "RL_MULTILAYER_DISABLED".equals(algorithm)
-				|| "RL_MULTILAYER_EMPTY".equals(algorithm)) {
-			multiLayerRLManager = new MultiLayerRLManager(simLog, simulationManager, orchestrationHistory, vmList,
-					algorithm);
-		} else if ("PPO".equals(algorithm)) {
-			ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
-		} else if ("MAPPO".equals(algorithm)) {
+		if ("MAPPO".equals(algorithm)) {
 			mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
 			activeRLManager = mappoManager;
-		} else if ("PPO_NEW".equals(algorithm)) {
-			ppoNewManager = new PPONewManager(simulationManager, orchestrationHistory, vmList);
-			activeRLManager = ppoNewManager;
+		} else if ("PPO".equals(algorithm)) {
+			ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
+			activeRLManager = ppoManager;
 		}
 	}
 
@@ -115,24 +102,10 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			case "TEST":
 				bestVM = test(architecture, task);
 				break;
-			case "RL":
-				bestVM = reinforcementLearning(architecture, task);
-				break;
-			case "RL_MULTILAYER":
-			case "RL_MULTILAYER_EMPTY":
-			case "RL_MULTILAYER_DISABLED":
-				bestVM = multilayerreinforcementLearning(architecture, task);
-				break;
-			case "FUZZY_LOGIC":
-				bestVM = fuzzyLogic(task);
-				break;
-			case "PPO":
-				bestVM = ppoDecision(architecture, task);
-				break;
 			case "MAPPO":
 				bestVM = activeRLManager.reinforcementLearning(architecture, task);
 				break;
-			case "PPO_NEW":
+			case "PPO":
 				bestVM = activeRLManager.reinforcementLearning(architecture, task);
 				break;
 
@@ -488,75 +461,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	/************ Test ************/
 
 
-	/************ Reinforcement Learning ************/
-	private int reinforcementLearning(String[] architecture, Task task) {
-		int action = rlManager.reinforcementLearning(architecture, task);
-
-		if (action == 0) {
-			return local(architecture, task);
-		} else if (action == 1) {
-			String[] architecture2 = { "Mist" };
-			return test(architecture2, task);
-		} else if (action == 2) {
-			String[] architecture2 = { "Edge" };
-			return test(architecture2, task);
-		} else {
-			String[] architecture2 = { "Cloud" };
-			return test(architecture2, task);
-		}
-	}
-
-	public RLManager getRLManager() {
-		return rlManager;
-	}
-	/************ Reinforcement Learning ************/
-
-
-	/************ MultiLayer Reinforcement Learning ************/
-	private int multilayerreinforcementLearning(String[] architecture, Task task) {
-		int action = multiLayerRLManager.reinforcementLearning(architecture, task);
-
-		if (action == 0) {
-			return local(architecture, task);
-		} else if (action == 1) {
-			String[] architecture2 = { "Mist" };
-			return test(architecture2, task);
-		} else if (action == 2) {
-			String[] architecture2 = { "Edge" };
-			return test(architecture2, task);
-		} else {
-			String[] architecture2 = { "Cloud" };
-			return test(architecture2, task);
-		}
-	}
-
-	/************ PPO ************/
-	private int ppoDecision(String[] architecture, Task task) {
-		int action = ppoManager.reinforcementLearning(architecture, task);
-
-		if (action == 0) {
-			return local(architecture, task);
-		} else if (action == 1) {
-			String[] architecture2 = { "Mist" };
-			return test(architecture2, task);
-		} else if (action == 2) {
-			String[] architecture2 = { "Edge" };
-			return test(architecture2, task);
-		} else {
-			String[] architecture2 = { "Cloud" };
-			return test(architecture2, task);
-		}
-	}
-	/************ PPO ************/
-
-	public MultiLayerRLManager getMultiLayerRLManager() {
-		return multiLayerRLManager;
-	}
-
-	public PPOManager getPPOManager() {
-		return ppoManager;
-	}
-
 	public MAPPOManager getMAPPOManager() {
 		return mappoManager;
 	}
@@ -565,7 +469,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		if ("MAPPO".equals(algorithm) && mappoManager != null) {
 			return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 		}
-		if ("PPO_NEW".equals(algorithm) && ppoNewManager != null) {
+		if ("PPO".equals(algorithm) && ppoManager != null) {
 			return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 		}
 		return genericDestTracker.snapshot();
@@ -575,8 +479,8 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		if ("MAPPO".equals(algorithm) && mappoManager != null) {
 			return mappoManager.getTelemetrySnapshot();
 		}
-		if ("PPO_NEW".equals(algorithm) && ppoNewManager != null) {
-			return ppoNewManager.getTelemetrySnapshot();
+		if ("PPO".equals(algorithm) && ppoManager != null) {
+			return ppoManager.getTelemetrySnapshot();
 		}
 		return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 	}
@@ -585,76 +489,9 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		if (activeRLManager != null) {
 			return activeRLManager.getAvgReward();
 		}
-		if (ppoManager != null) {
-			return ppoManager.getAvgReward();
-		}
 		return 0.0;
 	}
 
-
-	/************ Fuzzy Logic ************/
-	private int fuzzyLogic(Task task) {
-		String fileName = "PureEdgeSim/pruebas/settings/stage1.fcl";
-		FIS fis = FIS.load(fileName, true);
-		if (fis == null) {
-			System.err.println("Can't load file: '" + fileName + "'");
-			return -1;
-		}
-		double vmUsage = 0;
-		int count = 0;
-		for (int i = 0; i < vmList.size(); i++) {
-			if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() != SimulationParameters.TYPES.CLOUD) {
-				vmUsage += vmList.get(i).getCpuPercentUtilization() * 100;
-				count++;
-				vmUsage += ((DataCenter) vmList.get(i).getHost().getDatacenter()).getResources().getAvgCpuUtilization();
-
-			}
-		}
-
-		fis.setVariable("lan", SimulationParameters.BANDWIDTH_WLAN / 1000.0 - simulationManager.getNetworkModel().getNetworkUtilization());
-		fis.setVariable("tasklength", task.getLength());
-		fis.setVariable("delay", task.getMaxLatency());
-		fis.setVariable("vm", vmUsage / count);
-
-		fis.evaluate();
-
-		if (fis.getVariable("offload").defuzzify() > 50) {
-			String[] architecture2 = { "Cloud" };
-			return increaseLifetime(architecture2, task);
-		} else {
-			String[] architecture2 = { "Edge", "Mist" };
-			return stage2(architecture2, task);
-		}
-
-	}
-
-	private int stage2(String[] architecture2, Task task) {
-		double min = -1;
-		int vm = -1;
-		String fileName = "PureEdgeSim/pruebas/settings/stage2.fcl";
-		FIS fis = FIS.load(fileName, true);
-		if (fis == null) {
-			System.err.println("Can't load file: '" + fileName + "'");
-			return -1;
-		}
-		for (int i = 0; i < vmList.size(); i++) {
-			if (offloadingIsPossible(task, vmList.get(i), architecture2) && vmList.get(i).getStorage().getCapacity() > 0) {
-				if (!task.getEdgeDevice().getMobilityManager().isMobile())
-					fis.setVariable("vm_local", 0);
-				else
-					fis.setVariable("vm_local", 0);
-				fis.setVariable("vm", (1 - vmList.get(i).getCpuPercentUtilization()) * vmList.get(i).getMips() / 1000);
-				fis.evaluate();
-
-				if (min == -1 || min > fis.getVariable("offload").defuzzify()) {
-					min = fis.getVariable("offload").defuzzify();
-					vm = i;
-				}
-			}
-		}
-		return vm;
-	}
-	/************ Fuzzy Logic ************/
 
 
 	@Override
@@ -665,13 +502,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			return;
 		}
 
-		if("RL".equals(algorithm)) {
-			rlManager.reinforcementFeedback(task);
-		} else if("RL_MULTILAYER".equals(algorithm) || "RL_MULTILAYER_DISABLED".equals(algorithm) || "RL_MULTILAYER_EMPTY".equals(algorithm)) {
-			multiLayerRLManager.reinforcementFeedback(task);
-		} else if("PPO".equals(algorithm)) {
-			ppoManager.reinforcementFeedback(task);
-		}
 	}
 
 	@Override

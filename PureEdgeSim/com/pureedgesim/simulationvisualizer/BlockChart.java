@@ -33,16 +33,19 @@ import com.pureedgesim.simulationcore.SimulationManager;
 
 public class BlockChart extends Chart {
 
+	private List<Double> currentTime = new ArrayList<>();
 	private List<Double> activePrbBlocks = new ArrayList<>();
 	private List<Double> reservedPrbBlocks = new ArrayList<>();
 
 	public BlockChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
 		getChart().getStyler().setDefaultSeriesRenderStyle(XYSeriesRenderStyle.Line);
-		updateSize(0.0, 0.0, 0.0, Math.max(1.0, SimulationParameters.WLAN_PRB_BLOCKS));
+		updateSize(SimulationParameters.INITIALIZATION_TIME, null, 0.0, Math.max(1.0, SimulationParameters.WLAN_PRB_BLOCKS));
 	}
 
 	public void update() {
+		currentTime.add(simulationManager.getSimulation().clock());
+
 		double activeBlocks = 0.0;
 		double reservedBlocks = 0.0;
 		if (simulationManager.getNetworkModel() instanceof DefaultNetworkModel) {
@@ -54,18 +57,7 @@ public class BlockChart extends Chart {
 		activePrbBlocks.add(activeBlocks);
 		reservedPrbBlocks.add(reservedBlocks);
 
-		while (activePrbBlocks.size() > 300 / SimulationParameters.CHARTS_UPDATE_INTERVAL) {
-			activePrbBlocks.remove(0);
-			reservedPrbBlocks.remove(0);
-		}
-		double[] time = new double[activePrbBlocks.size()];
-		double currentTime = simulationManager.getSimulation().clock() - SimulationParameters.INITIALIZATION_TIME;
-		for (int i = activePrbBlocks.size() - 1; i > 0; i--) {
-			time[i] = currentTime - ((activePrbBlocks.size() - i) * SimulationParameters.CHARTS_UPDATE_INTERVAL);
-		}
-
-		updateSize(currentTime - 200, currentTime, 0.0, Math.max(1.0, SimulationParameters.WLAN_PRB_BLOCKS));
-		updateSeries(getChart(), "Active PRB (blocks)", time, toArray(activePrbBlocks), SeriesMarkers.NONE, Color.BLACK);
-		updateSeries(getChart(), "Reserved PRB (blocks)", time, toArray(reservedPrbBlocks), SeriesMarkers.NONE, Color.BLUE);
+		updateSeries(getChart(), "Active PRB (blocks)", toArray(currentTime), toArray(activePrbBlocks), SeriesMarkers.NONE, Color.BLACK);
+		updateSeries(getChart(), "Reserved PRB (blocks)", toArray(currentTime), toArray(reservedPrbBlocks), SeriesMarkers.NONE, Color.BLUE);
 	}
 }

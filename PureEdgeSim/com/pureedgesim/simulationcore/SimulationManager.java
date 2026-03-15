@@ -56,9 +56,9 @@ public class SimulationManager extends SimulationManagerAbstract {
 	public SimulationManager(SimLog simLog, CloudSim simulation, int simulationId, int iteration, Scenario scenario) {
 		super(simLog, simulation, simulationId, iteration, scenario);
 
-		// Show real time results during the simulation
-		if (SimulationParameters.DISPLAY_REAL_TIME_CHARTS && !SimulationParameters.PARALLEL)
-			simulationVisualizer = new SimulationVisualizer(this);
+		// Create visualizer: headless when real-time display is off (still collects data for saving)
+		if (!SimulationParameters.PARALLEL)
+			simulationVisualizer = new SimulationVisualizer(this, !SimulationParameters.DISPLAY_REAL_TIME_CHARTS);
 	}
 
 	// Start simulation
@@ -89,7 +89,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 		schedule(this, SimulationParameters.SIMULATION_TIME, PRINT_LOG);
 
 		// Updating real time charts
-		if (SimulationParameters.DISPLAY_REAL_TIME_CHARTS && !SimulationParameters.PARALLEL)
+		if (!SimulationParameters.PARALLEL)
 			schedule(this, SimulationParameters.INITIALIZATION_TIME, UPDATE_REAL_TIME_CHARTS);
 
 		// Show simulation progress
@@ -183,7 +183,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 
 			simLog.printSameLine(" 100% ]", "red");
 
-			if (SimulationParameters.DISPLAY_REAL_TIME_CHARTS && !SimulationParameters.PARALLEL) {
+			if (simulationVisualizer != null) {
 				// Close real time charts after the end of the simulation
 				if (SimulationParameters.AUTO_CLOSE_REAL_TIME_CHARTS)
 					simulationVisualizer.close();

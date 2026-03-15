@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,8 +14,8 @@ from typing import Dict, List, Optional, Sequence
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
-DEFAULT_OUTPUT_ROOT = SCRIPT_DIR / "output_builtin"
 DEFAULT_SETTINGS_DIR = SCRIPT_DIR / "settings_base"
+JAVA_OUTPUT_DIR = SCRIPT_DIR / "output"
 DEFAULT_JAVA_MAIN_CLASS = "pruebas.Prueba1"
 DEFAULT_DIRECT_COMMAND = "run-all"
 REQUIRED_SETTINGS_FILES = (
@@ -40,18 +40,11 @@ OFFLINE_ALGORITHMS = {
     "LATENCY_ENERGY_AWARE",
     "WEIGHT_GREEDY",
     "TEST",
-    "RL",
-    "RL_MULTILAYER",
-    "RL_MULTILAYER_DISABLED",
-    "RL_MULTILAYER_EMPTY",
-    "FUZZY_LOGIC",
     "MAPPO",
-    "PPO_NEW",
-}
-
-INTERACTIVE_ALGORITHMS = {
     "PPO",
 }
+
+INTERACTIVE_ALGORITHMS = set()
 
 
 @dataclass
@@ -75,9 +68,7 @@ class RunResult:
     mode: str
     settings_dir: str
     settings_snapshot_dir: str
-    output_root: str
-    run_root: str
-    simulation_output_dir: str
+    java_output_dir: str
     log_path: str
     manifest_path: str
     command: List[str]
@@ -85,6 +76,7 @@ class RunResult:
     returncode: int
     started_at: str
     finished_at: str
+    wall_time_s: float
 
     def to_dict(self) -> Dict[str, object]:
         return asdict(self)
@@ -124,7 +116,6 @@ def inspect_settings(settings_dir: Path | str) -> SettingsSummary:
 
 def run_settings(
     settings_dir: Path | str,
-    output_root: Path | str | None = None,
     mode: str = "all",
     compile_first: bool = True,
     java_main_class: str = DEFAULT_JAVA_MAIN_CLASS,
@@ -134,94 +125,103 @@ def run_settings(
     _validate_summary_for_run(summary, normalized_mode)
 
     resolved_settings_dir = Path(summary.settings_dir)
-    resolved_output_root = _resolve_output_root(output_root)
-    run_root = _create_run_root(resolved_output_root, summary.settings_name)
-    settings_snapshot_dir = run_root / "settings_snapshot"
-    simulation_output_dir = run_root / "simulation_output"
-    log_path = run_root / "run.log"
-    manifest_path = run_root / "manifest.json"
 
-    shutil.copytree(resolved_settings_dir, settings_snapshot_dir)
-    simulation_output_dir.mkdir(parents=True, exist_ok=True)
-
-    manifest = {
-        "status": "running",
-        "mode": normalized_mode,
-        "settings_dir": summary.settings_dir,
-        "settings_snapshot_dir": str(settings_snapshot_dir),
-        "output_root": str(resolved_output_root),
-        "run_root": str(run_root),
-        "simulation_output_dir": str(simulation_output_dir),
-        "log_path": str(log_path),
-        "java_main_class": java_main_class,
-        "summary": summary.to_dict(),
-        "started_at": _timestamp_iso(),
-    }
-    _write_manifest(manifest_path, manifest)
+    # Record existing subdirs so we can detect the new one Java creates
+    existing_output_dirs = set()
+    if JAVA_OUTPUT_DIR.is_dir():
+        existing_output_dirs = {d.name for d in JAVA_OUTPUT_DIR.iterdir() if d.is_dir()}
 
     command = [
         _resolve_maven_executable(),
         "-q",
         "-DskipTests",
-        f"-DsettingsPath={_with_trailing_separator(settings_snapshot_dir)}",
-        f"-DoutputPath={_with_trailing_separator(simulation_output_dir)}",
+        f"-DsettingsPath={_with_trailing_separator(resolved_settings_dir)}",
         f"-Dexec.mainClass={java_main_class}",
         "exec:java",
     ]
 
     returncode = -1
-    finished_at = _timestamp_iso()
-    with log_path.open("a", encoding="utf-8", buffering=1) as log_file:
-        try:
-            _log_line(log_file, f"mode={normalized_mode}")
-            _log_line(log_file, f"settings_dir={resolved_settings_dir}")
-            _log_line(log_file, f"settings_snapshot_dir={settings_snapshot_dir}")
-            _log_line(log_file, f"simulation_output_dir={simulation_output_dir}")
-            _log_line(log_file, f"java_main_class={java_main_class}")
-            _log_line(log_file, f"summary={json.dumps(summary.to_dict(), ensure_ascii=True)}")
+    sim_elapsed = 0.0
+    started_at = _timestamp_iso()
+    finished_at = started_at
+    log_lines: List[str] = []
 
-            if compile_first:
-                compile_command = [_resolve_maven_executable(), "-q", "-DskipTests", "compile"]
-                _log_line(log_file, f"compile_command={' '.join(compile_command)}")
-                _run_command(compile_command, log_file)
+    def _collect(msg: str) -> None:
+        line = f"{_timestamp_iso()} {msg}"
+        print(line)
+        log_lines.append(line)
 
-            _log_line(log_file, f"run_command={' '.join(command)}")
-            returncode = _run_command(
-                command,
-                log_file,
-                failure_markers=("Main- The simulation has been terminated due to an unexpected error",),
-            )
-            finished_at = _timestamp_iso()
+    try:
+        _collect(f"mode={normalized_mode}")
+        _collect(f"settings_dir={resolved_settings_dir}")
+        _collect(f"java_main_class={java_main_class}")
+        _collect(f"summary={json.dumps(summary.to_dict(), ensure_ascii=True)}")
 
-            manifest["status"] = "completed"
-            manifest["returncode"] = returncode
-            manifest["command"] = command
-            manifest["finished_at"] = finished_at
-            _write_manifest(manifest_path, manifest)
-        except Exception as exc:
-            finished_at = _timestamp_iso()
-            manifest["status"] = "failed"
-            manifest["returncode"] = returncode
-            manifest["command"] = command
-            manifest["finished_at"] = finished_at
-            manifest["error"] = str(exc)
-            _write_manifest(manifest_path, manifest)
-            raise
+        if compile_first:
+            compile_command = [_resolve_maven_executable(), "-q", "-DskipTests", "compile"]
+            _collect(f"compile_command={' '.join(compile_command)}")
+            _run_command(compile_command, log_lines)
+
+        _collect(f"run_command={' '.join(command)}")
+        sim_start = time.time()
+        returncode = _run_command(
+            command,
+            log_lines,
+            failure_markers=("Main- The simulation has been terminated due to an unexpected error",),
+        )
+        sim_elapsed = time.time() - sim_start
+        finished_at = _timestamp_iso()
+        _collect(f"wall_time={sim_elapsed:.1f}s")
+    except Exception:
+        finished_at = _timestamp_iso()
+        raise
+
+    # Find the new directory Java created under output/
+    java_output_dir = _find_new_java_output_dir(existing_output_dirs)
+    if java_output_dir is None:
+        java_output_dir = JAVA_OUTPUT_DIR / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        java_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write run.log
+    log_path = java_output_dir / "run.log"
+    log_path.write_text("\n".join(log_lines) + "\n", encoding="utf-8")
+
+    # Write settings snapshot
+    settings_snapshot_dir = java_output_dir / "settings_snapshot"
+    if not settings_snapshot_dir.exists():
+        shutil.copytree(resolved_settings_dir, settings_snapshot_dir)
+
+    # Write manifest
+    manifest_path = java_output_dir / "manifest.json"
+    manifest = {
+        "status": "completed",
+        "mode": normalized_mode,
+        "settings_dir": summary.settings_dir,
+        "java_output_dir": str(java_output_dir),
+        "log_path": str(log_path),
+        "java_main_class": java_main_class,
+        "summary": summary.to_dict(),
+        "command": command,
+        "returncode": returncode,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "wall_time_s": round(sim_elapsed, 1),
+    }
+    _write_manifest(manifest_path, manifest)
 
     return RunResult(
         mode=normalized_mode,
         settings_dir=summary.settings_dir,
         settings_snapshot_dir=str(settings_snapshot_dir),
-        output_root=str(resolved_output_root),
-        run_root=str(run_root),
-        simulation_output_dir=str(simulation_output_dir),
+        java_output_dir=str(java_output_dir),
         log_path=str(log_path),
         manifest_path=str(manifest_path),
         command=command,
         summary=summary.to_dict(),
         returncode=returncode,
-        started_at=manifest["started_at"],
+        started_at=started_at,
         finished_at=finished_at,
+        wall_time_s=round(sim_elapsed, 1),
     )
 
 
@@ -233,7 +233,6 @@ def run_default_settings() -> RunResult:
     mode = "one" if DEFAULT_DIRECT_COMMAND == "run-one" else "all"
     return run_settings(
         settings_dir=DEFAULT_SETTINGS_DIR,
-        output_root=DEFAULT_OUTPUT_ROOT,
         mode=mode,
         compile_first=True,
         java_main_class=DEFAULT_JAVA_MAIN_CLASS,
@@ -259,14 +258,8 @@ def _normalize_mode(mode: str) -> str:
 
 
 def _validate_summary_for_run(summary: SettingsSummary, mode: str) -> None:
-    interactive = [name for name, value in summary.algorithm_modes.items() if value == "interactive"]
     unknown = [name for name, value in summary.algorithm_modes.items() if value == "unknown"]
 
-    if interactive:
-        raise ValueError(
-            "The selected settings include interactive algorithms that require an env server/client flow and "
-            f"are not wired into run_simulation.py yet: {', '.join(interactive)}"
-        )
     if unknown:
         raise ValueError(
             "The selected settings include algorithms that are not recognized by run_simulation.py: "
@@ -291,23 +284,6 @@ def _resolve_existing_dir(path_value: Path | str) -> Path:
         if candidate.exists():
             return candidate.resolve()
     raise FileNotFoundError(f"Settings directory not found: {path_value}")
-
-
-def _resolve_output_root(path_value: Path | str | None) -> Path:
-    if path_value is None:
-        return DEFAULT_OUTPUT_ROOT.resolve()
-
-    raw_path = Path(path_value).expanduser()
-    if raw_path.is_absolute():
-        return raw_path.resolve()
-
-    cwd_candidate = (Path.cwd() / raw_path).resolve()
-    repo_candidate = (REPO_ROOT / raw_path).resolve()
-    if cwd_candidate.exists():
-        return cwd_candidate
-    if repo_candidate.exists():
-        return repo_candidate
-    return cwd_candidate
 
 
 def _validate_settings_dir(settings_dir: Path) -> None:
@@ -396,23 +372,6 @@ def _validate_java_compatible_properties(properties: Dict[str, str]) -> None:
         ) from exc
 
 
-def _create_run_root(output_root: Path, settings_name: str) -> Path:
-    runs_root = output_root / "runs"
-    runs_root.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    slug = _slugify(settings_name)
-    base_name = f"{timestamp}_{slug}"
-    candidate = runs_root / base_name
-    suffix = 2
-    while candidate.exists():
-        candidate = runs_root / f"{base_name}_{suffix}"
-        suffix += 1
-
-    candidate.mkdir(parents=True, exist_ok=False)
-    return candidate
-
-
 def _resolve_maven_executable() -> str:
     for candidate in ("mvn.cmd", "mvn.bat", "mvn"):
         resolved = shutil.which(candidate)
@@ -421,18 +380,13 @@ def _resolve_maven_executable() -> str:
     raise FileNotFoundError("Unable to locate Maven executable. Expected one of: mvn.cmd, mvn.bat, mvn")
 
 
-def _slugify(value: str) -> str:
-    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
-    return slug.strip("._-") or "settings"
-
-
 def _write_manifest(path: Path, payload: Dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
 
 def _run_command(
     command: Sequence[str],
-    log_file,
+    log_lines: List[str],
     failure_markers: Sequence[str] = (),
 ) -> int:
     process = subprocess.Popen(
@@ -445,11 +399,13 @@ def _run_command(
     )
     assert process.stdout is not None
     marker_hits: List[str] = []
+    _CONSOLE_PREFIXES = ("Simulation progress",)
     try:
         for line in process.stdout:
             text = line.rstrip("\n")
-            print(text)
-            log_file.write(text + "\n")
+            if any(text.lstrip().startswith(p) for p in _CONSOLE_PREFIXES):
+                print(text)
+            log_lines.append(text)
             for marker in failure_markers:
                 if marker in text:
                     marker_hits.append(marker)
@@ -468,6 +424,18 @@ def _run_command(
     return returncode
 
 
+def _find_new_java_output_dir(existing_dirs: set) -> Optional[Path]:
+    """Find the subdirectory under JAVA_OUTPUT_DIR that was created after the simulation started."""
+    if not JAVA_OUTPUT_DIR.is_dir():
+        return None
+    new_dirs = [d for d in JAVA_OUTPUT_DIR.iterdir() if d.is_dir() and d.name not in existing_dirs]
+    if not new_dirs:
+        return None
+    if len(new_dirs) == 1:
+        return new_dirs[0]
+    return max(new_dirs, key=lambda d: d.stat().st_mtime)
+
+
 def _with_trailing_separator(path: Path) -> str:
     return path.resolve().as_posix().rstrip("/") + "/"
 
@@ -475,12 +443,6 @@ def _with_trailing_separator(path: Path) -> str:
 def _timestamp_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
-
-def _log_line(log_file, message: str) -> None:
-    timestamp = _timestamp_iso()
-    line = f"{timestamp} {message}"
-    print(line)
-    log_file.write(line + "\n")
 
 
 def _format_summary(summary: SettingsSummary) -> str:
@@ -527,11 +489,6 @@ def _build_parser() -> argparse.ArgumentParser:
             help="Path to the settings directory.",
         )
         run_parser.add_argument(
-            "--output-root",
-            default=str(DEFAULT_OUTPUT_ROOT),
-            help="Root directory where run artifacts will be stored.",
-        )
-        run_parser.add_argument(
             "--java-main-class",
             default=DEFAULT_JAVA_MAIN_CLASS,
             help="Java main class used by mvn exec:java.",
@@ -546,11 +503,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _main(argv: Optional[Sequence[str]] = None) -> int:
+    overall_start = time.time()
+
     if argv is None and len(sys.argv) == 1:
         summary = inspect_default_settings()
         print(_format_summary(summary))
         result = run_default_settings()
         print(json.dumps(result.to_dict(), indent=2, ensure_ascii=True))
+        overall_elapsed = time.time() - overall_start
+        minutes, seconds = divmod(overall_elapsed, 60)
+        wall_msg = f"total wall time: {int(minutes)}m {seconds:.1f}s"
+        print(wall_msg)
+        with open(result.log_path, "a", encoding="utf-8") as f:
+            f.write(f"{_timestamp_iso()} {wall_msg}\n")
         return 0
 
     parser = _build_parser()
@@ -567,12 +532,17 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
     mode = "one" if args.command == "run-one" else "all"
     result = run_settings(
         settings_dir=args.settings_dir,
-        output_root=args.output_root,
         mode=mode,
         compile_first=not args.skip_compile,
         java_main_class=args.java_main_class,
     )
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=True))
+    overall_elapsed = time.time() - overall_start
+    minutes, seconds = divmod(overall_elapsed, 60)
+    wall_msg = f"total wall time: {int(minutes)}m {seconds:.1f}s"
+    print(wall_msg)
+    with open(result.log_path, "a", encoding="utf-8") as f:
+        f.write(f"{_timestamp_iso()} {wall_msg}\n")
     return 0
 
 

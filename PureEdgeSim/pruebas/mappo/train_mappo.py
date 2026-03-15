@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -477,11 +478,14 @@ def main() -> None:
         episodes_in_rollout = 0
         last_stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
 
+        training_start = time.time()
+
         for episode in range(1, config.episodes + 1):
             episode_seed = TRAIN_BASE_SEED + episode
             write_settings_overrides(settings_dir, {"random_seed": str(episode_seed)})
             print(f"episode={episode}/{config.episodes} seed={episode_seed}", flush=True)
 
+            ep_start = time.time()
             episode_buffer, episode_reward = run_episode(
                 runtime,
                 device,
@@ -491,6 +495,7 @@ def main() -> None:
                 settings_dir,
                 logger,
             )
+            ep_elapsed = time.time() - ep_start
             rollout_buffer.extend(episode_buffer)
             episodes_in_rollout += 1
 
@@ -512,7 +517,8 @@ def main() -> None:
                 f"policy_loss={last_stats['policy_loss']:.6f} "
                 f"value_loss={last_stats['value_loss']:.6f} "
                 f"entropy={last_stats['entropy']:.6f} "
-                f"entropy_coef={entropy_coef:.6f}",
+                f"entropy_coef={entropy_coef:.6f} "
+                f"elapsed={ep_elapsed:.1f}s",
                 flush=True,
             )
 
@@ -530,6 +536,10 @@ def main() -> None:
                 write_run_manifest(run_layout, latest_model_path=latest_path, last_episode=episode)
                 for path in saved_paths:
                     print(f"saved model: {path}", flush=True)
+
+        total_elapsed = time.time() - training_start
+        minutes, seconds = divmod(total_elapsed, 60)
+        print(f"training finished total_time={int(minutes)}m {seconds:.1f}s", flush=True)
     finally:
         logger.close()
 
