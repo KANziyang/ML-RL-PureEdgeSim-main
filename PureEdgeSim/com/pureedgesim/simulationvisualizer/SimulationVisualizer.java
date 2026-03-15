@@ -52,8 +52,6 @@ public class SimulationVisualizer {
 	private ServersChart serversChart;
 	private EnergyChart energyChart;
 	private DelayChart delayChart;
-	private RLChart rlChart;
-	private MultiRLChart multiRLChart;
 	private PPOChart ppoChart;
 	private MAPPORewardChart mappoRewardChart;
 	private DestinationDistributionChart destinationDistributionChart;
@@ -73,8 +71,6 @@ public class SimulationVisualizer {
 		serversChart = new ServersChart("Busy Servers", "Time (s)", "Devices number", simulationManager);
 		energyChart = new EnergyChart("Energy consumption", "Time (s)", "Consumed energy (W)", simulationManager);
 		delayChart = new DelayChart("Delays", "Simulation Time (s)", "Time (s)", simulationManager);
-		rlChart = new RLChart("Rewards", "Time (s)", "Reward", simulationManager);
-		multiRLChart = new MultiRLChart("Tasks queries", "Time (s)", "Tasks", simulationManager);
 		ppoChart = new PPOChart("PPO Rewards", "Time (s)", "Reward", simulationManager);
 		mappoRewardChart = new MAPPORewardChart("MAPPO Rewards", "Time (s)", "Reward", simulationManager);
 		destinationDistributionChart = new DestinationDistributionChart("Destination Distribution", "Time (s)",
@@ -97,12 +93,7 @@ public class SimulationVisualizer {
 
 		// Algorithm-specific extra charts
 		String algo = simulationManager.getScenario().getStringOrchAlgorithm();
-		if ("RL".equals(algo))
-			charts.add(rlChart);
-		else if ("RL_MULTILAYER".equals(algo) || "RL_MULTILAYER_DISABLED".equals(algo)
-				|| "RL_MULTILAYER_EMPTY".equals(algo))
-			charts.add(multiRLChart);
-		else if ("PPO".equals(algo))
+		if ("PPO".equals(algo))
 			charts.add(ppoChart);
 		else if ("MAPPO".equals(algo))
 			charts.add(mappoRewardChart);
@@ -160,8 +151,6 @@ public class SimulationVisualizer {
 		BitmapEncoder.saveBitmapWithDPI(edgeDeviceChart.getChart(), folderName + "/edge_devices", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(serversChart.getChart(), folderName + "/busy_servers", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(delayChart.getChart(), folderName + "/delays", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(rlChart.getChart(), folderName + "/rl_avg_reward", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(multiRLChart.getChart(), folderName + "/rl_multilayer", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(ppoChart.getChart(), folderName + "/ppo_avg_reward", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(mappoRewardChart.getChart(), folderName + "/mappo_reward", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(destinationDistributionChart.getChart(), folderName + "/destination_distribution",

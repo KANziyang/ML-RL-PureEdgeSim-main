@@ -38,8 +38,6 @@ import com.pureedgesim.tasksorchestration.Orchestrator;
 
 
 public class CustomEdgeOrchestrator extends Orchestrator {
-	RLManager rlManager;
-	MultiLayerRLManager multiLayerRLManager;
 	PPOManager ppoManager;
 
 	// Unified RL manager references via interface
@@ -55,13 +53,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			
 	public CustomEdgeOrchestrator(SimulationManager simulationManager) {
 		super(simulationManager);
-		if ("RL".equals(algorithm)) {
-			rlManager = new RLManager(simLog, simulationManager, orchestrationHistory, vmList);
-		} else if ("RL_MULTILAYER".equals(algorithm) || "RL_MULTILAYER_DISABLED".equals(algorithm)
-				|| "RL_MULTILAYER_EMPTY".equals(algorithm)) {
-			multiLayerRLManager = new MultiLayerRLManager(simLog, simulationManager, orchestrationHistory, vmList,
-					algorithm);
-		} else if ("PPO".equals(algorithm)) {
+		if ("PPO".equals(algorithm)) {
 			ppoManager = new PPOManager(simulationManager, orchestrationHistory, vmList);
 		} else if ("MAPPO".equals(algorithm)) {
 			mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
@@ -113,14 +105,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				break;
 			case "TEST":
 				bestVM = test(architecture, task);
-				break;
-			case "RL":
-				bestVM = reinforcementLearning(architecture, task);
-				break;
-			case "RL_MULTILAYER":
-			case "RL_MULTILAYER_EMPTY":
-			case "RL_MULTILAYER_DISABLED":
-				bestVM = multilayerreinforcementLearning(architecture, task);
 				break;
 			case "PPO":
 				bestVM = ppoDecision(architecture, task);
@@ -484,48 +468,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	/************ Test ************/
 
 
-	/************ Reinforcement Learning ************/
-	private int reinforcementLearning(String[] architecture, Task task) {
-		int action = rlManager.reinforcementLearning(architecture, task);
-
-		if (action == 0) {
-			return local(architecture, task);
-		} else if (action == 1) {
-			String[] architecture2 = { "Mist" };
-			return test(architecture2, task);
-		} else if (action == 2) {
-			String[] architecture2 = { "Edge" };
-			return test(architecture2, task);
-		} else {
-			String[] architecture2 = { "Cloud" };
-			return test(architecture2, task);
-		}
-	}
-
-	public RLManager getRLManager() {
-		return rlManager;
-	}
-	/************ Reinforcement Learning ************/
-
-
-	/************ MultiLayer Reinforcement Learning ************/
-	private int multilayerreinforcementLearning(String[] architecture, Task task) {
-		int action = multiLayerRLManager.reinforcementLearning(architecture, task);
-
-		if (action == 0) {
-			return local(architecture, task);
-		} else if (action == 1) {
-			String[] architecture2 = { "Mist" };
-			return test(architecture2, task);
-		} else if (action == 2) {
-			String[] architecture2 = { "Edge" };
-			return test(architecture2, task);
-		} else {
-			String[] architecture2 = { "Cloud" };
-			return test(architecture2, task);
-		}
-	}
-
 	/************ PPO ************/
 	private int ppoDecision(String[] architecture, Task task) {
 		int action = ppoManager.reinforcementLearning(architecture, task);
@@ -544,10 +486,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		}
 	}
 	/************ PPO ************/
-
-	public MultiLayerRLManager getMultiLayerRLManager() {
-		return multiLayerRLManager;
-	}
 
 	public PPOManager getPPOManager() {
 		return ppoManager;
@@ -597,11 +535,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			return;
 		}
 
-		if("RL".equals(algorithm)) {
-			rlManager.reinforcementFeedback(task);
-		} else if("RL_MULTILAYER".equals(algorithm) || "RL_MULTILAYER_DISABLED".equals(algorithm) || "RL_MULTILAYER_EMPTY".equals(algorithm)) {
-			multiLayerRLManager.reinforcementFeedback(task);
-		} else if("PPO".equals(algorithm)) {
+		if("PPO".equals(algorithm)) {
 			ppoManager.reinforcementFeedback(task);
 		}
 	}

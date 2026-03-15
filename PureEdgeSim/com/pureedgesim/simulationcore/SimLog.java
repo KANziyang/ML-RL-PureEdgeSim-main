@@ -20,10 +20,8 @@
  **/
 package com.pureedgesim.simulationcore;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -37,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import org.cloudbus.cloudsim.vms.Vm;
 
@@ -45,9 +42,6 @@ import com.pureedgesim.datacentersmanager.DataCenter;
 import com.pureedgesim.network.FileTransferProgress;
 import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.tasksgenerator.Task;
-
-import pruebas.CustomEdgeOrchestrator;
-import pruebas.Qrow;
 
 public class SimLog {
 	public static final int NO_TIME = 0;
@@ -138,8 +132,6 @@ public class SimLog {
 		System.out.print(s);
 		// update the log
 		saveLog();
-		// Guardar las QTables
-		saveQTables();
 	}
 
 	private void printCPUutilizationResults() {
@@ -416,131 +408,6 @@ public class SimLog {
 
 	}
 	
-	public void saveQTables() {
-		if(SimulationParameters.SAVE_QTABLES) {
-			String folderNameSimulation = Simulation.getOutputFolder() + "/" + getSimStartTime() + "/simulation_" + simulationManager.getSimulationId();
-			//String folderNameIteration = "iteration_" + simulationManager.getIterationId() + "__" + simulationManager.getScenario().toString();
-			//String folderName = folderNameSimulation + "/" + folderNameIteration;
-	
-			//new File(folderName).mkdirs();
-			//new File(folderName + "/QTables").mkdirs();
-			
-			// Global
-			Map<String, Qrow> Qtable = ((CustomEdgeOrchestrator)simulationManager.getOrchestrator()).getMultiLayerRLManager().Qtable;
-			//File file = new File(folderName + "/QTables/QTable_global.txt");
-			File file = new File(folderNameSimulation + "/QTable_global_"+(simulationManager.getDataCentersManager().getDatacenterList().size() + 5)+".txt");
-	        BufferedWriter bf = null;
-			try {
-				bf = new BufferedWriter(new FileWriter(file));
-				for (Map.Entry<String, Qrow> entry : Qtable.entrySet()) {
-					bf.write(entry.getKey() + ":" + ((Qrow)entry.getValue()).getAction() + ":" + ((Qrow)entry.getValue()).getValue() + ":" + ((Qrow)entry.getValue()).getUpdatesCount());
-					bf.newLine();
-				}
-
-				bf.flush();
-			} catch (IOException e) {
-				e.printStackTrace();
-			} finally {
-				try {
-					bf.close();
-				} catch (Exception e) {
-				}
-			}
-			
-			// Local
-			/*List<Map<String, Qrow>> vmQTableList = null;
-			if(currentOrchAlgorithm.equals("RL")) {
-				vmQTableList = ((CustomEdgeOrchestrator)simulationManager.getOrchestrator()).getRLManager().getVmQTableList();
-			} else if(currentOrchAlgorithm.equals("RL_MULTILAYER") || currentOrchAlgorithm.equals("RL_MULTILAYER_DISABLED")) {
-				vmQTableList = ((CustomEdgeOrchestrator)simulationManager.getOrchestrator()).getMultiLayerRLManager().getVmQTableList();
-			}
-			
-			for (int i = 0; i < simulationManager.getDataCentersManager().getDatacenterList().size() + 5; i++) {
-				Map<String, Qrow> qtable = vmQTableList.get(i);
-				
-				File file = new File(folderName + "/QTables/QTable_" + i + ".txt");
-		        BufferedWriter bf = null;
-				try {
-					bf = new BufferedWriter(new FileWriter(file));
-					for (Map.Entry<String, Qrow> entry : qtable.entrySet()) {
-						bf.write(entry.getKey() + ":" + ((Qrow)entry.getValue()).getAction() + ":" + ((Qrow)entry.getValue()).getValue() + ":" + ((Qrow)entry.getValue()).getUpdatesCount());
-						bf.newLine();
-					}
-	
-					bf.flush();
-				} catch (IOException e) {
-					e.printStackTrace();
-				} finally {
-					try {
-						bf.close();
-					} catch (Exception e) {
-					}
-				}
-			}*/
-		}
-	}
-	
-
-	
-	public void loadQTables(List<Map<String, Qrow>> vmQTableList, Map<String, Qrow> Qtable) {
-		if(SimulationParameters.LOAD_QTABLES) {
-			//String folderName = Simulation.getOutputFolder() + "/QTables/"+(simulationManager.getDataCentersManager().getDatacenterList().size() + 5)+"/";
-			String folderName = Simulation.getOutputFolder() + "/QTables/";
-			
-			if(Qtable != null) {
-				BufferedReader reader;
-				try {
-					reader = new BufferedReader(new FileReader(folderName + "QTable_global_"+(simulationManager.getDataCentersManager().getDatacenterList().size() + 5)+".txt"));
-					String line = reader.readLine();
-					while (line != null) {
-						String[] linea = line.split(":");
-						String rule = linea[0];
-						int action = Integer.parseInt(linea[1]); 
-						double value = Double.parseDouble(linea[2]); 
-						int count = Integer.parseInt(linea[3]); 
-						
-						Qrow row = new Qrow(rule, action, value);
-						row.setUpdatesCount(count);
-						Qtable.put(rule, row);
-						
-						line = reader.readLine();
-					}
-					reader.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				
-			}
-			
-			/*for (int i = 0; i < simulationManager.getDataCentersManager().getDatacenterList().size() + 5; i++) {
-				Map<String, Qrow> qtable = vmQTableList.get(i);
-				
-				BufferedReader reader;
-				try {
-					reader = new BufferedReader(new FileReader(folderName + "QTable_" + i + ".txt"));
-					String line = reader.readLine();
-					while (line != null) {
-						String[] linea = line.split(":");
-						String rule = linea[0];
-						int action = Integer.parseInt(linea[1]); 
-						double value = Double.parseDouble(linea[2]); 
-						int count = Integer.parseInt(linea[3]); 
-						
-						Qrow row = new Qrow(rule, action, value);
-						row.setUpdatesCount(count);
-						qtable.put(rule, row);
-						
-						line = reader.readLine();
-					}
-					reader.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}*/
-		}
-	
-	}
-
 	private List<String> getResultsList() {
 		return this.resultsList;
 	}

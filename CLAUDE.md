@@ -184,7 +184,7 @@ Training scripts override settings at runtime via `prepare_effective_settings_di
 
 `SimulationVisualizer` shows a unified chart set for all algorithms:
 - Common: Map, CPU Utilization (includes Local Devices for LOCAL_EDGE_CLOUD), Energy, Tasks Success, Tasks Failed, Delay, Edge Devices, Servers, Block, Destination Distribution, Priority Distribution
-- Algorithm-specific extras: MAPPORewardChart (MAPPO), PPOChart (PPO/PPO_5AGENT), RLChart (RL)
+- Algorithm-specific extras: MAPPORewardChart (MAPPO), PPOChart (PPO/PPO_5AGENT)
 
 Destination/Priority distribution charts use `DeviceAgentDecisionSupport.DecisionTelemetryTracker` — for non-RL algorithms, `CustomEdgeOrchestrator.trackGenericDestination()` maps VM type to 5 destination slots (Edge1-4 → 0-3, Cloud → 4).
 
