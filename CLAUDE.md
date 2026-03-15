@@ -130,9 +130,48 @@ This matches `test_mappo.py`'s `resolve_model_path_for_test()` behavior.
 
 **Action** (two discrete heads):
 - `dest_action`: 0=local, 1..N=edge/cloud destinations
-- `prb_action`: PRB priority bin (5 bins: 20%/40%/60%/80%/100%), only for non-local offloading
+- `prb_action`: PRB block allocation (8 bins: 2%/5%/10%/20%/40%/60%/80%/100% of `maxPerTask`), only for non-local offloading. Maps to concrete block count via `prbActionToBlocks()`.
 
 **Agent embedding**: `nn.Embedding(num_agents, 16)`. Can be resized at test/inference time via `TurnActor.resize_agent_embedding()` — new agents get cycled copies of existing embeddings.
+
+## PRB Network Resource Management
+
+The network model (`DefaultNetworkModel`) uses PRB (Physical Resource Block) to manage wireless bandwidth. Total PRB pool: `WLAN_PRB_BLOCKS` (configured in `simulation_parameters.properties`).
+
+### Two allocation modes
+
+**Fixed allocation (MAPPO/RL)**: Agent directly decides PRB block count per task.
+- `DeviceAgentDecisionSupport.PRB_BLOCK_RATIOS = {0.02, 0.05, 0.10, 0.20, 0.40, 0.60, 0.80, 1.00}` — 8 discrete bins
+- `maxPerTask = WLAN_PRB_BLOCKS × PRB_TASK_MAX_RATIO` — single-task upper bound
+- `prbActionToBlocks(action)` → `max(1, maxPerTask × ratio)`
+- `applyPrbDecision()`: `actualBlocks = min(requested, available, maxPerTask)`, minimum 1 block
+- On enqueue (`applyFixedPrbAllocationIfRequested`): reserves blocks from global pool, fails task if pool exhausted
+- Upload done → `releaseTaskPrbCount()` frees reserved count but keeps allocation record for result-return reuse
+
+**Dynamic allocation (non-RL algorithms)**: `task.requestedLanPrbBlocks = -1` (default), no pre-reservation.
+- Admission: checks `available ≥ (dynamicConflicts + 1) × 1` in the conflict LAN
+- Every network tick (`allocateComponentBlocks`): BFS groups transfers sharing LAN into conflict components, then distributes remaining PRB (after fixed blocks) by weighted fair share
+- Weight = `1.0 + lanPriorityBin` (priority 0–10), largest-remainder rounding, minimum 1 block per transfer
+
+### PRB → bandwidth conversion
+
+```
+bandwidth = (BANDWIDTH_WLAN / WLAN_PRB_BLOCKS) × blocks × distanceFactor
+distanceFactor = min(1.0, (d0 / max(distance, d0))^alpha)
+```
+
+Parameters (`settings_base`): `prb_distance_d0=20` (meters), `prb_distance_alpha=0.5`. Cloud links use `CLOUD_COVERAGE_DISTANCE` as fixed distance.
+
+### PRB lifecycle
+
+```
+卸载决策 → applyPrbDecision (设置 requestedLanPrbBlocks)
+  → enqueueTransfer: 预留(fixed) / 准入检查(dynamic)
+    → 每 tick updateTasksProgress: 重算 dynamic 分配
+      → 上传完成 → releaseTaskPrbCount (释放预留，保留记录)
+        → 结果回传复用同样 block 数
+          → 任务结束 → releaseTaskPrb (清理 allocation 记录)
+```
 
 ## Simulation Config
 
