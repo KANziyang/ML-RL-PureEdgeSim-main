@@ -35,11 +35,12 @@ from runtime_support import (
     start_java_episode,
     wait_for_java_exit,
     write_run_manifest,
+    write_settings_overrides,
 )
 
 
 DEFAULT_TEST_EPISODES = int(os.getenv("PUREEDGESIM_MAPPO_TEST_EPISODES", "1"))
-DEFAULT_TEST_SEEDS = os.getenv("PUREEDGESIM_MAPPO_TEST_SEEDS", "")
+DEFAULT_TEST_SEEDS = os.getenv("PUREEDGESIM_MAPPO_TEST_SEEDS", "9001,9002,9003")
 DEFAULT_TEST_VARIANTS = os.getenv("PUREEDGESIM_MAPPO_TEST_VARIANTS", "base")
 
 TEST_EPISODES_OVERRIDE: Optional[int] = None
@@ -345,6 +346,8 @@ def _prepare_eval_settings(
             algorithm_override=ALGORITHM_OVERRIDE,
             architecture_override=ARCHITECTURE_OVERRIDE,
         )
+        if seed is not None:
+            write_settings_overrides(effective_dir, {"random_seed": str(seed)})
         return effective_dir, simulation_minutes
     if variant == "stress":
         return prepare_stress_settings_dir(

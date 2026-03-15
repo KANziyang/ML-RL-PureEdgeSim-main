@@ -40,6 +40,7 @@ from runtime_support import (
     wait_for_java_exit,
     write_latest_run_pointer,
     write_run_manifest,
+    write_settings_overrides,
 )
 
 
@@ -54,6 +55,8 @@ MAX_GRAD_NORM = float(os.getenv("PUREEDGESIM_MAPPO_MAX_GRAD_NORM", "0.5"))
 PPO_EPOCHS = int(os.getenv("PUREEDGESIM_MAPPO_EPOCHS", "4"))
 MINIBATCH = int(os.getenv("PUREEDGESIM_MAPPO_MINIBATCH", "1024"))
 EPISODES_PER_UPDATE = int(os.getenv("PUREEDGESIM_MAPPO_EPISODES_PER_UPDATE", "1"))
+
+TRAIN_BASE_SEED = int(os.getenv("PUREEDGESIM_MAPPO_TRAIN_BASE_SEED", "1000"))
 
 TRAIN_EPISODES_OVERRIDE: Optional[int] = 40
 TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
@@ -475,6 +478,10 @@ def main() -> None:
         last_stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
 
         for episode in range(1, config.episodes + 1):
+            episode_seed = TRAIN_BASE_SEED + episode
+            write_settings_overrides(settings_dir, {"random_seed": str(episode_seed)})
+            print(f"episode={episode}/{config.episodes} seed={episode_seed}", flush=True)
+
             episode_buffer, episode_reward = run_episode(
                 runtime,
                 device,

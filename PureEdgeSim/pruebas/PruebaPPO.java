@@ -3,15 +3,15 @@ package pruebas;
 import com.pureedgesim.MainApplication;
 import com.pureedgesim.simulationcore.Simulation;
 
-public class PruebaTradeOff5Agent extends MainApplication {
-	private static final String DEFAULT_SETTINGS_PATH = "PureEdgeSim/pruebas/settings_tradeoff_5agents_train/";
-	private static final String DEFAULT_OUTPUT_PATH = "PureEdgeSim/pruebas/output_tradeoff_5agent/";
+public class PruebaPPO extends MainApplication {
+	private static final String DEFAULT_SETTINGS_PATH = "PureEdgeSim/pruebas/settings_base/";
+	private static final String DEFAULT_OUTPUT_PATH = "PureEdgeSim/pruebas/output_ppo/";
 
 	public static void main(String[] args) {
 		String settingsPath = resolvePath(args, "settingsPath", DEFAULT_SETTINGS_PATH);
 		String outputPath = resolvePath(args, "outputPath", DEFAULT_OUTPUT_PATH);
-		System.out.println("PruebaTradeOff5Agent: settingsPath=" + settingsPath);
-		System.out.println("PruebaTradeOff5Agent: outputPath=" + outputPath);
+		System.out.println("PruebaPPO: settingsPath=" + settingsPath);
+		System.out.println("PruebaPPO: outputPath=" + outputPath);
 
 		Simulation sim = new Simulation();
 		sim.setCustomOutputFolder(outputPath);

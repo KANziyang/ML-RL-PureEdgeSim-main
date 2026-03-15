@@ -1,0 +1,17 @@
+{
+  "python_exe": "python",
+  "java_launch_cmd": [
+    "mvn",
+    "-q",
+    "-DskipTests"
+  ],
+  "java_main_class": "pruebas.PruebaPPO",
+  "host": "127.0.0.1",
+  "port": 5007,
+  "settings_dir": "PureEdgeSim/pruebas/settings_base",
+  "episodes": 10,
+  "save_interval": 1,
+  "progress_log_interval": 500,
+  "model_dir": "PureEdgeSim/pruebas/ppo/model",
+  "output_root": "PureEdgeSim/pruebas/output_ppo"
+}
