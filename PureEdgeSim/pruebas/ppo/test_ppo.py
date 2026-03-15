@@ -31,16 +31,18 @@ from runtime_support import (
     start_java_episode,
     wait_for_java_exit,
     write_run_manifest,
+    write_settings_overrides,
 )
 
 
 DEFAULT_TEST_EPISODES = int(os.getenv("PUREEDGESIM_PPO_TEST_EPISODES", "1"))
+DEFAULT_TEST_SEEDS = os.getenv("PUREEDGESIM_PPO_TEST_SEEDS", "9001,9002,9003")
 
 TEST_EPISODES_OVERRIDE: Optional[int] = None
 TEST_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
-TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 10
+TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 1
 TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
-TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = False
+TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 
 ALGORITHM_OVERRIDE: Optional[str] = "PPO_NEW"
 ARCHITECTURE_OVERRIDE: Optional[str] = "LOCAL_EDGE_CLOUD"
@@ -89,111 +91,124 @@ def main() -> None:
         actor.eval()
         print(f"loaded model: {model_path}", flush=True)
 
-        settings_dir, simulation_minutes = prepare_effective_settings_dir(
-            config,
-            config.settings_dir,
-            "test",
-            "base",
-            simulation_minutes_override,
-            logger,
-            display_real_time_charts_override=TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE,
-            auto_close_real_time_charts_override=TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE,
-            clone_even_if_unmodified=True,
-            algorithm_override=ALGORITHM_OVERRIDE,
-            architecture_override=ARCHITECTURE_OVERRIDE,
-        )
-        print(
-            f"simulation_minutes={simulation_minutes} settings_dir={settings_dir}",
-            flush=True,
-        )
+        seeds = _parse_seeds(DEFAULT_TEST_SEEDS)
 
-        for episode in range(1, test_episodes + 1):
-            label = f"java-eval-ep{episode:03d}"
-            output_dir = build_eval_output_dir(config, "base", None, episode)
-            process = start_java_episode(config, settings_dir, output_dir, label, logger)
-            client = MAPPOClient(host=config.host, port=config.port, connect_timeout_s=1.0)
-            episode_done = False
-            transition_count = 0
-            episode_reward = 0.0
-            pending_terminate = False
-            terminate_requested = False
+        for seed in seeds:
+            settings_dir, simulation_minutes = prepare_effective_settings_dir(
+                config,
+                config.settings_dir,
+                "test",
+                f"base_seed{seed if seed is not None else 'default'}",
+                simulation_minutes_override,
+                logger,
+                display_real_time_charts_override=TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE,
+                auto_close_real_time_charts_override=TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE,
+                clone_even_if_unmodified=True,
+                algorithm_override=ALGORITHM_OVERRIDE,
+                architecture_override=ARCHITECTURE_OVERRIDE,
+            )
+            if seed is not None:
+                write_settings_overrides(settings_dir, {"random_seed": str(seed)})
+            print(
+                f"seed={seed if seed is not None else 'default'} "
+                f"simulation_minutes={simulation_minutes} settings_dir={settings_dir}",
+                flush=True,
+            )
 
-            print(f"episode={episode}/{test_episodes} start", flush=True)
+            for episode in range(1, test_episodes + 1):
+                label = f"java-eval-seed{seed if seed is not None else 'default'}-ep{episode:03d}"
+                output_dir = build_eval_output_dir(config, "base", seed, episode)
+                process = start_java_episode(config, settings_dir, output_dir, label, logger)
+                client = MAPPOClient(host=config.host, port=config.port, connect_timeout_s=1.0)
+                episode_done = False
+                transition_count = 0
+                episode_reward = 0.0
+                pending_terminate = False
+                terminate_requested = False
 
-            try:
-                connect_client_with_retry(client, process)
-                while not episode_done:
-                    try:
-                        msg = client.recv_message()
-                    except Exception as exc:
-                        process.ensure_success()
-                        raise RuntimeError(
-                            f"Disconnected before eval episode {episode} completed.\n"
-                            f"Recent output:\n{process.recent_output()}\n"
-                            f"Full log: {process.log_path}"
-                        ) from exc
+                print(
+                    f"episode={episode}/{test_episodes} "
+                    f"seed={seed if seed is not None else 'default'} start",
+                    flush=True,
+                )
 
-                    msg_type = msg.get("type", "")
-                    if msg_type == "marl_config":
-                        _adapt_actor_to_env(actor, model_cfg, msg, device)
-                        continue
+                try:
+                    connect_client_with_retry(client, process)
+                    while not episode_done:
+                        try:
+                            msg = client.recv_message()
+                        except Exception as exc:
+                            process.ensure_success()
+                            raise RuntimeError(
+                                f"Disconnected before eval episode {episode} completed.\n"
+                                f"Recent output:\n{process.recent_output()}\n"
+                                f"Full log: {process.log_path}"
+                            ) from exc
 
-                    if msg_type == "marl_turn_obs":
-                        if pending_terminate and not terminate_requested:
-                            client.request_termination()
-                            terminate_requested = True
-                            print(
-                                f"episode={episode}/{test_episodes} "
-                                f"steps={transition_count} "
-                                f"reward_so_far={episode_reward:.4f} "
-                                f"step_limit_reached terminating",
-                                flush=True,
-                            )
-                            continue
-                        if terminate_requested:
+                        msg_type = msg.get("type", "")
+                        if msg_type == "marl_config":
+                            _adapt_actor_to_env(actor, model_cfg, msg, device)
                             continue
 
-                        step_id = str(msg.get("step_id", ""))
-                        agent_obs = np.asarray(msg["agent_obs"], dtype=np.float32)
-                        dest_features = np.asarray(msg["dest_features"], dtype=np.float32)
-                        dest_mask = np.asarray(msg.get("dest_mask", []), dtype=np.float32)
+                        if msg_type == "marl_turn_obs":
+                            if pending_terminate and not terminate_requested:
+                                client.request_termination()
+                                terminate_requested = True
+                                print(
+                                    f"episode={episode}/{test_episodes} "
+                                    f"seed={seed if seed is not None else 'default'} "
+                                    f"steps={transition_count} "
+                                    f"reward_so_far={episode_reward:.4f} "
+                                    f"step_limit_reached terminating",
+                                    flush=True,
+                                )
+                                continue
+                            if terminate_requested:
+                                continue
 
-                        with torch.no_grad():
-                            actions_t, _, _ = actor.act(
-                                torch.from_numpy(agent_obs).unsqueeze(0).to(device),
-                                torch.from_numpy(dest_features).unsqueeze(0).to(device),
-                                torch.from_numpy(dest_mask).unsqueeze(0).to(device),
-                                deterministic=True,
-                            )
-                        actions = actions_t.squeeze(0).cpu().numpy().astype(np.int64)
-                        client.send_action(step_id, int(actions[0]), int(actions[1]))
-                        continue
+                            step_id = str(msg.get("step_id", ""))
+                            agent_obs = np.asarray(msg["agent_obs"], dtype=np.float32)
+                            dest_features = np.asarray(msg["dest_features"], dtype=np.float32)
+                            dest_mask = np.asarray(msg.get("dest_mask", []), dtype=np.float32)
 
-                    if msg_type == "marl_transition":
-                        transition_count += 1
-                        episode_reward += float(msg.get("reward", 0.0))
-                        if max_env_steps is not None and transition_count >= max_env_steps:
-                            pending_terminate = True
-                        if transition_count % config.progress_log_interval == 0:
+                            with torch.no_grad():
+                                actions_t, _, _ = actor.act(
+                                    torch.from_numpy(agent_obs).unsqueeze(0).to(device),
+                                    torch.from_numpy(dest_features).unsqueeze(0).to(device),
+                                    torch.from_numpy(dest_mask).unsqueeze(0).to(device),
+                                    deterministic=True,
+                                )
+                            actions = actions_t.squeeze(0).cpu().numpy().astype(np.int64)
+                            client.send_action(step_id, int(actions[0]), int(actions[1]))
+                            continue
+
+                        if msg_type == "marl_transition":
+                            transition_count += 1
+                            episode_reward += float(msg.get("reward", 0.0))
+                            if max_env_steps is not None and transition_count >= max_env_steps:
+                                pending_terminate = True
+                            if transition_count % config.progress_log_interval == 0:
+                                print(
+                                    f"episode={episode}/{test_episodes} "
+                                    f"seed={seed if seed is not None else 'default'} "
+                                    f"steps={transition_count} "
+                                    f"reward_so_far={episode_reward:.4f}",
+                                    flush=True,
+                                )
+                            continue
+
+                        if msg_type == "marl_episode_end":
+                            episode_done = True
                             print(
                                 f"episode={episode}/{test_episodes} "
+                                f"seed={seed if seed is not None else 'default'} "
                                 f"steps={transition_count} "
-                                f"reward_so_far={episode_reward:.4f}",
+                                f"reward={episode_reward:.4f}",
                                 flush=True,
                             )
-                        continue
-
-                    if msg_type == "marl_episode_end":
-                        episode_done = True
-                        print(
-                            f"episode={episode}/{test_episodes} "
-                            f"steps={transition_count} "
-                            f"reward={episode_reward:.4f}",
-                            flush=True,
-                        )
-            finally:
-                client.close()
-                wait_for_java_exit(process)
+                finally:
+                    client.close()
+                    wait_for_java_exit(process)
     finally:
         if logger is not None:
             logger.close()
@@ -222,6 +237,18 @@ def _normalize_optional_limit(value: Optional[int]) -> Optional[int]:
     if value is None:
         return None
     return max(1, int(value))
+
+
+def _parse_seeds(raw: str) -> list[Optional[int]]:
+    if raw.strip() == "":
+        return [None]
+    values: list[Optional[int]] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        values.append(int(part))
+    return values or [None]
 
 
 def datetime_now_compact() -> str:

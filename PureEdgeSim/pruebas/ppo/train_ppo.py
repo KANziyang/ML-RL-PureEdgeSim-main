@@ -40,6 +40,7 @@ from runtime_support import (
     wait_for_java_exit,
     write_latest_run_pointer,
     write_run_manifest,
+    write_settings_overrides,
 )
 
 
@@ -55,9 +56,11 @@ PPO_EPOCHS = int(os.getenv("PUREEDGESIM_PPO_EPOCHS", "4"))
 MINIBATCH = int(os.getenv("PUREEDGESIM_PPO_MINIBATCH", "1024"))
 EPISODES_PER_UPDATE = int(os.getenv("PUREEDGESIM_PPO_EPISODES_PER_UPDATE", "1"))
 
+TRAIN_BASE_SEED = int(os.getenv("PUREEDGESIM_PPO_TRAIN_BASE_SEED", "1000"))
+
 TRAIN_EPISODES_OVERRIDE: Optional[int] = 2
 TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
-TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 10
+TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 5
 TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 
@@ -456,6 +459,10 @@ def main() -> None:
         last_stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
 
         for episode in range(1, config.episodes + 1):
+            episode_seed = TRAIN_BASE_SEED + episode
+            write_settings_overrides(settings_dir, {"random_seed": str(episode_seed)})
+            print(f"episode={episode}/{config.episodes} seed={episode_seed}", flush=True)
+
             episode_buffer, episode_reward = run_episode(
                 runtime,
                 device,

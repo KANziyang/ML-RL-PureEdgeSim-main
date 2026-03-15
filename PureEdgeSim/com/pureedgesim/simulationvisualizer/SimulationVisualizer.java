@@ -127,7 +127,8 @@ public class SimulationVisualizer {
 		simulationResultsFrame.setTitle("Simulation time = " + ((int) time / 60) + " min : " + ((int) time % 60)
 				+ " seconds  -  number of edge devices = " + simulationManager.getScenario().getDevicesCount()
 				+ " -  Architecture = " + simulationManager.getScenario().getStringOrchArchitecture()
-				+ " -  Algorithm = " + simulationManager.getScenario().getStringOrchAlgorithm());
+				+ " -  Algorithm = " + simulationManager.getScenario().getStringOrchAlgorithm()
+				+ " -  Seed = " + SimulationParameters.RANDOM_SEED);
 	}
 
 	private void repaint() {
@@ -143,7 +144,8 @@ public class SimulationVisualizer {
 		String folderNameSimulation = Simulation.getOutputFolder() + "/"
 				+ simulationManager.getSimulationLogger().getSimStartTime() + "/simulation_"
 				+ simulationManager.getSimulationId();
-		String folderNameIteration = "iteration_" + simulationManager.getIterationId() + "__" + simulationManager.getScenario().toString();
+		String folderNameIteration = "iteration_" + simulationManager.getIterationId() + "__" + simulationManager.getScenario().toString()
+				+ "__seed_" + SimulationParameters.RANDOM_SEED;
 		String folderName = folderNameSimulation + "/" + folderNameIteration;
 		
 		new File(folderName).mkdirs();
