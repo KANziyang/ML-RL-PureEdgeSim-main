@@ -71,9 +71,7 @@ Java `AbstractRLManager` detects `envServerEnabled=false`, auto-launches `RLEnvS
 | `RLEnvServer` | TCP server — two `waitForAction` overloads: one for MAPPO (turn-based with agentId/destFeatures), one for PPO_5AGENT (flat obs/actionMask). |
 | `RLManagerInterface` | Unified interface: `reinforcementLearning()`, `reinforcementFeedback()`, `simulationFinished()`, `getAvgReward()` |
 | `MAPPOManager` | Extends `AbstractRLManager`. Uses `DeviceAgentDecisionSupport` for per-device agent observations. |
-| `PPOFiveAgentManager` | Extends `AbstractRLManager`. Uses `FiveAgentDecisionSupport` for 5-agent (4 edge + 1 cloud) observations. |
-| `DeviceAgentDecisionSupport` | MAPPO observation builder. Agent count = number of `isGeneratingTasks()` edge devices (dynamic, not hardcoded). |
-| `FiveAgentDecisionSupport` | PPO_5AGENT observation builder. Fixed 5 agents. |
+| `DeviceAgentDecisionSupport` | MAPPO observation builder. Agent count = number of `isGeneratingTasks()` edge devices (dynamic, not hardcoded). Also provides `DecisionTelemetryTracker` used by all algorithms for destination/PRB distribution charts. |
 | `SimulationManager` | CloudSim event loop — `processEvent()` dispatches SEND_TO_ORCH → SEND_TASK_FROM_ORCH_TO_DESTINATION → EXECUTE_TASK → RESULT_RETURN_FINISHED |
 | `Orchestrator` | Abstract base — `initialize()` dispatches by architecture, `findVM()` dispatches by algorithm |
 
@@ -188,7 +186,7 @@ Training scripts override settings at runtime via `prepare_effective_settings_di
 - Common: Map, CPU Utilization (includes Local Devices for LOCAL_EDGE_CLOUD), Energy, Tasks Success, Tasks Failed, Delay, Edge Devices, Servers, Block, Destination Distribution, Priority Distribution
 - Algorithm-specific extras: MAPPORewardChart (MAPPO), PPOChart (PPO/PPO_5AGENT), RLChart (RL)
 
-Destination/Priority distribution charts use `FiveAgentDecisionSupport.DecisionTelemetryTracker` — for non-RL algorithms, `CustomEdgeOrchestrator.trackGenericDestination()` maps VM type to 5-agent slots (Edge1-4 → 0-3, Cloud → 4).
+Destination/Priority distribution charts use `DeviceAgentDecisionSupport.DecisionTelemetryTracker` — for non-RL algorithms, `CustomEdgeOrchestrator.trackGenericDestination()` maps VM type to 5 destination slots (Edge1-4 → 0-3, Cloud → 4).
 
 ## Conventions
 

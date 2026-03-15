@@ -46,13 +46,13 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	// Unified RL manager references via interface
 	private RLManagerInterface activeRLManager;
 	MAPPOManager mappoManager;
-	PPOFiveAgentManager ppoFiveAgentManager;
-	TradeOffFiveAgentManager tradeOffFiveAgentManager;
 
-	// Generic destination tracker for non-RL algorithms
-	private final FiveAgentDecisionSupport.DecisionTelemetryTracker genericDestTracker =
-			new FiveAgentDecisionSupport.DecisionTelemetryTracker();
-
+	// Generic destination tracker for non-RL algorithms (5 slots: Edge1-4 + Cloud)
+	private static final String[] GENERIC_DEST_LABELS = { "Edge 1", "Edge 2", "Edge 3", "Edge 4", "Cloud" };
+	private static final String[] GENERIC_PRB_LABELS = {};
+	private final DeviceAgentDecisionSupport.DecisionTelemetryTracker genericDestTracker =
+			new DeviceAgentDecisionSupport.DecisionTelemetryTracker(GENERIC_DEST_LABELS, GENERIC_PRB_LABELS);
+			
 	public CustomEdgeOrchestrator(SimulationManager simulationManager) {
 		super(simulationManager);
 		if ("RL".equals(algorithm)) {
@@ -66,12 +66,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		} else if ("MAPPO".equals(algorithm)) {
 			mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
 			activeRLManager = mappoManager;
-		} else if ("PPO_5AGENT".equals(algorithm)) {
-			ppoFiveAgentManager = new PPOFiveAgentManager(simulationManager, orchestrationHistory, vmList);
-			activeRLManager = ppoFiveAgentManager;
-		} else if ("TRADE_OFF_5AGENT".equals(algorithm)) {
-			tradeOffFiveAgentManager = new TradeOffFiveAgentManager(simulationManager, orchestrationHistory, vmList);
-			activeRLManager = tradeOffFiveAgentManager;
 		}
 	}
 
@@ -132,8 +126,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				bestVM = ppoDecision(architecture, task);
 				break;
 			case "MAPPO":
-			case "PPO_5AGENT":
-			case "TRADE_OFF_5AGENT":
 				bestVM = activeRLManager.reinforcementLearning(architecture, task);
 				break;
 
@@ -164,16 +156,14 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		DataCenter dc = (DataCenter) vmList.get(vmIndex).getHost().getDatacenter();
 		int destSlot;
 		if (dc.getType() == SimulationParameters.TYPES.CLOUD) {
-			destSlot = FiveAgentDecisionSupport.AGENT_COUNT - 1; // last slot = Cloud
+			destSlot = GENERIC_DEST_LABELS.length - 1; // last slot = Cloud
 		} else if (dc.getType() == SimulationParameters.TYPES.EDGE_DATACENTER) {
-			// Map edge datacenter ID to slots 0..(AGENT_COUNT-2)
-			int edgeSlot = ((int) dc.getId()) % (FiveAgentDecisionSupport.AGENT_COUNT - 1);
+			int edgeSlot = ((int) dc.getId()) % (GENERIC_DEST_LABELS.length - 1);
 			destSlot = edgeSlot;
 		} else {
-			// Local / Mist device → slot 0
 			destSlot = 0;
 		}
-		genericDestTracker.update(destSlot, 0);
+		genericDestTracker.update(destSlot, -1, false);
 	}
 
 
@@ -564,21 +554,10 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		return mappoManager;
 	}
 
-	public PPOFiveAgentManager getPPOFiveAgentManager() {
-		return ppoFiveAgentManager;
-	}
-
-	public FiveAgentDecisionSupport.DecisionTelemetrySnapshot getFiveAgentTelemetrySnapshot() {
+	public DeviceAgentDecisionSupport.DecisionTelemetrySnapshot getGenericTelemetrySnapshot() {
 		if ("MAPPO".equals(algorithm) && mappoManager != null) {
-			return FiveAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
+			return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 		}
-		if ("PPO_5AGENT".equals(algorithm) && ppoFiveAgentManager != null) {
-			return ppoFiveAgentManager.getTelemetrySnapshot();
-		}
-		if ("TRADE_OFF_5AGENT".equals(algorithm) && tradeOffFiveAgentManager != null) {
-			return tradeOffFiveAgentManager.getTelemetrySnapshot();
-		}
-		// For all other algorithms, use the generic tracker
 		return genericDestTracker.snapshot();
 	}
 

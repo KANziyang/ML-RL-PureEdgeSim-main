@@ -29,10 +29,8 @@ import com.pureedgesim.simulationcore.SimulationManager;
 
 import pruebas.CustomEdgeOrchestrator;
 import pruebas.DeviceAgentDecisionSupport;
-import pruebas.FiveAgentDecisionSupport.DecisionTelemetrySnapshot;
 
 public class DestinationDistributionChart extends Chart {
-	private static final String[] FIVE_AGENT_LABELS = { "Edge 1", "Edge 2", "Edge 3", "Edge 4", "Cloud" };
 	private static final Color[] COLORS = { new Color(31, 119, 180), new Color(255, 127, 14), new Color(44, 160, 44),
 			new Color(214, 39, 40), new Color(148, 103, 189), new Color(140, 86, 75), new Color(227, 119, 194),
 			new Color(127, 127, 127) };
@@ -63,10 +61,10 @@ public class DestinationDistributionChart extends Chart {
 			}
 			return;
 		}
-		DecisionTelemetrySnapshot snapshot = orchestrator.getFiveAgentTelemetrySnapshot();
-		ensureSeries(FIVE_AGENT_LABELS.length, FIVE_AGENT_LABELS);
-		double total = Math.max(snapshot.windowDecisionCount, 1);
-		for (int i = 0; i < FIVE_AGENT_LABELS.length; i++) {
+		DeviceAgentDecisionSupport.DecisionTelemetrySnapshot snapshot = orchestrator.getGenericTelemetrySnapshot();
+		ensureSeries(snapshot.destLabels.length, snapshot.destLabels);
+		double total = Math.max(snapshot.destWindowDecisionCount, 1);
+		for (int i = 0; i < snapshot.destLabels.length; i++) {
 			double ratio = snapshot.destWindowCounts[i] * 100.0 / total;
 			ratios.get(i).add(ratio);
 			updateSeries(getChart(), activeLabels.get(i), toArray(currentTime), toArray(ratios.get(i)), SeriesMarkers.NONE,

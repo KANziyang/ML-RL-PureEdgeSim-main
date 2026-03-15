@@ -104,8 +104,6 @@ public class SimulationVisualizer {
 			charts.add(multiRLChart);
 		else if ("PPO".equals(algo))
 			charts.add(ppoChart);
-		else if ("PPO_5AGENT".equals(algo))
-			charts.add(ppoChart);
 		else if ("MAPPO".equals(algo))
 			charts.add(mappoRewardChart);
 	}

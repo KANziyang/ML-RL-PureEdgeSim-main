@@ -29,10 +29,8 @@ import com.pureedgesim.simulationcore.SimulationManager;
 
 import pruebas.CustomEdgeOrchestrator;
 import pruebas.DeviceAgentDecisionSupport;
-import pruebas.FiveAgentDecisionSupport.DecisionTelemetrySnapshot;
 
 public class PriorityDistributionChart extends Chart {
-	private static final String[] FIVE_AGENT_LABELS = { "P0", "P2", "P5", "P8", "P10" };
 	private static final Color[] COLORS = { new Color(31, 119, 180), new Color(255, 127, 14), new Color(44, 160, 44),
 			new Color(214, 39, 40), new Color(148, 103, 189) };
 
@@ -62,11 +60,11 @@ public class PriorityDistributionChart extends Chart {
 			}
 			return;
 		}
-		DecisionTelemetrySnapshot snapshot = orchestrator.getFiveAgentTelemetrySnapshot();
-		ensureSeries(FIVE_AGENT_LABELS.length, FIVE_AGENT_LABELS);
-		double total = Math.max(snapshot.windowDecisionCount, 1);
-		for (int i = 0; i < FIVE_AGENT_LABELS.length; i++) {
-			double ratio = snapshot.priorityWindowCounts[i] * 100.0 / total;
+		DeviceAgentDecisionSupport.DecisionTelemetrySnapshot snapshot = orchestrator.getGenericTelemetrySnapshot();
+		ensureSeries(snapshot.prbLabels.length > 0 ? snapshot.prbLabels.length : 1, snapshot.prbLabels.length > 0 ? snapshot.prbLabels : new String[]{"N/A"});
+		double total = Math.max(snapshot.prbWindowDecisionCount, 1);
+		for (int i = 0; i < activeLabels.size(); i++) {
+			double ratio = i < snapshot.prbWindowCounts.length ? snapshot.prbWindowCounts[i] * 100.0 / total : 0.0;
 			ratios.get(i).add(ratio);
 			updateSeries(getChart(), activeLabels.get(i), toArray(currentTime), toArray(ratios.get(i)), SeriesMarkers.NONE,
 					COLORS[i % COLORS.length]);
