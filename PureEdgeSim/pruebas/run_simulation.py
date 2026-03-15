@@ -440,10 +440,12 @@ def _run_command(
     )
     assert process.stdout is not None
     marker_hits: List[str] = []
+    _CONSOLE_PREFIXES = ("Simulation progress",)
     try:
         for line in process.stdout:
             text = line.rstrip("\n")
-            print(text)
+            if any(text.lstrip().startswith(p) for p in _CONSOLE_PREFIXES):
+                print(text)
             log_file.write(text + "\n")
             for marker in failure_markers:
                 if marker in text:
@@ -550,7 +552,10 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
         print(json.dumps(result.to_dict(), indent=2, ensure_ascii=True))
         overall_elapsed = time.time() - overall_start
         minutes, seconds = divmod(overall_elapsed, 60)
-        print(f"total wall time: {int(minutes)}m {seconds:.1f}s")
+        wall_msg = f"total wall time: {int(minutes)}m {seconds:.1f}s"
+        print(wall_msg)
+        with open(result.log_path, "a", encoding="utf-8") as f:
+            f.write(f"{_timestamp_iso()} {wall_msg}\n")
         return 0
 
     parser = _build_parser()
@@ -575,7 +580,10 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=True))
     overall_elapsed = time.time() - overall_start
     minutes, seconds = divmod(overall_elapsed, 60)
-    print(f"total wall time: {int(minutes)}m {seconds:.1f}s")
+    wall_msg = f"total wall time: {int(minutes)}m {seconds:.1f}s"
+    print(wall_msg)
+    with open(result.log_path, "a", encoding="utf-8") as f:
+        f.write(f"{_timestamp_iso()} {wall_msg}\n")
     return 0
 
 
