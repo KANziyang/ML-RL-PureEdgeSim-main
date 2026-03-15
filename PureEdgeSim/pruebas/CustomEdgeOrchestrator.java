@@ -36,7 +36,6 @@ import com.pureedgesim.tasksgenerator.Task;
 import com.pureedgesim.tasksorchestration.ArchitectureHelper;
 import com.pureedgesim.tasksorchestration.Orchestrator;
 
-import net.sourceforge.jFuzzyLogic.FIS;
 
 public class CustomEdgeOrchestrator extends Orchestrator {
 	RLManager rlManager;
@@ -122,9 +121,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			case "RL_MULTILAYER_EMPTY":
 			case "RL_MULTILAYER_DISABLED":
 				bestVM = multilayerreinforcementLearning(architecture, task);
-				break;
-			case "FUZZY_LOGIC":
-				bestVM = fuzzyLogic(task);
 				break;
 			case "PPO":
 				bestVM = ppoDecision(architecture, task);
@@ -591,70 +587,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		return 0.0;
 	}
 
-
-	/************ Fuzzy Logic ************/
-	private int fuzzyLogic(Task task) {
-		String fileName = "PureEdgeSim/pruebas/settings/stage1.fcl";
-		FIS fis = FIS.load(fileName, true);
-		if (fis == null) {
-			System.err.println("Can't load file: '" + fileName + "'");
-			return -1;
-		}
-		double vmUsage = 0;
-		int count = 0;
-		for (int i = 0; i < vmList.size(); i++) {
-			if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() != SimulationParameters.TYPES.CLOUD) {
-				vmUsage += vmList.get(i).getCpuPercentUtilization() * 100;
-				count++;
-				vmUsage += ((DataCenter) vmList.get(i).getHost().getDatacenter()).getResources().getAvgCpuUtilization();
-
-			}
-		}
-
-		fis.setVariable("lan", SimulationParameters.BANDWIDTH_WLAN / 1000.0 - simulationManager.getNetworkModel().getNetworkUtilization());
-		fis.setVariable("tasklength", task.getLength());
-		fis.setVariable("delay", task.getMaxLatency());
-		fis.setVariable("vm", vmUsage / count);
-
-		fis.evaluate();
-
-		if (fis.getVariable("offload").defuzzify() > 50) {
-			String[] architecture2 = { "Cloud" };
-			return increaseLifetime(architecture2, task);
-		} else {
-			String[] architecture2 = { "Edge", "Mist" };
-			return stage2(architecture2, task);
-		}
-
-	}
-
-	private int stage2(String[] architecture2, Task task) {
-		double min = -1;
-		int vm = -1;
-		String fileName = "PureEdgeSim/pruebas/settings/stage2.fcl";
-		FIS fis = FIS.load(fileName, true);
-		if (fis == null) {
-			System.err.println("Can't load file: '" + fileName + "'");
-			return -1;
-		}
-		for (int i = 0; i < vmList.size(); i++) {
-			if (offloadingIsPossible(task, vmList.get(i), architecture2) && vmList.get(i).getStorage().getCapacity() > 0) {
-				if (!task.getEdgeDevice().getMobilityManager().isMobile())
-					fis.setVariable("vm_local", 0);
-				else
-					fis.setVariable("vm_local", 0);
-				fis.setVariable("vm", (1 - vmList.get(i).getCpuPercentUtilization()) * vmList.get(i).getMips() / 1000);
-				fis.evaluate();
-
-				if (min == -1 || min > fis.getVariable("offload").defuzzify()) {
-					min = fis.getVariable("offload").defuzzify();
-					vm = i;
-				}
-			}
-		}
-		return vm;
-	}
-	/************ Fuzzy Logic ************/
 
 
 	@Override
