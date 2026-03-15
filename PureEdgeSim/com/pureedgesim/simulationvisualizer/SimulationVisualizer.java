@@ -64,20 +64,20 @@ public class SimulationVisualizer {
 		this.headless = headless;
 		this.simulationManager = simulationManager;
 		
-		mapChart = new MapChart("Simulation map", "Width (meters)", "Length (meters)", simulationManager);
-		cpuUtilizationChart = new CPUChart("CPU utilization", "Time (s)", "Utilization (%)", simulationManager);
-		blockChart = new BlockChart("Allocated PRB Blocks (Realtime)", "Time (s)", "PRB Blocks", simulationManager);
-		tasksSuccessChart = new TasksSuccessChart("Tasks success rate", "Time (minutes)", "Success rate (%)", simulationManager);
-		tasksFailedChart = new TasksFailedChart("Tasks failures", "Time (s)", "Tasks number", simulationManager);
-		edgeDeviceChart = new EdgeDevicesChart("Edge Devices", "Time (s)", "Devices number", simulationManager);
-		serversChart = new ServersChart("Busy Servers", "Time (s)", "Devices number", simulationManager);
-		energyChart = new EnergyChart("Energy consumption", "Time (s)", "Consumed energy (W)", simulationManager);
-		delayChart = new DelayChart("Delays", "Simulation Time (s)", "Time (s)", simulationManager);
-		ppoChart = new PPOChart("PPO Rewards", "Time (s)", "Reward", simulationManager);
-		mappoRewardChart = new MAPPORewardChart("MAPPO Rewards", "Time (s)", "Reward", simulationManager);
+		mapChart = new MapChart("Simulation Map", "Width (m)", "Length (m)", simulationManager);
+		cpuUtilizationChart = new CPUChart("CPU Utilization", "Time (s)", "Utilization (%)", simulationManager);
+		blockChart = new BlockChart("PRB Block Allocation", "Time (s)", "PRB Blocks", simulationManager);
+		tasksSuccessChart = new TasksSuccessChart("Task Success Rate", "Time (minutes)", "Success Rate (%)", simulationManager);
+		tasksFailedChart = new TasksFailedChart("Task Failure Breakdown", "Time (s)", "Task Count", simulationManager);
+		edgeDeviceChart = new EdgeDevicesChart("Devices", "Time (s)", "Device Count", simulationManager);
+		serversChart = new ServersChart("Server Status", "Time (s)", "Server Count", simulationManager);
+		energyChart = new EnergyChart("Energy Consumption", "Time (s)", "Energy (Wh)", simulationManager);
+		delayChart = new DelayChart("Task Delay", "Time (s)", "Delay (s)", simulationManager);
+		ppoChart = new PPOChart("PPO Rewards", "Time (s)", "Avg Reward", simulationManager);
+		mappoRewardChart = new MAPPORewardChart("MAPPO Rewards", "Time (s)", "Avg Reward", simulationManager);
 		destinationDistributionChart = new DestinationDistributionChart("Destination Distribution", "Time (s)",
 				"Selection Rate (%)", simulationManager);
-		priorityDistributionChart = new PriorityDistributionChart("Priority Distribution", "Time (s)",
+		priorityDistributionChart = new PriorityDistributionChart("PRB Priority Distribution", "Time (s)",
 				"Selection Rate (%)", simulationManager);
 
 		// Common charts for all algorithms
