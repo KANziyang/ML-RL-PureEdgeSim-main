@@ -46,6 +46,7 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	// Unified RL manager references via interface
 	private RLManagerInterface activeRLManager;
 	MAPPOManager mappoManager;
+	PPONewManager ppoNewManager;
 
 	// Generic destination tracker for non-RL algorithms (5 slots: Edge1-4 + Cloud)
 	private static final String[] GENERIC_DEST_LABELS = { "Edge 1", "Edge 2", "Edge 3", "Edge 4", "Cloud" };
@@ -66,6 +67,9 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		} else if ("MAPPO".equals(algorithm)) {
 			mappoManager = new MAPPOManager(simulationManager, orchestrationHistory, vmList);
 			activeRLManager = mappoManager;
+		} else if ("PPO_NEW".equals(algorithm)) {
+			ppoNewManager = new PPONewManager(simulationManager, orchestrationHistory, vmList);
+			activeRLManager = ppoNewManager;
 		}
 	}
 
@@ -126,6 +130,9 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				bestVM = ppoDecision(architecture, task);
 				break;
 			case "MAPPO":
+				bestVM = activeRLManager.reinforcementLearning(architecture, task);
+				break;
+			case "PPO_NEW":
 				bestVM = activeRLManager.reinforcementLearning(architecture, task);
 				break;
 
@@ -558,12 +565,18 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		if ("MAPPO".equals(algorithm) && mappoManager != null) {
 			return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 		}
+		if ("PPO_NEW".equals(algorithm) && ppoNewManager != null) {
+			return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
+		}
 		return genericDestTracker.snapshot();
 	}
 
 	public DeviceAgentDecisionSupport.DecisionTelemetrySnapshot getDeviceAgentTelemetrySnapshot() {
 		if ("MAPPO".equals(algorithm) && mappoManager != null) {
 			return mappoManager.getTelemetrySnapshot();
+		}
+		if ("PPO_NEW".equals(algorithm) && ppoNewManager != null) {
+			return ppoNewManager.getTelemetrySnapshot();
 		}
 		return DeviceAgentDecisionSupport.DecisionTelemetrySnapshot.empty();
 	}

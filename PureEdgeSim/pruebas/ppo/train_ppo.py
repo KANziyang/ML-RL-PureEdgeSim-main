@@ -1,161 +1,517 @@
-import json
+from __future__ import annotations
+
 import os
-import socket
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from collections import deque
-from typing import Any, Deque, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-import gymnasium as gym
+import sys
+from pathlib import Path as _Path
+
 import numpy as np
 import torch
-from gymnasium import spaces
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv
+import torch.nn.functional as F
+
+_SCRIPT_DIR = _Path(__file__).resolve().parent
+_SHARED_DIR = str(_SCRIPT_DIR.parent / "shared")
+if _SHARED_DIR not in sys.path:
+    sys.path.insert(0, _SHARED_DIR)
+_CONFIG_PATH = _SCRIPT_DIR / "runtime_config.json"
+
+from buffer import EpisodeBuffer
+from env_client import MAPPOClient
+from models import PPOActor, PPOCritic
+from runtime_support import (
+    RunLogger,
+    RuntimeConfig,
+    apply_run_layout,
+    build_output_dir,
+    compile_java_project,
+    connect_client_with_retry,
+    create_run_logger,
+    create_train_run_layout,
+    describe_runtime,
+    load_config,
+    prepare_effective_settings_dir,
+    read_boolean_setting,
+    resolve_model_path,
+    start_java_episode,
+    wait_for_java_exit,
+    write_latest_run_pointer,
+    write_run_manifest,
+)
 
 
-ENT_COEF = float(os.getenv("PUREEDGESIM_ENT_COEF", "0.01"))
-ACTION_LOG_INTERVAL = int(os.getenv("PUREEDGESIM_ACTION_LOG_INTERVAL", "1"))
-WLAN_PRB_BLOCKS = int(os.getenv("PUREEDGESIM_WLAN_PRB_BLOCKS", "1000"))
+GAMMA = float(os.getenv("PUREEDGESIM_PPO_GAMMA", "0.99"))
+CLIP_EPS = float(os.getenv("PUREEDGESIM_PPO_CLIP", "0.1"))
+ACTOR_LR = float(os.getenv("PUREEDGESIM_PPO_ACTOR_LR", "3e-4"))
+CRITIC_LR = float(os.getenv("PUREEDGESIM_PPO_CRITIC_LR", "3e-4"))
+ENTROPY_COEF_START = float(os.getenv("PUREEDGESIM_PPO_ENTROPY_START", "0.02"))
+ENTROPY_COEF_END = float(os.getenv("PUREEDGESIM_PPO_ENTROPY_END", "0.002"))
+VALUE_COEF = float(os.getenv("PUREEDGESIM_PPO_VALUE_COEF", "0.5"))
+MAX_GRAD_NORM = float(os.getenv("PUREEDGESIM_PPO_MAX_GRAD_NORM", "0.5"))
+PPO_EPOCHS = int(os.getenv("PUREEDGESIM_PPO_EPOCHS", "4"))
+MINIBATCH = int(os.getenv("PUREEDGESIM_PPO_MINIBATCH", "1024"))
+EPISODES_PER_UPDATE = int(os.getenv("PUREEDGESIM_PPO_EPISODES_PER_UPDATE", "1"))
+
+TRAIN_EPISODES_OVERRIDE: Optional[int] = 2
+TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
+TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 10
+TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
+TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
+
+ALGORITHM_OVERRIDE: Optional[str] = "PPO_NEW"
+ARCHITECTURE_OVERRIDE: Optional[str] = "LOCAL_EDGE_CLOUD"
 
 
-class PureEdgeSimEnv(gym.Env):
-    metadata = {"render_modes": []}
+@dataclass
+class EnvSpec:
+    num_destinations: int
+    agent_obs_dim: int
+    dest_feat_dim: int
+    state_dim: int
+    prb_bins: int
+    destination_labels: list[str]
+    prb_bin_labels: list[str]
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 5005, obs_size: int = 9):
-        super().__init__()
-        self.host = host
-        self.port = port
-        self.obs_size = obs_size
-        self.action_space = spaces.Box(
-            low=np.array([0.0, 0.0], dtype=np.float32),
-            high=np.array([3.0, 1.0], dtype=np.float32),
-            dtype=np.float32,
+    @classmethod
+    def from_message(cls, msg: Dict[str, Any]) -> "EnvSpec":
+        return cls(
+            num_destinations=int(msg["num_destinations"]),
+            agent_obs_dim=int(msg["agent_obs_dim"]),
+            dest_feat_dim=int(msg["dest_feat_dim"]),
+            state_dim=int(msg["state_dim"]),
+            prb_bins=int(msg["prb_bins"]),
+            destination_labels=[str(item) for item in msg.get("destination_labels", [])],
+            prb_bin_labels=[str(item) for item in msg.get("prb_bin_labels", [])],
         )
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)
-        self._sock = None
-        self._file = None
-        self._transition_queue: Deque[Dict[str, Any]] = deque()
-        self._action_step = 0
-        self._last_obs: np.ndarray | None = None
 
-    def _connect(self) -> None:
-        if self._sock is not None:
+    def to_checkpoint_dict(self) -> Dict[str, Any]:
+        return {
+            "num_destinations": self.num_destinations,
+            "agent_obs_dim": self.agent_obs_dim,
+            "dest_feat_dim": self.dest_feat_dim,
+            "state_dim": self.state_dim,
+            "prb_bins": self.prb_bins,
+            "destination_labels": list(self.destination_labels),
+            "prb_bin_labels": list(self.prb_bin_labels),
+        }
+
+    def same_shape(self, other: "EnvSpec") -> bool:
+        return (
+            self.num_destinations == other.num_destinations
+            and self.agent_obs_dim == other.agent_obs_dim
+            and self.dest_feat_dim == other.dest_feat_dim
+            and self.state_dim == other.state_dim
+            and self.prb_bins == other.prb_bins
+        )
+
+
+@dataclass
+class ModelRuntime:
+    actor: Optional[PPOActor] = None
+    critic: Optional[PPOCritic] = None
+    actor_optim: Optional[torch.optim.Optimizer] = None
+    critic_optim: Optional[torch.optim.Optimizer] = None
+    env_spec: Optional[EnvSpec] = None
+
+    def ensure_initialized(self, env_spec: EnvSpec, device: torch.device) -> None:
+        if self.env_spec is None:
+            self.env_spec = env_spec
+            self.actor = PPOActor(
+                agent_obs_dim=env_spec.agent_obs_dim,
+                dest_feat_dim=env_spec.dest_feat_dim,
+                num_destinations=env_spec.num_destinations,
+                prb_bins=env_spec.prb_bins,
+            ).to(device)
+            self.critic = PPOCritic(state_dim=env_spec.state_dim).to(device)
+            self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=ACTOR_LR)
+            self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=CRITIC_LR)
             return
-        self._sock = socket.create_connection((self.host, self.port))
-        self._file = self._sock.makefile("r")
+        if not self.env_spec.same_shape(env_spec):
+            raise ValueError(f"PPO env config changed across episodes: {self.env_spec} != {env_spec}")
 
-    def _send(self, payload: Dict[str, Any]) -> None:
-        msg = json.dumps(payload, separators=(",", ":"))
-        self._sock.sendall((msg + "\n").encode("utf-8"))
 
-    def _recv(self) -> Dict[str, Any]:
-        line = self._file.readline()
-        if not line:
-            raise RuntimeError("Disconnected from EnvServer.")
-        # print(f"recv: {line.strip()}")
-        return json.loads(line)
+def update_policy(
+    runtime: ModelRuntime,
+    buffer: EpisodeBuffer,
+    device: torch.device,
+    entropy_coef: float,
+) -> Dict[str, float]:
+    if runtime.actor is None or runtime.critic is None or runtime.actor_optim is None or runtime.critic_optim is None:
+        raise RuntimeError("PPO runtime is not initialized.")
 
-    def reset(self, *, seed: int | None = None, options: Dict[str, Any] | None = None) -> Tuple[np.ndarray, Dict[str, Any]]:
-        super().reset(seed=seed)
-        self._connect()
+    arrays = buffer.as_arrays()
+    rewards_t = torch.from_numpy(arrays["rewards"]).to(device)
+    values_t = torch.from_numpy(arrays["values"]).to(device)
+    returns_t = rewards_t
+    adv_t = rewards_t - values_t
+    adv_t = (adv_t - adv_t.mean()) / (adv_t.std(unbiased=False) + 1e-8)
 
-        msg = self._recv()
-        while msg.get("type") != "obs":
-            if msg.get("type") == "transition":
-                self._transition_queue.append(msg)
-            msg = self._recv()
-        # print("reset: received obs")
+    agent_obs_t = torch.from_numpy(arrays["agent_obs"]).to(device)
+    dest_features_t = torch.from_numpy(arrays["dest_features"]).to(device)
+    masks_t = torch.from_numpy(arrays["masks"]).to(device)
+    state_t = torch.from_numpy(arrays["state"]).to(device)
+    actions_t = torch.from_numpy(arrays["actions"]).to(device)
+    old_logp_t = torch.from_numpy(arrays["old_log_probs"]).to(device)
 
-        obs = np.array(msg["obs"], dtype=np.float32)
-        self._last_obs = obs
-        return obs, {}
+    num_steps = agent_obs_t.size(0)
+    stats: Dict[str, float] = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+    updates = 0
+    for _ in range(PPO_EPOCHS):
+        idx = torch.randperm(num_steps, device=device)
+        for start in range(0, num_steps, MINIBATCH):
+            batch_idx = idx[start : start + MINIBATCH]
+            if batch_idx.numel() == 0:
+                continue
 
-    def step(self, action: Any) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        if isinstance(action, np.ndarray):
-            flat = action.flatten()
-            offload = int(np.rint(float(flat[0]))) if flat.size > 0 else 0
-            prb_ratio = float(flat[1]) if flat.size > 1 else 0.0
-        elif isinstance(action, (list, tuple)):
-            offload = int(np.rint(float(action[0]))) if len(action) > 0 else 0
-            prb_ratio = float(action[1]) if len(action) > 1 else 0.0
-        else:
-            offload = int(np.rint(float(action)))
-            prb_ratio = 0.0
-        offload = int(np.clip(offload, 0, 3))
-        prb_ratio = float(np.clip(prb_ratio, 0.0, 1.0))
-        self._action_step += 1
-        if ACTION_LOG_INTERVAL > 0 and self._action_step % ACTION_LOG_INTERVAL == 0:
-            prb_remaining_ratio = 0.0
-            prb_remaining_blocks = 0
-            if self._last_obs is not None and self._last_obs.size > 8:
-                prb_remaining_ratio = float(self._last_obs[8])
-                prb_remaining_blocks = int(round(prb_remaining_ratio * WLAN_PRB_BLOCKS))
-            print(
-                "train action "
-                f"step={self._action_step} "
-                f"offload={offload} "
-                f"prb_ratio={prb_ratio:.3f} "
-                f"prb_remaining={prb_remaining_blocks} "
-                f"prb_remaining_ratio={prb_remaining_ratio:.3f}",
-                flush=True,
+            cur_logp, entropy = runtime.actor.evaluate_actions(
+                agent_obs_t[batch_idx],
+                dest_features_t[batch_idx],
+                masks_t[batch_idx],
+                actions_t[batch_idx],
             )
-        self._send({"type": "action", "action": [offload, prb_ratio]})
-        # print(f"step: sent action {int(action)}")
+            entropy_mean = entropy.mean()
+            ratio = torch.exp(cur_logp - old_logp_t[batch_idx])
+            surr1 = ratio * adv_t[batch_idx]
+            surr2 = torch.clamp(ratio, 1.0 - CLIP_EPS, 1.0 + CLIP_EPS) * adv_t[batch_idx]
+            policy_loss = -torch.min(surr1, surr2).mean()
 
-        # Delayed reward: return the previous transition (if any) on this step.
-        reward = 0.0
-        done = False
-        info: Dict[str, Any] = {}
-        if self._transition_queue:
-            pending = self._transition_queue.popleft()
-            reward = float(pending["reward"])
-            done = bool(pending["done"])
-            info["delayed"] = True
+            values = runtime.critic(state_t[batch_idx])
+            value_loss = F.mse_loss(values, returns_t[batch_idx])
+            actor_loss = policy_loss - entropy_coef * entropy_mean
 
-        msg = self._recv()
-        while msg.get("type") != "obs":
-            if msg.get("type") == "transition":
-                self._transition_queue.append(msg)
-            msg = self._recv()
-        # print("step: received obs")
+            runtime.actor_optim.zero_grad()
+            actor_loss.backward()
+            torch.nn.utils.clip_grad_norm_(runtime.actor.parameters(), MAX_GRAD_NORM)
+            runtime.actor_optim.step()
 
-        next_obs = np.array(msg["obs"], dtype=np.float32)
-        self._last_obs = next_obs
-        return next_obs, reward, done, False, info
+            runtime.critic_optim.zero_grad()
+            (VALUE_COEF * value_loss).backward()
+            torch.nn.utils.clip_grad_norm_(runtime.critic.parameters(), MAX_GRAD_NORM)
+            runtime.critic_optim.step()
 
-    def close(self) -> None:
-        if self._file is not None:
-            self._file.close()
-        if self._sock is not None:
-            self._sock.close()
-        self._file = None
-        self._sock = None
+            stats["policy_loss"] += float(policy_loss.item())
+            stats["value_loss"] += float(value_loss.item())
+            stats["entropy"] += float(entropy_mean.item())
+            updates += 1
 
-    def request_termination(self) -> None:
-        self._connect()
-        self._send({"type": "control", "command": "terminate"})
+    if updates > 0:
+        for key in stats:
+            stats[key] /= updates
+    return stats
+
+
+def run_episode(
+    runtime: ModelRuntime,
+    device: torch.device,
+    config: RuntimeConfig,
+    episode: int,
+    max_env_steps: Optional[int],
+    settings_dir: Path,
+    logger: RunLogger,
+) -> Tuple[EpisodeBuffer, float]:
+    label = f"java-train-ep{episode:03d}"
+    output_dir = build_output_dir(config, "train", episode)
+    process = start_java_episode(config, settings_dir, output_dir, label, logger)
+    client = MAPPOClient(host=config.host, port=config.port, connect_timeout_s=1.0)
+    pending: Dict[str, Dict[str, object]] = {}
+    buffer = EpisodeBuffer()
+    episode_reward = 0.0
+    transition_count = 0
+    episode_done = False
+    pending_terminate = False
+    terminate_requested = False
+
+    print(f"episode={episode}/{config.episodes} start", flush=True)
+
+    try:
+        connect_client_with_retry(client, process)
+
+        while not episode_done:
+            try:
+                msg = client.recv_message()
+            except Exception as exc:
+                process.ensure_success()
+                raise RuntimeError(
+                    f"Disconnected before episode {episode} completed.\n"
+                    f"Recent output:\n{process.recent_output()}\n"
+                    f"Full log: {process.log_path}"
+                ) from exc
+
+            msg_type = msg.get("type", "")
+            if msg_type == "marl_config":
+                runtime.ensure_initialized(EnvSpec.from_message(msg), device)
+                continue
+
+            if msg_type == "marl_turn_obs":
+                if pending_terminate and not terminate_requested:
+                    client.request_termination()
+                    terminate_requested = True
+                    print(
+                        f"episode={episode}/{config.episodes} "
+                        f"steps={transition_count} "
+                        f"reward_so_far={episode_reward:.4f} "
+                        f"step_limit_reached terminating",
+                        flush=True,
+                    )
+                    continue
+                if terminate_requested:
+                    continue
+                if runtime.actor is None or runtime.critic is None or runtime.env_spec is None:
+                    raise RuntimeError("Received turn observation before PPO env config.")
+
+                step_id = str(msg.get("step_id", ""))
+                # Single agent: ignore agent_id from Java
+                agent_obs = np.asarray(msg["agent_obs"], dtype=np.float32)
+                dest_features = np.asarray(msg["dest_features"], dtype=np.float32)
+                state = np.asarray(msg["state"], dtype=np.float32)
+                dest_mask = np.asarray(msg.get("dest_mask", [1] * runtime.env_spec.num_destinations), dtype=np.float32)
+
+                with torch.no_grad():
+                    agent_obs_t = torch.from_numpy(agent_obs).unsqueeze(0).to(device)
+                    dest_features_t = torch.from_numpy(dest_features).unsqueeze(0).to(device)
+                    dest_mask_t = torch.from_numpy(dest_mask).unsqueeze(0).to(device)
+                    state_t = torch.from_numpy(state).unsqueeze(0).to(device)
+                    actions_t, _, _ = runtime.actor.act(
+                        agent_obs_t, dest_features_t, dest_mask_t, deterministic=False
+                    )
+                    value_t = runtime.critic(state_t)
+
+                actions = actions_t.squeeze(0).cpu().numpy().astype(np.int64)
+                pending[step_id] = {
+                    "agent_obs": agent_obs,
+                    "dest_features": dest_features,
+                    "dest_mask": dest_mask,
+                    "state": state,
+                    "value": float(value_t.item()),
+                }
+                client.send_action(step_id, int(actions[0]), int(actions[1]))
+                continue
+
+            if msg_type == "marl_transition":
+                if runtime.actor is None or runtime.env_spec is None:
+                    raise RuntimeError("Received transition before PPO env config.")
+                step_id = str(msg.get("step_id", ""))
+                if step_id not in pending:
+                    continue
+                ctx = pending.pop(step_id)
+                reward = float(msg.get("reward", 0.0))
+                executed_dest = int(msg.get("executed_dest_action", 0))
+                executed_prb = int(msg.get("executed_prb_action", 0))
+                action = np.asarray([executed_dest, max(executed_prb, 0)], dtype=np.int64)
+
+                with torch.no_grad():
+                    logp_t, _ = runtime.actor.evaluate_actions(
+                        torch.from_numpy(ctx["agent_obs"]).unsqueeze(0).to(device),
+                        torch.from_numpy(ctx["dest_features"]).unsqueeze(0).to(device),
+                        torch.from_numpy(ctx["dest_mask"]).unsqueeze(0).to(device),
+                        torch.from_numpy(action).unsqueeze(0).to(device),
+                    )
+
+                buffer.add(
+                    agent_id=0,
+                    agent_obs=ctx["agent_obs"],
+                    dest_features=ctx["dest_features"],
+                    mask=ctx["dest_mask"],
+                    state=ctx["state"],
+                    actions=action,
+                    old_log_probs=float(logp_t.item()),
+                    value=float(ctx["value"]),
+                    reward=reward,
+                )
+                episode_reward += reward
+                transition_count += 1
+
+                if max_env_steps is not None and transition_count >= max_env_steps:
+                    pending_terminate = True
+
+                if transition_count % config.progress_log_interval == 0:
+                    print(
+                        f"episode={episode}/{config.episodes} "
+                        f"steps={transition_count} "
+                        f"reward_so_far={episode_reward:.4f}",
+                        flush=True,
+                    )
+                continue
+
+            if msg_type == "marl_episode_end":
+                pending.clear()
+                episode_done = True
+
+        return buffer, episode_reward
+    finally:
+        client.close()
+        wait_for_java_exit(process)
+
+
+def save_checkpoint(
+    runtime: ModelRuntime,
+    config: RuntimeConfig,
+    episode: int,
+    run_id: str,
+    run_root: Path,
+    latest_only: bool = False,
+) -> list[Path]:
+    if runtime.actor is None or runtime.critic is None or runtime.env_spec is None:
+        raise RuntimeError("Cannot save PPO checkpoint before runtime initialization.")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    latest_path = resolve_model_path(config, "latest.pt")
+    payload = {
+        "actor": runtime.actor.state_dict(),
+        "critic": runtime.critic.state_dict(),
+        "episode": episode,
+        "run_id": run_id,
+        "run_root": str(run_root.resolve()),
+        "artifacts_version": 3,
+        "model_type": "PPOActor",
+        "config": {
+            **runtime.env_spec.to_checkpoint_dict(),
+            "runtime": config.to_dict(),
+            "optimizer": {
+                "gamma": GAMMA,
+                "clip_eps": CLIP_EPS,
+                "actor_lr": ACTOR_LR,
+                "critic_lr": CRITIC_LR,
+                "entropy_coef_start": ENTROPY_COEF_START,
+                "entropy_coef_end": ENTROPY_COEF_END,
+                "value_coef": VALUE_COEF,
+                "max_grad_norm": MAX_GRAD_NORM,
+                "ppo_epochs": PPO_EPOCHS,
+                "minibatch": MINIBATCH,
+                "episodes_per_update": EPISODES_PER_UPDATE,
+            },
+        },
+    }
+
+    saved_paths = [latest_path]
+    torch.save(payload, latest_path)
+
+    if not latest_only:
+        versioned_path = resolve_model_path(config, f"ppo_pureedgesim_ep{episode}_{timestamp}.pt")
+        torch.save(payload, versioned_path)
+        saved_paths.append(versioned_path)
+
+    return saved_paths
+
+
+def current_entropy_coef(current_episode: int, total_episodes: int) -> float:
+    if total_episodes <= 1:
+        return ENTROPY_COEF_END
+    progress = (current_episode - 1) / float(total_episodes - 1)
+    return ENTROPY_COEF_START + (ENTROPY_COEF_END - ENTROPY_COEF_START) * progress
 
 
 def main() -> None:
-    env = DummyVecEnv([lambda: PureEdgeSimEnv()])
-    output_dir = Path(r"C:/Users\hp\Desktop\ML-RL-PureEdgeSim-main\PureEdgeSim\pruebas\ppo\model")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"using device: {device}")
-    latest_model = max(output_dir.glob("ppo_pureedgesim_*.zip"), default=None, key=lambda p: p.stat().st_mtime)
-    latest_model = None
-    if latest_model is not None:
-        print(f"loading model: {latest_model}")
-        model = PPO.load(str(latest_model), env=env, device=device)
-    else:
-        print("loading model: none (training from scratch)")
-        model = PPO("MlpPolicy", env, verbose=1, device=device, ent_coef=ENT_COEF)
-    model.learn(total_timesteps=10000, reset_num_timesteps=False)
-    env.envs[0].request_termination()
-    env.close()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model.save(str(output_dir / f"ppo_pureedgesim_{timestamp}"))
+    config = load_config(_CONFIG_PATH)
+    base_output_root = config.output_root.resolve()
+    if TRAIN_EPISODES_OVERRIDE is not None:
+        config.episodes = max(1, int(TRAIN_EPISODES_OVERRIDE))
+    max_env_steps = _normalize_optional_limit(TRAIN_MAX_ENV_STEPS_OVERRIDE)
+    simulation_minutes_override = _normalize_optional_limit(TRAIN_SIMULATION_MINUTES_OVERRIDE)
+    display_real_time_charts_override = TRAIN_DISPLAY_REAL_TIME_CHARTS_OVERRIDE
+    auto_close_real_time_charts_override = TRAIN_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE
+
+    run_layout = create_train_run_layout(base_output_root)
+    apply_run_layout(config, run_layout)
+    write_run_manifest(run_layout)
+
+    run_timestamp = run_layout.run_id[len("train_run_") :]
+    logger = create_run_logger(config, "train", "train_run", timestamp_override=run_timestamp)
+    print(f"train_log={logger.log_path}", flush=True)
+
+    try:
+        describe_runtime(config, logger)
+        compile_java_project(config, logger)
+        settings_dir, simulation_minutes = prepare_effective_settings_dir(
+            config,
+            config.settings_dir,
+            "train",
+            run_layout.run_id,
+            simulation_minutes_override,
+            logger,
+            display_real_time_charts_override=display_real_time_charts_override,
+            auto_close_real_time_charts_override=auto_close_real_time_charts_override,
+            clone_even_if_unmodified=True,
+            algorithm_override=ALGORITHM_OVERRIDE,
+            architecture_override=ARCHITECTURE_OVERRIDE,
+        )
+        display_real_time_charts = read_boolean_setting(settings_dir, "display_real_time_charts")
+        auto_close_real_time_charts = read_boolean_setting(settings_dir, "auto_close_real_time_charts")
+        print(
+            f"simulation_minutes={simulation_minutes} "
+            f"display_real_time_charts={str(display_real_time_charts).lower()} "
+            f"auto_close_real_time_charts={str(auto_close_real_time_charts).lower()} "
+            f"settings_dir={settings_dir}",
+            flush=True,
+        )
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"using device: {device}", flush=True)
+
+        runtime = ModelRuntime()
+        rollout_buffer = EpisodeBuffer()
+        episodes_in_rollout = 0
+        last_stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+
+        for episode in range(1, config.episodes + 1):
+            episode_buffer, episode_reward = run_episode(
+                runtime,
+                device,
+                config,
+                episode,
+                max_env_steps,
+                settings_dir,
+                logger,
+            )
+            rollout_buffer.extend(episode_buffer)
+            episodes_in_rollout += 1
+
+            if episodes_in_rollout >= EPISODES_PER_UPDATE or episode == config.episodes:
+                entropy_coef = current_entropy_coef(episode, config.episodes)
+                if len(rollout_buffer) > 0:
+                    last_stats = update_policy(runtime, rollout_buffer, device, entropy_coef=entropy_coef)
+                else:
+                    last_stats = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+                rollout_buffer = EpisodeBuffer()
+                episodes_in_rollout = 0
+            else:
+                entropy_coef = current_entropy_coef(episode, config.episodes)
+
+            print(
+                f"episode={episode}/{config.episodes} "
+                f"steps={len(episode_buffer)} "
+                f"reward={episode_reward:.4f} "
+                f"policy_loss={last_stats['policy_loss']:.6f} "
+                f"value_loss={last_stats['value_loss']:.6f} "
+                f"entropy={last_stats['entropy']:.6f} "
+                f"entropy_coef={entropy_coef:.6f}",
+                flush=True,
+            )
+
+            if runtime.env_spec is not None:
+                saved_paths = save_checkpoint(
+                    runtime,
+                    config,
+                    episode,
+                    run_layout.run_id,
+                    run_layout.run_root,
+                    latest_only=(episode % config.save_interval != 0),
+                )
+                latest_path = resolve_model_path(config, "latest.pt")
+                write_latest_run_pointer(base_output_root, run_layout, latest_path)
+                write_run_manifest(run_layout, latest_model_path=latest_path, last_episode=episode)
+                for path in saved_paths:
+                    print(f"saved model: {path}", flush=True)
+    finally:
+        logger.close()
+
+
+def _normalize_optional_limit(value: Optional[int]) -> Optional[int]:
+    if value is None:
+        return None
+    return max(1, int(value))
 
 
 if __name__ == "__main__":

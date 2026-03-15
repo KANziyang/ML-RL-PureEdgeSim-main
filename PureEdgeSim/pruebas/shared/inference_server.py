@@ -26,7 +26,7 @@ from torch.distributions import Categorical
 # Ensure shared/ and algorithm dirs are importable
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PRUEBAS_DIR = _SCRIPT_DIR.parent
-for _d in [str(_SCRIPT_DIR), str(_PRUEBAS_DIR / "mappo"), str(_PRUEBAS_DIR / "ppo_5agent")]:
+for _d in [str(_SCRIPT_DIR), str(_PRUEBAS_DIR / "mappo"), str(_PRUEBAS_DIR / "ppo_5agent"), str(_PRUEBAS_DIR / "ppo")]:
     if _d not in sys.path:
         sys.path.insert(0, _d)
 
@@ -36,6 +36,7 @@ from env_client import MAPPOClient
 MODEL_TURN_ACTOR = "TurnActor"
 MODEL_SHARED_ACTOR = "SharedActor"
 MODEL_SINGLE_AGENT = "SingleAgentActor"
+MODEL_PPO_NEW = "PPOActor"
 
 
 def _detect_model_type(cfg: dict, actor_keys: list[str]) -> str:
@@ -178,6 +179,29 @@ def load_ppo5_actor(model_path: str, device: torch.device):
     return actor
 
 
+def load_ppo_new_actor(model_path: str, device: torch.device):
+    """Load a PPO_NEW checkpoint (PPOActor)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "ppo_models", str(_PRUEBAS_DIR / "ppo" / "models.py")
+    )
+    ppo_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ppo_mod)
+
+    ckpt = torch.load(model_path, map_location=device, weights_only=False)
+    cfg = ckpt.get("config", {})
+    actor = ppo_mod.PPOActor(
+        agent_obs_dim=int(cfg["agent_obs_dim"]),
+        dest_feat_dim=int(cfg["dest_feat_dim"]),
+        num_destinations=int(cfg["num_destinations"]),
+        prb_bins=int(cfg["prb_bins"]),
+    ).to(device)
+    actor.load_state_dict(ckpt["actor"])
+    actor.eval()
+    print("inference_server: loaded PPOActor (PPO_NEW)", flush=True)
+    return actor
+
+
 def _adapt_turn_actor(actor, msg: dict) -> None:
     """Resize TurnActor embedding / num_destinations to match the live env."""
     env_agents = int(msg.get("num_agents", actor.num_agents))
@@ -189,6 +213,15 @@ def _adapt_turn_actor(actor, msg: dict) -> None:
     env_dest = int(msg.get("num_destinations", actor.num_destinations))
     if env_dest != actor.num_destinations:
         print(f"inference_server: adjusting num_destinations "
+              f"{actor.num_destinations} -> {env_dest}", flush=True)
+        actor.num_destinations = env_dest
+
+
+def _adapt_ppo_new_actor(actor, msg: dict) -> None:
+    """Adjust PPOActor num_destinations to match the live env."""
+    env_dest = int(msg.get("num_destinations", actor.num_destinations))
+    if env_dest != actor.num_destinations:
+        print(f"inference_server: adjusting PPOActor num_destinations "
               f"{actor.num_destinations} -> {env_dest}", flush=True)
         actor.num_destinations = env_dest
 
@@ -319,6 +352,40 @@ def run_obs_protocol(client: MAPPOClient, actor, device: torch.device) -> None:
             break
 
 
+def run_ppo_new_turn(client: MAPPOClient, actor, device: torch.device) -> None:
+    """Handle marl_turn_obs protocol for PPO_NEW (PPOActor, no agent_id)."""
+    while True:
+        msg = client.recv_message()
+        msg_type = msg.get("type", "")
+
+        if msg_type == "marl_config":
+            _adapt_ppo_new_actor(actor, msg)
+            continue
+
+        if msg_type == "marl_turn_obs":
+            step_id = msg.get("step_id", "")
+            agent_obs = np.asarray(msg["agent_obs"], dtype=np.float32)
+            dest_features = np.asarray(msg["dest_features"], dtype=np.float32)
+            dest_mask = np.asarray(msg.get("dest_mask", []), dtype=np.float32)
+
+            with torch.no_grad():
+                actions_t, _, _ = actor.act(
+                    torch.from_numpy(agent_obs).unsqueeze(0).to(device),
+                    torch.from_numpy(dest_features).unsqueeze(0).to(device),
+                    torch.from_numpy(dest_mask).unsqueeze(0).to(device),
+                    deterministic=True,
+                )
+            actions = actions_t.squeeze(0).cpu().numpy().astype(np.int64)
+            client.send_action(step_id, int(actions[0]), int(actions[1]))
+            continue
+
+        if msg_type == "marl_transition":
+            continue
+
+        if msg_type == "marl_episode_end":
+            break
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -327,7 +394,7 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--model_path", required=True)
-    parser.add_argument("--algorithm", required=True, choices=["MAPPO", "PPO_5AGENT"])
+    parser.add_argument("--algorithm", required=True, choices=["MAPPO", "PPO_5AGENT", "PPO_NEW"])
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -336,6 +403,9 @@ def main() -> None:
 
     if args.algorithm == "MAPPO":
         actor, model_type = load_mappo_actor(args.model_path, device)
+    elif args.algorithm == "PPO_NEW":
+        actor = load_ppo_new_actor(args.model_path, device)
+        model_type = MODEL_PPO_NEW
     else:
         actor = load_ppo5_actor(args.model_path, device)
         model_type = MODEL_SINGLE_AGENT
@@ -345,6 +415,8 @@ def main() -> None:
         run_fn = run_mappo_turn
     elif model_type == MODEL_SHARED_ACTOR:
         run_fn = lambda c, a, d: run_shared_on_turn_obs(c, a, d)
+    elif model_type == MODEL_PPO_NEW:
+        run_fn = run_ppo_new_turn
     else:
         run_fn = run_obs_protocol
 

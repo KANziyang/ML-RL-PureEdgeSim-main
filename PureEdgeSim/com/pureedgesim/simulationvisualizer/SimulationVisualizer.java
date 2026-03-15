@@ -106,6 +106,8 @@ public class SimulationVisualizer {
 			charts.add(ppoChart);
 		else if ("MAPPO".equals(algo))
 			charts.add(mappoRewardChart);
+		else if ("PPO_NEW".equals(algo))
+			charts.add(ppoChart);
 	}
 
 	public void updateCharts() {

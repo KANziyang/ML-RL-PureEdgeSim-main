@@ -49,7 +49,8 @@ public class DestinationDistributionChart extends Chart {
 	public void update() {
 		currentTime.add(simulationManager.getSimulation().clock());
 		CustomEdgeOrchestrator orchestrator = (CustomEdgeOrchestrator) simulationManager.getOrchestrator();
-		if ("MAPPO".equals(simulationManager.getScenario().getStringOrchAlgorithm())) {
+		String algo = simulationManager.getScenario().getStringOrchAlgorithm();
+		if ("MAPPO".equals(algo) || "PPO_NEW".equals(algo)) {
 			DeviceAgentDecisionSupport.DecisionTelemetrySnapshot snapshot = orchestrator.getDeviceAgentTelemetrySnapshot();
 			ensureSeries(snapshot.destLabels.length, snapshot.destLabels);
 			double total = Math.max(snapshot.destWindowDecisionCount, 1);
