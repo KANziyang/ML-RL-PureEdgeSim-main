@@ -58,8 +58,10 @@ public class SimulationVisualizer {
 	private PriorityDistributionChart priorityDistributionChart;
 	private List<Chart> charts = new ArrayList<Chart>();
 	private boolean firstTime = true;
+	private final boolean headless;
 
-	public SimulationVisualizer(SimulationManager simulationManager) {
+	public SimulationVisualizer(SimulationManager simulationManager, boolean headless) {
+		this.headless = headless;
 		this.simulationManager = simulationManager;
 		
 		mapChart = new MapChart("Simulation map", "Width (meters)", "Length (meters)", simulationManager);
@@ -100,6 +102,10 @@ public class SimulationVisualizer {
 	}
 
 	public void updateCharts() {
+		if (headless) {
+			charts.forEach(chart -> chart.update());
+			return;
+		}
 		if (firstTime) {
 			int cols = chooseGridColumns(charts.size(), 3);
 			int rows = (int) Math.ceil(charts.size() / (double) cols);
@@ -126,6 +132,8 @@ public class SimulationVisualizer {
 	}
 
 	public void close() {
+		if (headless)
+			return;
 		simulationResultsFrame.dispose();
 	}
 
