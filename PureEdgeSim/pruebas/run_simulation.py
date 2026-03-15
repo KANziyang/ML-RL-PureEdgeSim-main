@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -78,6 +79,7 @@ class RunResult:
     returncode: int
     started_at: str
     finished_at: str
+    wall_time_s: float
 
     def to_dict(self) -> Dict[str, object]:
         return asdict(self)
@@ -163,6 +165,7 @@ def run_settings(
     ]
 
     returncode = -1
+    sim_elapsed = 0.0
     finished_at = _timestamp_iso()
     with log_path.open("a", encoding="utf-8", buffering=1) as log_file:
         try:
@@ -179,17 +182,21 @@ def run_settings(
                 _run_command(compile_command, log_file)
 
             _log_line(log_file, f"run_command={' '.join(command)}")
+            sim_start = time.time()
             returncode = _run_command(
                 command,
                 log_file,
                 failure_markers=("Main- The simulation has been terminated due to an unexpected error",),
             )
+            sim_elapsed = time.time() - sim_start
             finished_at = _timestamp_iso()
+            _log_line(log_file, f"wall_time={sim_elapsed:.1f}s")
 
             manifest["status"] = "completed"
             manifest["returncode"] = returncode
             manifest["command"] = command
             manifest["finished_at"] = finished_at
+            manifest["wall_time_s"] = round(sim_elapsed, 1)
             _write_manifest(manifest_path, manifest)
         except Exception as exc:
             finished_at = _timestamp_iso()
@@ -215,6 +222,7 @@ def run_settings(
         returncode=returncode,
         started_at=manifest["started_at"],
         finished_at=finished_at,
+        wall_time_s=round(sim_elapsed, 1),
     )
 
 
@@ -533,11 +541,16 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _main(argv: Optional[Sequence[str]] = None) -> int:
+    overall_start = time.time()
+
     if argv is None and len(sys.argv) == 1:
         summary = inspect_default_settings()
         print(_format_summary(summary))
         result = run_default_settings()
         print(json.dumps(result.to_dict(), indent=2, ensure_ascii=True))
+        overall_elapsed = time.time() - overall_start
+        minutes, seconds = divmod(overall_elapsed, 60)
+        print(f"total wall time: {int(minutes)}m {seconds:.1f}s")
         return 0
 
     parser = _build_parser()
@@ -560,6 +573,9 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
         java_main_class=args.java_main_class,
     )
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=True))
+    overall_elapsed = time.time() - overall_start
+    minutes, seconds = divmod(overall_elapsed, 60)
+    print(f"total wall time: {int(minutes)}m {seconds:.1f}s")
     return 0
 
 
