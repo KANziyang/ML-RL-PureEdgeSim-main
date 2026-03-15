@@ -240,8 +240,7 @@ public class DataCentersManager {
 			int numOfCores = Integer.parseInt(hostElement.getElementsByTagName("core").item(0).getTextContent());
 			double mips = Double.parseDouble(hostElement.getElementsByTagName("mips").item(0).getTextContent());
 			long storage = Long.parseLong(hostElement.getElementsByTagName("storage").item(0).getTextContent());
-			long bandwidth = (type == SimulationParameters.TYPES.CLOUD ? SimulationParameters.WAN_BANDWIDTH
-					: SimulationParameters.BANDWIDTH_WLAN) / hostNodeList.getLength();
+			long bandwidth = SimulationParameters.BANDWIDTH_WLAN / hostNodeList.getLength();
 			long ram = Integer.parseInt(hostElement.getElementsByTagName("ram").item(0).getTextContent());
 			// A Machine contains one or more PEs or CPUs/Cores. Therefore, should
 			// create a list to store these PEs before creating

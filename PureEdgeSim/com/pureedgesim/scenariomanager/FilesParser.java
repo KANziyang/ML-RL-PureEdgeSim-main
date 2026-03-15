@@ -69,6 +69,10 @@ public class FilesParser {
 			SimulationParameters.AUTO_CLOSE_REAL_TIME_CHARTS = Boolean.parseBoolean(prop.getProperty("auto_close_real_time_charts").trim());
 			SimulationParameters.CHARTS_UPDATE_INTERVAL = Double.parseDouble(prop.getProperty("charts_update_interval").trim());
 			SimulationParameters.SAVE_CHARTS = Boolean.parseBoolean(prop.getProperty("save_charts").trim());
+			SimulationParameters.SAVE_SIMULATION_CHARTS = Boolean.parseBoolean(
+					prop.getProperty("save_simulation_charts", String.valueOf(SimulationParameters.SAVE_CHARTS)).trim());
+			SimulationParameters.SAVE_FINAL_RESULTS_CHARTS = Boolean.parseBoolean(
+					prop.getProperty("save_final_results_charts", String.valueOf(SimulationParameters.SAVE_CHARTS)).trim());
 
 			SimulationParameters.AREA_LENGTH = Integer.parseInt(prop.getProperty("length").trim()); // seconds
 			SimulationParameters.AREA_WIDTH = Integer.parseInt(prop.getProperty("width").trim()); // seconds
@@ -84,6 +88,13 @@ public class FilesParser {
 
 			SimulationParameters.EDGE_DEVICES_RANGE = Integer.parseInt(prop.getProperty("edge_devices_range").trim()); // meters
 			SimulationParameters.EDGE_DATACENTERS_RANGE = Integer.parseInt(prop.getProperty("edge_datacenters_coverage").trim()); // meters
+			SimulationParameters.CLOUD_COVERAGE_DISTANCE = Double.parseDouble(
+					prop.getProperty("cloud_coverage_distance",
+							String.valueOf(SimulationParameters.EDGE_DATACENTERS_RANGE))
+							.trim());
+			if (SimulationParameters.CLOUD_COVERAGE_DISTANCE <= 0) {
+				SimulationParameters.CLOUD_COVERAGE_DISTANCE = SimulationParameters.EDGE_DATACENTERS_RANGE;
+			}
 			SimulationParameters.PAUSE_LENGTH = Integer.parseInt(prop.getProperty("pause_length").trim());// seconds
 			SimulationParameters.MIN_NUM_OF_EDGE_DEVICES = Integer.parseInt(prop.getProperty("min_number_of_edge_devices").trim());
 			SimulationParameters.MAX_NUM_OF_EDGE_DEVICES = Integer.parseInt(prop.getProperty("max_number_of_edge_devices").trim());
@@ -93,9 +104,18 @@ public class FilesParser {
 			}
 			SimulationParameters.EDGE_DEVICE_COUNTER_STEP = Integer.parseInt(prop.getProperty("edge_device_counter_size").trim());
 			SimulationParameters.BANDWIDTH_WLAN = 1000 * Integer.parseInt(prop.getProperty("wlan_bandwidth").trim()); // Mbits/s to Kbits/s
-			SimulationParameters.WAN_BANDWIDTH = 1000 * Integer.parseInt(prop.getProperty("wan_bandwidth").trim());// Mbits/s to Kbits/s
-			SimulationParameters.WAN_PROPAGATION_DELAY = Double.parseDouble(prop.getProperty("wan_propogation_delay").trim()); // seconds
-			SimulationParameters.WAN_PROPAGATION_SPEED = Double.parseDouble(prop.getProperty("wan_propogation_speed").trim());	// Kbits/s
+			SimulationParameters.WLAN_PRB_BLOCKS = Integer.parseInt(prop.getProperty("wlan_prb_blocks", "1").trim());
+			if (SimulationParameters.WLAN_PRB_BLOCKS <= 0) {
+				SimulationParameters.WLAN_PRB_BLOCKS = 1;
+			}
+			SimulationParameters.PRB_DISTANCE_D0 = Double.parseDouble(prop.getProperty("prb_distance_d0", "20").trim());
+			SimulationParameters.PRB_DISTANCE_ALPHA = Double.parseDouble(prop.getProperty("prb_distance_alpha", "2").trim());
+			SimulationParameters.PRB_TASK_MAX_RATIO = Double.parseDouble(prop.getProperty("prb_task_max_ratio", "0.1").trim());
+			if (SimulationParameters.PRB_TASK_MAX_RATIO <= 0 || SimulationParameters.PRB_TASK_MAX_RATIO > 1) {
+				SimulationParameters.PRB_TASK_MAX_RATIO = 0.1;
+			}
+			SimulationParameters.PROPAGATION_DELAY = Double.parseDouble(prop.getProperty("propogation_delay", "0").trim()); // seconds
+			SimulationParameters.PROPAGATION_SPEED = Double.parseDouble(prop.getProperty("propogation_speed", "300000000").trim()); // m/s
 			SimulationParameters.NETWORK_UPDATE_INTERVAL = Double.parseDouble(prop.getProperty("network_update_interval").trim()); // seconds
 			SimulationParameters.REALISTIC_NETWORK_MODEL = Boolean.parseBoolean(prop.getProperty("realistic_network_model").trim()); 
 

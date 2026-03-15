@@ -133,6 +133,7 @@ public class SimulationManager extends SimulationManagerAbstract {
 			// Result returned to edge device
 			if (taskFailed(task, 0))
 				return;
+			getNetworkModel().releaseTaskPrb(task);
 			this.edgeOrchestrator.resultsReturned(task);
 			tasksCountTotal++;
 			tasksCount++;
@@ -188,12 +189,21 @@ public class SimulationManager extends SimulationManagerAbstract {
 					simulationVisualizer.close();
 				try {
 					// Save those charts in bitmap and vector formats
-					if (SimulationParameters.SAVE_CHARTS)
+					if (SimulationParameters.SAVE_SIMULATION_CHARTS)
 						simulationVisualizer.saveCharts();
-				} catch (IOException e) {
+				} catch (Exception e) {
+					simLog.print("SimulationManager- saveCharts() failed: " + e.getMessage());
 					e.printStackTrace();
 				}
 			}
+
+			// Notify the orchestrator that this simulation episode is about to end.
+			try {
+				edgeOrchestrator.simulationFinished();
+			} catch (RuntimeException ex) {
+				simLog.print("SimulationManager- simulationFinished() failed: " + ex.getMessage());
+			}
+
 			// Show results and stop the simulation
 			simLog.showIterationResults(finishedTasks);
 
@@ -327,6 +337,10 @@ public class SimulationManager extends SimulationManagerAbstract {
 	public int getTasksFailedDueLackOfRessources() {
 		return simLog.getTasksFailedLackOfRessources();
 	}
+
+	public int getTasksFailedDueNetwork() {
+		return simLog.getTasksFailedNetwork();
+	}
 	
 	public double getTotalExecutionTime() {
 		return simLog.getTotalExecutionTime();
@@ -388,11 +402,22 @@ public class SimulationManager extends SimulationManagerAbstract {
 		return false;
 	}
 
+	public void failTaskDueToNetwork(Task task) {
+		if (task == null) {
+			return;
+		}
+		task.setPrbRejected(true);
+		task.setFailureReason(Task.Status.FAILED_NO_RESOURCES);
+		simLog.incrementTasksFailedNetwork(task);
+		setFailed(task);
+	}
+
 	private boolean setFailed(Task task) {
 		failedTasksCount++;
 		failedTasksCountTotal++;
 		tasksCountTotal++;
 		tasksCount++;
+		getNetworkModel().releaseTaskPrb(task);
 		this.edgeOrchestrator.resultsReturned(task);
 		return true;
 	}
@@ -417,10 +442,18 @@ public class SimulationManager extends SimulationManagerAbstract {
 				simulationVisualizer.close();
 			}
 			try {
-				simulationVisualizer.saveCharts();
-			} catch (IOException e) {
+				if (SimulationParameters.SAVE_SIMULATION_CHARTS) {
+					simulationVisualizer.saveCharts();
+				}
+			} catch (Exception e) {
+				simLog.print("SimulationManager- terminateAndSaveCharts() saveCharts() failed: " + e.getMessage());
 				e.printStackTrace();
 			}
+		}
+		try {
+			edgeOrchestrator.simulationFinished();
+		} catch (RuntimeException ex) {
+			simLog.print("SimulationManager- terminateAndSaveCharts() simulationFinished() failed: " + ex.getMessage());
 		}
 		simulation.terminate();
 	}

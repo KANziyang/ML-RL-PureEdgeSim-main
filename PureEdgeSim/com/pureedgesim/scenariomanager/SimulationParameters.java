@@ -43,7 +43,9 @@ public class SimulationParameters {
 	public static boolean DISPLAY_REAL_TIME_CHARTS;   // Show real time charts
 	public static boolean AUTO_CLOSE_REAL_TIME_CHARTS;// Close real time charts when simlation finishes 
 	public static double CHARTS_UPDATE_INTERVAL;	  // Charts refresh interval in seconds
-	public static boolean SAVE_CHARTS;                // Save charts to bitmap format (*.png files)  
+	public static boolean SAVE_CHARTS;                // Legacy save-charts switch used as a compatibility fallback
+	public static boolean SAVE_SIMULATION_CHARTS;     // Save per-simulation charts under simulation_<id>/
+	public static boolean SAVE_FINAL_RESULTS_CHARTS;  // Save aggregated charts under Final results/
 	
 	// Simulation area
 	public static int AREA_LENGTH;                         
@@ -66,13 +68,17 @@ public class SimulationParameters {
 	
 	// Network parameters 
 	public static int BANDWIDTH_WLAN;             // wlan bandwidth (in kbits/s)
-	public static int WAN_BANDWIDTH;              // wan (cloud) bandwidth (in kbits/s) 
+	public static int WLAN_PRB_BLOCKS;           // wlan PRB blocks (integer units)
+	public static double CLOUD_COVERAGE_DISTANCE; // effective distance used for cloud link attenuation (meters)
+	public static double PRB_DISTANCE_D0;        // PRB distance attenuation d0 (meters)
+	public static double PRB_DISTANCE_ALPHA;     // PRB distance attenuation exponent alpha
+	public static double PRB_TASK_MAX_RATIO;     // Max PRB ratio per task (0-1)
 	public static double POWER_CONS_PER_MEGABYTE; // Power consumption by every transferred MBytes (in Wh)
 	public static int EDGE_DEVICES_RANGE;         // The range of edge devices (in meters)
 	public static int EDGE_DATACENTERS_RANGE;     // The range of edge servers (in meters)
 	public static double NETWORK_UPDATE_INTERVAL; // Network model update interval (in seconds) 
-	public static double WAN_PROPAGATION_DELAY;   // Wan propagation delay (in seconds)
-	public static double WAN_PROPAGATION_SPEED;   // m/s
+	public static double PROPAGATION_DELAY;       // propagation delay (in seconds)
+	public static double PROPAGATION_SPEED;       // m/s
 	public static boolean REALISTIC_NETWORK_MODEL;// Enabling this will give more accurate results, but also will increase the simulation duration
 	
 	// Energy model parameters

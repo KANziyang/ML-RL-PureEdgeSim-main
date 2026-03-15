@@ -13,6 +13,17 @@ import java.util.Locale;
 
 public class EnvServer {
 	public static final int ACTION_TERMINATE = Integer.MIN_VALUE;
+	public static class ActionData {
+		public final int offloadAction;
+		public final double prbRatio;
+		public final boolean terminate;
+
+		public ActionData(int offloadAction, double prbRatio, boolean terminate) {
+			this.offloadAction = offloadAction;
+			this.prbRatio = prbRatio;
+			this.terminate = terminate;
+		}
+	}
 	private final int port;
 	private final int readTimeoutMs;
 	private ServerSocket serverSocket;
@@ -49,9 +60,9 @@ public class EnvServer {
 		return clientSocket != null && clientSocket.isConnected() && !clientSocket.isClosed();
 	}
 
-	public synchronized int waitForAction(double[] obs) {
+	public synchronized ActionData waitForAction(double[] obs) {
 		if (!isConnected()) {
-			return -1;
+			return new ActionData(-1, 0.0, false);
 		}
 		try {
 			//System.out.println("EnvServer: sending obs");
@@ -63,10 +74,10 @@ public class EnvServer {
 			//System.out.println("EnvServer: received action line: " + line);
 			return parseAction(line);
 		} catch (SocketTimeoutException e) {
-			return -1;
+			return new ActionData(-1, 0.0, false);
 		} catch (IOException e) {
 			System.err.println("EnvServer: failed waiting for action: " + e.getMessage());
-			return -1;
+			return new ActionData(-1, 0.0, false);
 		}
 	}
 
@@ -113,33 +124,93 @@ public class EnvServer {
 		return sb.toString();
 	}
 
-	private int parseAction(String line) {
+	private ActionData parseAction(String line) {
 		if (line == null) {
-			return -1;
+			return new ActionData(-1, 0.0, false);
 		}
 		if (line.contains("\"type\":\"control\"") && line.contains("\"command\":\"terminate\"")) {
-			return ACTION_TERMINATE;
+			return new ActionData(0, 0.0, true);
 		}
 		int idx = line.indexOf("\"action\"");
 		if (idx == -1) {
-			return -1;
+			return new ActionData(-1, 0.0, false);
 		}
 		int colon = line.indexOf(":", idx);
 		if (colon == -1) {
-			return -1;
+			return new ActionData(-1, 0.0, false);
 		}
 		int start = colon + 1;
 		while (start < line.length() && Character.isWhitespace(line.charAt(start))) {
 			start++;
 		}
-		int end = start;
-		while (end < line.length() && (Character.isDigit(line.charAt(end)) || line.charAt(end) == '-')) {
-			end++;
+		if (start < line.length() && line.charAt(start) == '[') {
+			int i = start + 1;
+			while (i < line.length() && Character.isWhitespace(line.charAt(i))) {
+				i++;
+			}
+			NumberToken parsed = parseNumberAt(line, i);
+			if (parsed == null) {
+				return new ActionData(-1, 0.0, false);
+			}
+			int offload = (int) Math.round(parsed.value);
+			i = parsed.nextIndex;
+			while (i < line.length() && line.charAt(i) != ',') {
+				i++;
+			}
+			if (i >= line.length()) {
+				return new ActionData(offload, 0.0, false);
+			}
+			i++;
+			while (i < line.length() && Character.isWhitespace(line.charAt(i))) {
+				i++;
+			}
+			parsed = parseNumberAt(line, i);
+			if (parsed == null) {
+				return new ActionData(offload, 0.0, false);
+			}
+			double prb = parsed.value;
+			return new ActionData(offload, prb, false);
 		}
 		try {
-			return Integer.parseInt(line.substring(start, end));
+			NumberToken parsed = parseNumberAt(line, start);
+			if (parsed == null) {
+				return new ActionData(-1, 0.0, false);
+			}
+			int offload = (int) Math.round(parsed.value);
+			return new ActionData(offload, 0.0, false);
+		} catch (Exception e) {
+			return new ActionData(-1, 0.0, false);
+		}
+	}
+
+	private NumberToken parseNumberAt(String line, int start) {
+		int i = start;
+		int end = i;
+		while (end < line.length() && isNumberChar(line.charAt(end))) {
+			end++;
+		}
+		if (end == i) {
+			return null;
+		}
+		try {
+			double value = Double.parseDouble(line.substring(i, end));
+			return new NumberToken(value, end);
 		} catch (NumberFormatException e) {
-			return -1;
+			return null;
+		}
+	}
+
+	private boolean isNumberChar(char c) {
+		return Character.isDigit(c) || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E';
+	}
+
+	private static class NumberToken {
+		private final double value;
+		private final int nextIndex;
+
+		private NumberToken(double value, int nextIndex) {
+			this.value = value;
+			this.nextIndex = nextIndex;
 		}
 	}
 }

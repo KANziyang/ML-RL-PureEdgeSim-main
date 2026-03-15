@@ -37,9 +37,9 @@ public class TasksFailedChart extends Chart {
 	private List<Double> tasksTotalSuccessList = new ArrayList<>();
 	private List<Double> tasksTotalFailedList = new ArrayList<>();
 	private List<Double> tasksTotalFailedLatencyList = new ArrayList<>();
-	private List<Double> tasksTotalFailedBatteryList = new ArrayList<>();
 	private List<Double> tasksTotalFailedMobilityList = new ArrayList<>();
 	private List<Double> tasksTotalFailedResourceList = new ArrayList<>();
+	private List<Double> tasksTotalFailedNetworkList = new ArrayList<>();
 	
 	public TasksFailedChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
@@ -55,16 +55,16 @@ public class TasksFailedChart extends Chart {
 		tasksTotalSuccessList.add((double) simulationManager.getExecutedTasksCount());
 		tasksTotalFailedList.add((double) simulationManager.getTasksFailedCount());
 		tasksTotalFailedLatencyList.add((double) simulationManager.getTasksFailedDueLatency());
-		tasksTotalFailedBatteryList.add((double) simulationManager.getTasksFailedDueBattery());
 		tasksTotalFailedMobilityList.add((double) simulationManager.getTasksFailedDueMobility());
 		tasksTotalFailedResourceList.add((double) simulationManager.getTasksFailedDueLackOfRessources());
+		tasksTotalFailedNetworkList.add((double) simulationManager.getTasksFailedDueNetwork());
 
 		updateSeries(getChart(), "Total tasks", toArray(currentTime), toArray(tasksTotalList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Executed task", toArray(currentTime), toArray(tasksTotalSuccessList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Failed task", toArray(currentTime), toArray(tasksTotalFailedList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Failed due latency", toArray(currentTime), toArray(tasksTotalFailedLatencyList), SeriesMarkers.NONE, Color.BLACK);
-		updateSeries(getChart(), "Failed due battery", toArray(currentTime), toArray(tasksTotalFailedBatteryList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Failed due mobility", toArray(currentTime), toArray(tasksTotalFailedMobilityList), SeriesMarkers.NONE, Color.BLACK);
 		updateSeries(getChart(), "Failed due resource", toArray(currentTime), toArray(tasksTotalFailedResourceList), SeriesMarkers.NONE, Color.BLACK);
+		updateSeries(getChart(), "Failed due network", toArray(currentTime), toArray(tasksTotalFailedNetworkList), SeriesMarkers.NONE, Color.BLACK);
 	}
 }

@@ -184,10 +184,8 @@ public class ChartsGeneratorAvg {
 
 	private void generateNetworkCharts() {
 		displayChart("Edge devices count", "Network usage (s)", "Time (s)", "/Network");
-		displayChart("Edge devices count", "Wan usage (s)", "Time (s)", "/Network");
 		displayChart("Edge devices count", "Average bandwidth per task (Mbps)", "Bandwidth (Mbps)", "/Network");
 		if (SimulationParameters.ENABLE_REGISTRY) {
-			displayChart("Edge devices count", "Containers wan usage (s)", "Time (s)", "/Network");
 			displayChart("Edge devices count", "Containers lan usage (s)", "Time (s)", "/Network");
 		}
 	}

@@ -28,7 +28,6 @@ import org.cloudbus.cloudsim.core.events.SimEvent;
 
 import com.pureedgesim.datacentersmanager.DataCenter;
 import com.pureedgesim.scenariomanager.SimulationParameters;
-import com.pureedgesim.scenariomanager.SimulationParameters.TYPES;
 import com.pureedgesim.simulationcore.SimulationManager;
 import com.pureedgesim.tasksgenerator.Task;
 
@@ -85,40 +84,88 @@ public abstract class NetworkModel extends CloudSimEntity {
 				|| (task1.getVm().getHost().getDatacenter() == task2.getRegistry()));
 	}
 
-	protected boolean wanIsUsed(FileTransferProgress fileTransferProgress) {
-		return ((fileTransferProgress.getTransferType() == FileTransferProgress.Type.TASK
-				&& ((DataCenter) fileTransferProgress.getTask().getVm().getHost().getDatacenter()).getType()
-						.equals(TYPES.CLOUD))
-				// If the offloading destination is the cloud
-
-				|| (fileTransferProgress.getTransferType() == FileTransferProgress.Type.CONTAINER
-						&& (fileTransferProgress.getTask().getRegistry() == null
-								|| fileTransferProgress.getTask().getRegistry().getType() == TYPES.CLOUD))
-				// Or if containers will be downloaded from registry
-
-				|| (fileTransferProgress.getTask().getOrchestrator().getType() == SimulationParameters.TYPES.CLOUD));
-		// Or if the orchestrator is deployed in the cloud
-
-	}
-
 	protected void updateBandwidth(FileTransferProgress transfer) {
-		double bandwidth;
-		if (wanIsUsed(transfer)) {
-			// The bandwidth will be limited by the minimum value
-			// If the lan bandwidth is 1 mbps and the wan bandwidth is 4 mbps
-			// It will be limited by the lan, so we will choose the minimum
-			bandwidth = Math.min(transfer.getLanBandwidth(), transfer.getWanBandwidth());
-		} else
-			bandwidth = transfer.getLanBandwidth();
-		transfer.setCurrentBandwidth(bandwidth);
+		double lanBandwidth = getLanBandwidthFromPrb(transfer);
+		transfer.setLanBandwidth(lanBandwidth);
+		transfer.setCurrentBandwidth(lanBandwidth);
 	}
 
-	protected double getLanBandwidth(double remainingTasksCount_Lan) {
-		return (SimulationParameters.BANDWIDTH_WLAN / (remainingTasksCount_Lan > 0 ? remainingTasksCount_Lan : 1));
+	protected int getLanPrbBlocks(int totalTransfersLan) {
+		int transfers = (totalTransfersLan > 0 ? totalTransfersLan : 1);
+		int blocks = SimulationParameters.WLAN_PRB_BLOCKS / transfers;
+		return Math.max(1, blocks);
 	}
 
-	protected double getWanBandwidth(double remainingTasksCount_Wan) {
-		return (SimulationParameters.WAN_BANDWIDTH / (remainingTasksCount_Wan > 0 ? remainingTasksCount_Wan : 1));
+	protected double getLanBandwidthFromPrb(FileTransferProgress transfer) {
+		int blocks = Math.max(0, transfer.getLanPrbBlocks());
+		if (blocks == 0) {
+			return 0;
+		}
+		double prbBandwidth = SimulationParameters.BANDWIDTH_WLAN / (double) SimulationParameters.WLAN_PRB_BLOCKS;
+		double distanceFactor = getLanDistanceFactor(transfer);
+		return prbBandwidth * blocks * distanceFactor;
+	}
+
+	protected double getLanDistanceFactor(FileTransferProgress transfer) {
+		double d0 = SimulationParameters.PRB_DISTANCE_D0;
+		double alpha = SimulationParameters.PRB_DISTANCE_ALPHA;
+		if (d0 <= 0 || alpha <= 0) {
+			return 1.0;
+		}
+		double distance = getTransferDistance(transfer);
+		double denom = Math.max(distance, d0);
+		double ratio = d0 / denom;
+		double factor = Math.pow(ratio, alpha);
+		return Math.min(1.0, factor);
+	}
+
+	protected double getTransferDistance(FileTransferProgress transfer) {
+		Task task = transfer.getTask();
+		if (task == null) {
+			return 0;
+		}
+		DataCenter edgeDevice = task.getEdgeDevice();
+		DataCenter orchestrator = task.getOrchestrator();
+		DataCenter destination = null;
+		if (task.getVm() != null && task.getVm().getHost() != null) {
+			destination = (DataCenter) task.getVm().getHost().getDatacenter();
+		}
+		DataCenter registry = task.getRegistry();
+
+		DataCenter origin = null;
+		DataCenter target = null;
+		switch (transfer.getTransferType()) {
+		case REQUEST:
+			origin = edgeDevice;
+			target = orchestrator;
+			break;
+		case TASK:
+			origin = orchestrator;
+			target = destination;
+			break;
+		case CONTAINER:
+			origin = registry;
+			target = edgeDevice;
+			break;
+		case RESULTS_TO_ORCH:
+			origin = destination;
+			target = orchestrator;
+			break;
+		case RESULTS_TO_DEV:
+			origin = orchestrator;
+			target = edgeDevice;
+			break;
+		default:
+			break;
+		}
+
+		if (origin == null || target == null) {
+			return 0;
+		}
+		if (origin.getType() == SimulationParameters.TYPES.CLOUD || target.getType() == SimulationParameters.TYPES.CLOUD) {
+			return Math.max(0.0, SimulationParameters.CLOUD_COVERAGE_DISTANCE);
+		}
+		return origin.getMobilityManager().distanceTo(target);
 	}
 
 	@Override
@@ -129,6 +176,10 @@ public abstract class NetworkModel extends CloudSimEntity {
 	public void processEvent(SimEvent ev) {
 	}
 
-	public abstract double getWanUtilization();
+	public abstract double getNetworkUtilization();
+
+	public void releaseTaskPrb(Task task) {
+		// Default no-op for custom network models
+	}
 
 }

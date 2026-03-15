@@ -28,9 +28,7 @@ public class FileTransferProgress {
 	}
 
 	private Task task;
-	private double wanBandwidth;// kbits/s
 	private double lanBandwidth;// kbits/s 
-	private double wanNetworkUsage = 0; // seconds
 	private double lanNetworkUsage = 0; // seconds
 	private Type transferType;
 	private double fileSize; // in kbits
@@ -38,6 +36,8 @@ public class FileTransferProgress {
 	private double currentBandwidth; // kbits/s
 	private double totalBandwidths = 0; // kbits/s
 	private int bwAllocationTimes = 0;
+	private int lanPrbBlocks = -1;
+	private boolean fixedPrbAllocation = false;
 
 	public FileTransferProgress(Task task, double remainingFileSize, Type type) {
 		this.task = task;
@@ -58,14 +58,6 @@ public class FileTransferProgress {
 		return task;
 	}
 
-	public double getWanBandwidth() {
-		return wanBandwidth;
-	}
-
-	public void setWanBandwidth(double wanBandwidth) {
-		this.wanBandwidth = wanBandwidth;
-	}
-
 	public double getLanBandwidth() {
 		return lanBandwidth;
 	}
@@ -74,14 +66,6 @@ public class FileTransferProgress {
 		this.lanBandwidth = lanBandwidth;
 	}
  
-	public double getWanNetworkUsage() {
-		return wanNetworkUsage;
-	}
-
-	public void setWanNetworkUsage(double wanNetworkUsage) {
-		this.wanNetworkUsage = wanNetworkUsage;
-	}
-
 	public double getLanNetworkUsage() {
 		return lanNetworkUsage;
 	}
@@ -112,6 +96,22 @@ public class FileTransferProgress {
 
 	public double getAverageBandwidth() {
 		return totalBandwidths / bwAllocationTimes;
+	}
+
+	public int getLanPrbBlocks() {
+		return lanPrbBlocks;
+	}
+
+	public void setLanPrbBlocks(int lanPrbBlocks) {
+		this.lanPrbBlocks = lanPrbBlocks;
+	}
+
+	public boolean isFixedPrbAllocation() {
+		return fixedPrbAllocation;
+	}
+
+	public void setFixedPrbAllocation(boolean fixedPrbAllocation) {
+		this.fixedPrbAllocation = fixedPrbAllocation;
 	}
 
 }

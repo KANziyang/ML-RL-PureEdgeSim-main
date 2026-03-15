@@ -71,6 +71,7 @@ public class SimLog {
 	private int tasksFailedMobility = 0;
 	private int tasksFailedRessourcesUnavailable = 0;
 	private int tasksFailedBeacauseDeviceDead = 0;
+	private int tasksFailedNetwork = 0;
 	private double totalWastedExecutionTime = 0;
 	private double totalWastedWaitingTime = 0;
 	private int notGeneratedBecDeviceDead = 0;
@@ -86,11 +87,9 @@ public class SimLog {
 
 	// Network utilization
 	private double totalLanUsage = 0;
-	private double totalWanUsage = 0;
 	private double totalBandwidth = 0;
 	private int transfersCount = 0;
 	private double containersLanUsage = 0;
-	private double containersWanUsage = 0;
 	private double totalTraffic = 0;
 
 	public SimLog(String time, boolean isFirstIteration) {
@@ -113,11 +112,11 @@ public class SimLog {
 					+ "Average real total time (s),"
 					+ "Generated tasks,Tasks successfully executed,"
 					+ "Task not executed (No resources available or long waiting time),Tasks failed (delay),Tasks failed (device dead),"
-					+ "Tasks failed (mobility),Tasks not generated due to the death of devices,Total tasks executed (Cloud),"
+					+ "Tasks failed (mobility),Tasks failed (network),Tasks not generated due to the death of devices,Total tasks executed (Cloud),"
 					+ "Tasks successfully executed (Cloud),Total tasks executed (Edge),Tasks successfully executed (Edge),"
 					+ "Total tasks executed (Mist),Tasks successfully executed (Mist),"
 					+ "Tasks success rate,"
-					+ "Network usage (s),Wan usage (s),Lan usage (s), Total network traffic (MBytes), Containers wan usage (s), Containers lan usage (s),Average bandwidth per task (Mbps),Average VM CPU usage (%),"
+					+ "Network usage (s),Lan usage (s), Total network traffic (MBytes), Containers lan usage (s),Average bandwidth per task (Mbps),Average VM CPU usage (%),"
 					+ "Average VM CPU usage (Cloud) (%),Average VM CPU usage (Edge) (%),Average VM CPU usage (Mist) (%),"
 					+ "Energy consumption (W),Average energy consumption (W/Data center),Cloud energy consumption (W),"
 					+ "Average Cloud energy consumption (W/Data center),Edge energy consumption (W),Average Edge energy consumption (W/Data center),"
@@ -227,6 +226,9 @@ public class SimLog {
 		print("                    Tasks execution results not returned due to devices mobility:"
 				+ padLeftSpaces(decimalFormat.format((double) tasksFailedMobility * 100 / tasksSent), 20) + " % ("
 				+ tasksFailedMobility + " tasks)");
+		print("                               Tasks rejected due to network / PRB constraints:"
+				+ padLeftSpaces(decimalFormat.format((double) tasksFailedNetwork * 100 / tasksSent), 20) + " % ("
+				+ tasksFailedNetwork + " tasks)");
 
 		print("SimLog- Tasks executed on each level                                            :" + " Cloud="
 				+ padLeftSpaces("" + tasksExecutedOnCloud, 13) + " tasks (where "
@@ -253,7 +255,8 @@ public class SimLog {
 				+ decimalFormat.format((totalWastedExecutionTime+totalWastedWaitingTime) / tasksFailedLatency) + ","
 				+ decimalFormat.format((totalExecutionTime+totalWaitingTime+totalWastedExecutionTime+totalWastedWaitingTime) / (executedTasksCount+tasksFailedLatency)) + ","
 				+ generatedTasksCount + ","	+ (tasksSent - tasksFailed) + "," + tasksFailedRessourcesUnavailable + "," + tasksFailedLatency + ","
-				+ tasksFailedBeacauseDeviceDead + "," + tasksFailedMobility + "," + notGeneratedBecDeviceDead + ","
+				+ tasksFailedBeacauseDeviceDead + "," + tasksFailedMobility + "," + tasksFailedNetwork + ","
+				+ notGeneratedBecDeviceDead + ","
 				+ tasksExecutedOnCloud + "," + (tasksExecutedOnCloud - tasksFailedCloud) + "," + tasksExecutedOnEdge
 				+ "," + (tasksExecutedOnEdge - tasksFailedEdge) + "," + tasksExecutedOnMist + ","
 				+ (tasksExecutedOnMist - tasksFailedMist) + ","
@@ -264,11 +267,6 @@ public class SimLog {
 		print("SimLog- Network usage                                                           :"
 				+ padLeftSpaces(decimalFormat.format(totalLanUsage), 20) + " seconds (The total traffic: "
 				+ decimalFormat.format(totalTraffic) + " (MBytes) )");
-		print("                                                                                 " + " Wan="
-				+ padLeftSpaces(decimalFormat.format(totalWanUsage), 15) + " seconds ("
-				+ decimalFormat.format(totalWanUsage * 100 / totalLanUsage)
-				+ " % of total usage, WAN used when downloading containers="
-				+ decimalFormat.format(totalWanUsage==0 ? 0 :containersWanUsage * 100 / totalWanUsage) + " % of WAN usage )");
 		print("                                                                                 " + " Lan="
 				+ padLeftSpaces(decimalFormat.format(totalLanUsage), 15) + " seconds ("
 				+ decimalFormat.format(totalLanUsage * 100 / totalLanUsage)
@@ -278,8 +276,8 @@ public class SimLog {
 				+ padLeftSpaces(decimalFormat.format(totalBandwidth / transfersCount), 10) + " Mbps  ");
 		// Add these values to the las item of the results list
 		resultsList.set(resultsList.size() - 1,
-				resultsList.get(resultsList.size() - 1) + totalLanUsage + "," + totalWanUsage + "," + totalLanUsage
-						+ "," + totalTraffic + "," + containersWanUsage + "," + containersLanUsage + ","
+				resultsList.get(resultsList.size() - 1) + totalLanUsage + "," + totalLanUsage
+						+ "," + totalTraffic + "," + containersLanUsage + ","
 						+ (totalBandwidth / transfersCount) + ",");
 	}
 
@@ -740,6 +738,15 @@ public class SimLog {
 	public int getTasksFailedLackOfRessources() {
 		return this.tasksFailedRessourcesUnavailable;
 	}
+
+	public void incrementTasksFailedNetwork(Task task) {
+		this.tasksFailedNetwork++;
+		incrementTasksFailed(task);
+	}
+
+	public int getTasksFailedNetwork() {
+		return this.tasksFailedNetwork;
+	}
 	
 	public int getExecutedTasksCount() {
 		return this.executedTasksCount;
@@ -780,13 +787,11 @@ public class SimLog {
 
 	public void updateNetworkUsage(FileTransferProgress transfer) {
 		this.totalLanUsage += transfer.getLanNetworkUsage();
-		this.totalWanUsage += transfer.getWanNetworkUsage();
 		this.totalBandwidth += transfer.getAverageBandwidth() / 1000; // Kbits/s to Mbits/s
 		this.totalTraffic += transfer.getFileSize() / 8000; // Kbits to Mbytes
 
 		if (transfer.getTransferType() == FileTransferProgress.Type.CONTAINER) {
 			this.containersLanUsage += transfer.getLanNetworkUsage();
-			this.containersWanUsage += transfer.getWanNetworkUsage();
 		}
 		this.transfersCount++;
 

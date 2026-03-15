@@ -73,11 +73,13 @@ public class CPUChart extends Chart {
 				devices++;
 			}
 		}
-		// Only if Mist computing is used
-		if (simulationManager.getScenario().getStringOrchArchitecture().contains("MIST") || simulationManager.getScenario().getStringOrchArchitecture().equals("ALL")) {
-			//mistUsage.add(msUsage / (simulationManager.getScenario().getDevicesCount() - sensors));
-			mistUsage.add(msUsage / devices);
-			updateSeries(getChart(), "Edge Devices", toArray(currentTime), toArray(mistUsage), SeriesMarkers.NONE, Color.BLACK);
+		// Show local device CPU when architecture includes MIST or LOCAL
+		String arch = simulationManager.getScenario().getStringOrchArchitecture();
+		if (arch.contains("MIST") || arch.contains("LOCAL") || arch.equals("ALL")) {
+			if (devices > 0) {
+				mistUsage.add(msUsage / devices);
+				updateSeries(getChart(), "Local Devices", toArray(currentTime), toArray(mistUsage), SeriesMarkers.NONE, Color.BLACK);
+			}
 		}
 	}
 

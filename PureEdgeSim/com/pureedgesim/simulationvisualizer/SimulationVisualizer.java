@@ -25,7 +25,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.swing.JFrame;
 import javax.swing.WindowConstants;
@@ -33,6 +32,8 @@ import org.knowm.xchart.BitmapEncoder;
 import org.knowm.xchart.BitmapEncoder.BitmapFormat;
 import org.knowm.xchart.SwingWrapper;
 import org.knowm.xchart.XYChart;
+import org.knowm.xchart.XYChartBuilder;
+import org.knowm.xchart.style.Styler.ChartTheme;
 
 import com.pureedgesim.scenariomanager.SimulationParameters;
 import com.pureedgesim.simulationcore.SimulationManager;
@@ -44,7 +45,7 @@ public class SimulationVisualizer {
 	private SimulationManager simulationManager;
 	private Chart mapChart;
 	private Chart cpuUtilizationChart;
-	private WanChart networkUtilizationChart;
+	private BlockChart blockChart;
 	private TasksSuccessChart tasksSuccessChart;
 	private TasksFailedChart tasksFailedChart;
 	private EdgeDevicesChart edgeDeviceChart;
@@ -54,6 +55,9 @@ public class SimulationVisualizer {
 	private RLChart rlChart;
 	private MultiRLChart multiRLChart;
 	private PPOChart ppoChart;
+	private MAPPORewardChart mappoRewardChart;
+	private DestinationDistributionChart destinationDistributionChart;
+	private PriorityDistributionChart priorityDistributionChart;
 	private List<Chart> charts = new ArrayList<Chart>();
 	private boolean firstTime = true;
 
@@ -62,17 +66,23 @@ public class SimulationVisualizer {
 		
 		mapChart = new MapChart("Simulation map", "Width (meters)", "Length (meters)", simulationManager);
 		cpuUtilizationChart = new CPUChart("CPU utilization", "Time (s)", "Utilization (%)", simulationManager);
-		networkUtilizationChart = new WanChart("Network utilization", "Time (s)", "Utilization (Mbps)",	simulationManager);
+		blockChart = new BlockChart("Allocated PRB Blocks (Realtime)", "Time (s)", "PRB Blocks", simulationManager);
 		tasksSuccessChart = new TasksSuccessChart("Tasks success rate", "Time (minutes)", "Success rate (%)", simulationManager);
 		tasksFailedChart = new TasksFailedChart("Tasks failures", "Time (s)", "Tasks number", simulationManager);
 		edgeDeviceChart = new EdgeDevicesChart("Edge Devices", "Time (s)", "Devices number", simulationManager);
 		serversChart = new ServersChart("Busy Servers", "Time (s)", "Devices number", simulationManager);
-		energyChart = new EnergyChart("Energy", "Time (s)", "Power (W)", simulationManager);
+		energyChart = new EnergyChart("Energy consumption", "Time (s)", "Consumed energy (W)", simulationManager);
 		delayChart = new DelayChart("Delays", "Simulation Time (s)", "Time (s)", simulationManager);
 		rlChart = new RLChart("Rewards", "Time (s)", "Reward", simulationManager);
 		multiRLChart = new MultiRLChart("Tasks queries", "Time (s)", "Tasks", simulationManager);
 		ppoChart = new PPOChart("PPO Rewards", "Time (s)", "Reward", simulationManager);
-		
+		mappoRewardChart = new MAPPORewardChart("MAPPO Rewards", "Time (s)", "Reward", simulationManager);
+		destinationDistributionChart = new DestinationDistributionChart("Destination Distribution", "Time (s)",
+				"Selection Rate (%)", simulationManager);
+		priorityDistributionChart = new PriorityDistributionChart("Priority Distribution", "Time (s)",
+				"Selection Rate (%)", simulationManager);
+
+		// Common charts for all algorithms
 		charts.add(mapChart);
 		charts.add(cpuUtilizationChart);
 		charts.add(energyChart);
@@ -81,19 +91,30 @@ public class SimulationVisualizer {
 		charts.add(delayChart);
 		charts.add(edgeDeviceChart);
 		charts.add(serversChart);
-		if(simulationManager.getScenario().getStringOrchAlgorithm().equals("RL"))
+		charts.add(blockChart);
+		charts.add(destinationDistributionChart);
+		charts.add(priorityDistributionChart);
+
+		// Algorithm-specific extra charts
+		String algo = simulationManager.getScenario().getStringOrchAlgorithm();
+		if ("RL".equals(algo))
 			charts.add(rlChart);
-		else if(simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER") || simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER_DISABLED") || simulationManager.getScenario().getStringOrchAlgorithm().equals("RL_MULTILAYER_EMPTY"))
+		else if ("RL_MULTILAYER".equals(algo) || "RL_MULTILAYER_DISABLED".equals(algo)
+				|| "RL_MULTILAYER_EMPTY".equals(algo))
 			charts.add(multiRLChart);
-		else if(simulationManager.getScenario().getStringOrchAlgorithm().equals("PPO"))
+		else if ("PPO".equals(algo))
 			charts.add(ppoChart);
-		else
-			charts.add(networkUtilizationChart);
+		else if ("PPO_5AGENT".equals(algo))
+			charts.add(ppoChart);
+		else if ("MAPPO".equals(algo))
+			charts.add(mappoRewardChart);
 	}
 
 	public void updateCharts() {
 		if (firstTime) {
-			swingWrapper = new SwingWrapper<>(charts.stream().map(Chart::getChart).collect(Collectors.toList()));
+			int cols = chooseGridColumns(charts.size(), 3);
+			int rows = (int) Math.ceil(charts.size() / (double) cols);
+			swingWrapper = new SwingWrapper<>(buildDisplayCharts(rows, cols), rows, cols);
 			simulationResultsFrame = swingWrapper.displayChartMatrix(); // Display charts
 			simulationResultsFrame.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE);
 			simulationResultsFrame.setPreferredSize(new Dimension(1920, 1080));
@@ -128,8 +149,10 @@ public class SimulationVisualizer {
 		new File(folderName).mkdirs();
 		
 		BitmapEncoder.saveBitmapWithDPI(mapChart.getChart(), folderName + "/map_chart", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(networkUtilizationChart.getChart(), folderName + "/network_usage", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/allocated_prb_blocks", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/prb_blocks", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(cpuUtilizationChart.getChart(), folderName + "/cpu_usage", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(energyChart.getChart(), folderName + "/energy_consumption", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(tasksSuccessChart.getChart(), folderName + "/tasks_success_rate", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(tasksFailedChart.getChart(), folderName + "/tasks_failed", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(edgeDeviceChart.getChart(), folderName + "/edge_devices", BitmapFormat.PNG, 300);
@@ -138,14 +161,61 @@ public class SimulationVisualizer {
 		BitmapEncoder.saveBitmapWithDPI(rlChart.getChart(), folderName + "/rl_avg_reward", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(multiRLChart.getChart(), folderName + "/rl_multilayer", BitmapFormat.PNG, 300);
 		BitmapEncoder.saveBitmapWithDPI(ppoChart.getChart(), folderName + "/ppo_avg_reward", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(mappoRewardChart.getChart(), folderName + "/mappo_reward", BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(destinationDistributionChart.getChart(), folderName + "/destination_distribution",
+				BitmapFormat.PNG, 300);
+		BitmapEncoder.saveBitmapWithDPI(priorityDistributionChart.getChart(), folderName + "/priority_distribution",
+				BitmapFormat.PNG, 300);
 		
 		List<org.knowm.xchart.internal.chartpart.Chart> sCharts = new ArrayList<org.knowm.xchart.internal.chartpart.Chart>();
 		for (Chart chart : charts) {
 			sCharts.add(chart.getChart());
 		}
-		BitmapEncoder.saveBitmap(sCharts, 3, 3, folderName + "/final", BitmapFormat.PNG);
-		BitmapEncoder.saveBitmap(sCharts, 3, 3, folderNameSimulation + "/" + folderNameIteration + "_final", BitmapFormat.PNG);
+		if (sCharts.isEmpty()) {
+			return;
+		}
+		int cols = chooseGridColumns(sCharts.size(), 3);
+		int rows = (int) Math.ceil(sCharts.size() / (double) cols);
+		List<org.knowm.xchart.internal.chartpart.Chart> exportCharts = buildExportCharts(sCharts, rows, cols);
+		BitmapEncoder.saveBitmap(exportCharts, rows, cols, folderName + "/final", BitmapFormat.PNG);
+		BitmapEncoder.saveBitmap(exportCharts, rows, cols, folderNameSimulation + "/" + folderNameIteration + "_final",
+				BitmapFormat.PNG);
 
+	}
+
+	private int chooseGridColumns(int chartCount, int preferredMaxCols) {
+		return Math.max(1, Math.min(preferredMaxCols, chartCount));
+	}
+
+	private List<XYChart> buildDisplayCharts(int rows, int cols) {
+		List<XYChart> matrixCharts = new ArrayList<>();
+		for (Chart chart : charts) {
+			matrixCharts.add(chart.getChart());
+		}
+		while (matrixCharts.size() < rows * cols) {
+			matrixCharts.add(null);
+		}
+		return matrixCharts;
+	}
+
+	private List<org.knowm.xchart.internal.chartpart.Chart> buildExportCharts(
+			List<org.knowm.xchart.internal.chartpart.Chart> source, int rows, int cols) {
+		List<org.knowm.xchart.internal.chartpart.Chart> exportCharts = new ArrayList<>(source);
+		while (exportCharts.size() < rows * cols) {
+			exportCharts.add(createPlaceholderChart());
+		}
+		return exportCharts;
+	}
+
+	private XYChart createPlaceholderChart() {
+		XYChart placeholder = new XYChartBuilder().height(Chart.height).width(Chart.width).theme(ChartTheme.Matlab)
+				.title("").xAxisTitle("").yAxisTitle("").build();
+		placeholder.getStyler().setLegendVisible(false);
+		placeholder.getStyler().setChartTitleVisible(false);
+		placeholder.getStyler().setXAxisTicksVisible(false);
+		placeholder.getStyler().setYAxisTicksVisible(false);
+		placeholder.getStyler().setPlotGridLinesVisible(false);
+		return placeholder;
 	}
 
 }

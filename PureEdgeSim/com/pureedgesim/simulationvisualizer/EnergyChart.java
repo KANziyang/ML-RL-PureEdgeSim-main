@@ -34,11 +34,10 @@ import com.pureedgesim.simulationcore.SimulationManager;
 public class EnergyChart extends Chart {
 
 	private List<Double> currentTime = new ArrayList<>();
-	private List<Double> energyConsumptionList = new ArrayList<>();
-	private List<Double> averageEnergyConsumptionList = new ArrayList<>();
-	private List<Double> averageDevicesEnergyConsumptionList = new ArrayList<>();
-	private List<Double> averageEdgeEnergyConsumptionList = new ArrayList<>();
-	private List<Double> averageCloudEnergyConsumptionList = new ArrayList<>();
+	private List<Double> totalEnergyConsumptionList = new ArrayList<>();
+	private List<Double> cloudEnergyConsumptionList = new ArrayList<>();
+	private List<Double> edgeEnergyConsumptionList = new ArrayList<>();
+	private List<Double> mistEnergyConsumptionList = new ArrayList<>();
 	
 	public EnergyChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
@@ -68,22 +67,18 @@ public class EnergyChart extends Chart {
 		
 		energyConsumption = cloudEnConsumption + edgeEnConsumption + mistEnConsumption;
 
-		double averageCloudEnConsumption = cloudEnConsumption / SimulationParameters.NUM_OF_CLOUD_DATACENTERS;
-		double averageEdgeEnConsumption = edgeEnConsumption / SimulationParameters.NUM_OF_EDGE_DATACENTERS;
-		double averageMistEnConsumption = mistEnConsumption / simulationManager.getScenario().getDevicesCount();
-		double averageEnConsumption = energyConsumption / datacentersList.size();
-		//double averageEnConsumption = averageCloudEnConsumption + averageEdgeEnConsumption + averageMistEnConsumption;
+		totalEnergyConsumptionList.add(energyConsumption);
+		cloudEnergyConsumptionList.add(cloudEnConsumption);
+		edgeEnergyConsumptionList.add(edgeEnConsumption);
+		mistEnergyConsumptionList.add(mistEnConsumption);
 
-		energyConsumptionList.add(energyConsumption);
-		averageEnergyConsumptionList.add(averageEnConsumption);
-		averageDevicesEnergyConsumptionList.add(averageMistEnConsumption);
-		averageEdgeEnergyConsumptionList.add(averageEdgeEnConsumption);
-		averageCloudEnergyConsumptionList.add(averageCloudEnConsumption);
-
-		//updateSeries(getChart(), "Energy Consumption", toArray(currentTime), toArray(energyConsumptionList), SeriesMarkers.NONE, Color.BLACK);
-		updateSeries(getChart(), "Avg. Energy Cons.", toArray(currentTime), toArray(averageEnergyConsumptionList), SeriesMarkers.NONE, Color.BLACK);
-		updateSeries(getChart(), "Avg. Devices Cons.", toArray(currentTime), toArray(averageDevicesEnergyConsumptionList), SeriesMarkers.NONE, Color.BLACK);
-		updateSeries(getChart(), "Avg. Edge Cons.", toArray(currentTime), toArray(averageEdgeEnergyConsumptionList), SeriesMarkers.NONE, Color.BLACK);
-		updateSeries(getChart(), "Avg. Cloud Cons.", toArray(currentTime), toArray(averageCloudEnergyConsumptionList), SeriesMarkers.NONE, Color.BLACK);
+		updateSeries(getChart(), "Total", toArray(currentTime), toArray(totalEnergyConsumptionList), SeriesMarkers.NONE,
+				Color.BLACK);
+		updateSeries(getChart(), "Cloud", toArray(currentTime), toArray(cloudEnergyConsumptionList), SeriesMarkers.NONE,
+				new Color(31, 119, 180));
+		updateSeries(getChart(), "Edge", toArray(currentTime), toArray(edgeEnergyConsumptionList), SeriesMarkers.NONE,
+				new Color(255, 127, 14));
+		updateSeries(getChart(), "Mist", toArray(currentTime), toArray(mistEnergyConsumptionList), SeriesMarkers.NONE,
+				new Color(44, 160, 44));
 	}
 }
