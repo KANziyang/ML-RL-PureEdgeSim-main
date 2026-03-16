@@ -27,7 +27,7 @@ public class DeviceAgentDecisionSupport {
 	public static final String MAPPO_ARCHITECTURE = ArchitectureHelper.LOCAL_EDGE_CLOUD_SCENARIO;
 	private static final String[] FIXED_DESTINATION_ARCH = ArchitectureHelper.edgeCloudTargets();
 
-	private static final int ENERGY_WINDOW = 200;
+
 	private static final double[] PRB_BLOCK_RATIOS = { 0.02, 0.05, 0.10, 0.20, 0.40, 0.60, 0.80, 1.00 };
 
 	private final SimulationManager simulationManager;
@@ -41,11 +41,13 @@ public class DeviceAgentDecisionSupport {
 	private final List<String> destinationLabels = new ArrayList<String>();
 	private final Map<Integer, Integer> agentIndexByDataCenterId = new HashMap<Integer, Integer>();
 	private final Map<Integer, List<Integer>> dataCenterVmIndices = new HashMap<Integer, List<Integer>>();
-	private final ArrayDeque<Double> energyWindow = new ArrayDeque<Double>();
+	private static final double ENERGY_EMA_ALPHA = 0.01;
 	private final int[] prbBlockMap;
 	private final String[] prbBinLabels;
 
-	private double energyP95 = 1.0;
+	private double energyMean = 0.0;
+	private double energyVar = 1.0;
+	private long energySampleCount = 0;
 	private double maxTaskLength = 1.0;
 	private double maxTaskDeadline = 1.0;
 	private double maxRequestSize = 1.0;
@@ -413,14 +415,14 @@ public class DeviceAgentDecisionSupport {
 		updateEnergyStats(totalEnergy);
 
 		double latencyRatio = clamp(totalTime / deadline, 0.0, 2.0);
-		double energyNorm = clamp(totalEnergy / Math.max(energyP95, 1e-6), 0.0, 2.0);
+		double energyNorm = clamp((totalEnergy - energyMean) / Math.sqrt(energyVar + 1e-8), -2.0, 2.0);
 
 		// Network resource cost: local=0, offload=actualPrbBlocks/maxPerTask
 		double networkCost = (task.getRequestedLanPrbBlocks() > 0)
 				? clamp(task.getRequestedLanPrbBlocks() / (double) Math.max(getMaxPrbPerTask(), 1), 0.0, 1.0)
 				: 0.0;
 
-		return 5.0 - 2.0 * latencyRatio - 0.5 * energyNorm - 1.0 * networkCost;
+		return 5.0 - 1.0 * latencyRatio - 2.0 * energyNorm - 1.5 * networkCost;
 	}
 
 	public int sanitizeDestAction(int value) {
@@ -849,17 +851,15 @@ public class DeviceAgentDecisionSupport {
 	}
 
 	private void updateEnergyStats(double totalEnergy) {
-		energyWindow.addLast(Double.valueOf(totalEnergy));
-		if (energyWindow.size() > ENERGY_WINDOW) {
-			energyWindow.removeFirst();
-		}
-		if (energyWindow.size() < 20) {
+		energySampleCount++;
+		if (energySampleCount == 1) {
+			energyMean = totalEnergy;
+			energyVar = 1.0;
 			return;
 		}
-		List<Double> sorted = new ArrayList<Double>(energyWindow);
-		Collections.sort(sorted);
-		int idx = (int) Math.ceil(0.95 * sorted.size()) - 1;
-		energyP95 = Math.max(sorted.get(Math.max(idx, 0)).doubleValue(), 1e-6);
+		double diff = totalEnergy - energyMean;
+		energyMean += ENERGY_EMA_ALPHA * diff;
+		energyVar += ENERGY_EMA_ALPHA * (diff * diff - energyVar);
 	}
 
 	private double computeDestinationCpuImbalanceStd() {
