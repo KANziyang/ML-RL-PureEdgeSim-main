@@ -108,6 +108,24 @@ The qualitative dashboards support this interpretation. LOCAL accumulates notice
 
 \Figref{fig:mappo-destination-distribution} shows the destination selection distribution averaged over the three MAPPO evaluation seeds. The learned policy chooses local execution for \(19.42\%\) of decisions, distributes \(40.99\%\) of tasks across the four edge data centers, and sends \(39.60\%\) of tasks to the cloud.
 
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{p{0.34\linewidth}c}
+        \hline
+        \textbf{Destination} & \textbf{Mean selection rate (\%)} \\
+        \hline
+        Local & 19.42 \\
+        Edge 4 & 11.02 \\
+        Edge 5 & 10.55 \\
+        Edge 6 & 9.16 \\
+        Edge 7 & 10.26 \\
+        Cloud 3 & 39.60 \\
+        \hline
+    \end{tabular}
+    \caption{Average MAPPO destination-selection rates across seeds 9001, 9002, and 9003.}
+    \label{tab:mappo-destination-rates}
+\end{table}
+
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{figures/mappo_destination_distribution.png}
@@ -132,6 +150,23 @@ The PRB-bin usage distribution is shown in \Figref{fig:mappo-prb-distribution}. 
 \end{figure}
 
 This behavior indicates that the policy has learned a conservative bandwidth-allocation strategy. Most tasks receive a moderate reservation rather than a maximum one, which helps preserve PRBs for other devices while still maintaining high task success. The occasional use of the \(100\%\) bin suggests that the policy escalates bandwidth only for harder communication conditions or more urgent tasks.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{p{0.34\linewidth}c}
+        \hline
+        \textbf{PRB bin} & \textbf{Mean selection rate (\%)} \\
+        \hline
+        20\% & 37.02 \\
+        40\% & 48.89 \\
+        60\% & 0.00 \\
+        80\% & 0.00 \\
+        100\% & 14.08 \\
+        \hline
+    \end{tabular}
+    \caption{Average MAPPO PRB-bin selection rates across the three evaluation seeds.}
+    \label{tab:mappo-prb-rates}
+\end{table}
 
 \subsection{Ablation and PPO Baseline Discussion}
 \label{subsec:ablation-discussion}

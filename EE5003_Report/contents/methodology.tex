@@ -25,13 +25,47 @@ o_i = \left(x_i, D_i, m_i\right),
 \end{align}
 where \(x_i \in \R^{13}\) is the device-level feature vector, \(D_i \in \R^{N_d \times 11}\) is the destination-feature matrix, and \(m_i \in \{0,1\}^{N_d}\) is the destination-feasibility mask.
 
-The 13-dimensional agent feature vector encodes the local device condition, including CPU utilization, queue pressure, battery status, mobility-related information, position, and task descriptors. The destination matrix contains one 11-dimensional feature vector for each candidate destination. The candidates are ordered consistently as local execution first, then edge data centers sorted by data-center identifier, and finally cloud destinations. Each destination feature summarizes its type, distance, load, queue state, estimated completion time, and current availability.
+The 13-dimensional agent feature vector combines normalized task descriptors, source-device resource indicators, and PRB-availability terms. The destination matrix contains one 11-dimensional feature vector for each candidate destination. The candidates are ordered consistently as local execution first, then edge data centers sorted by data-center identifier, and finally cloud destinations. Each destination feature summarizes its load, compute capacity, estimated finish-over-deadline ratio, distance, network admissibility, destination type, and estimated PRB demand.
 
 The global state used by the critic is a 27-dimensional vector,
 \begin{align}
 s \in \R^{27},
 \end{align}
 that aggregates system-wide load indicators, PRB usage, task statistics, and tier-level summaries across the local, edge, and cloud layers. In other words, the actor solves a partially observed local decision problem, while the critic evaluates actions against a richer representation of the full environment.
+
+To make the feature design explicit, \Tabref{tab:agent-observation-features} summarizes the 13 local observation dimensions and \Tabref{tab:destination-global-features} summarizes the destination feature matrix together with the additional global-state components.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{p{0.18\linewidth}p{0.72\linewidth}}
+        \hline
+        \textbf{Indices} & \textbf{Meaning} \\
+        \hline
+        0--4 & Normalized task length, deadline, request size, result size, and container size. \\
+        5--8 & Source-device CPU load, source energy level, source running-task count, and best local-VM MIPS. \\
+        9--12 & Reachable-edge count, remaining PRB ratio, normalized simulation time, and normalized affordable PRB ceiling. \\
+        \hline
+    \end{tabular}
+    \caption{Agent-observation dimensions implemented in \texttt{DeviceAgentDecisionSupport}.}
+    \label{tab:agent-observation-features}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{p{0.18\linewidth}p{0.72\linewidth}}
+        \hline
+        \textbf{Component} & \textbf{Meaning} \\
+        \hline
+        Destination 0--2 & Destination CPU load, running-task count, and total MIPS. \\
+        Destination 3--5 & Estimated finish-over-deadline ratio, normalized distance, and network-admissibility flag. \\
+        Destination 6--10 & Local / edge / cloud type flags, VM-count summary, and estimated PRB need. \\
+        Global 0--12 & Direct copy of the active agent's 13-dimensional local observation. \\
+        Global 13--26 & Source CPU mean/max, source energy mean/max, source running-task mean/max, edge CPU mean/std, edge running-task mean/std, cloud CPU mean, active-task ratio, allocated-PRB ratio, and destination CPU-imbalance std. \\
+        \hline
+    \end{tabular}
+    \caption{Destination-feature groups and global-state composition.}
+    \label{tab:destination-global-features}
+\end{table}
 
 The destination mask plays a central role in maintaining valid actions. If a destination is out of coverage, lacks a feasible VM, or violates offloading constraints, its mask value is set to zero and the corresponding action logit is suppressed before sampling. This masked policy is more sample efficient than allowing invalid actions and penalizing them afterward.
 
@@ -63,13 +97,13 @@ h_i = f_{\theta}^{\mathrm{agent}}\left([x_i ; e_i]\right).
 \end{align}
 The embedding table can be resized dynamically when the number of task-generating devices changes, which avoids hard-coding the agent count into the model definition.
 
-Each candidate destination feature vector \(d_{i,j}\) is encoded separately:
+Each candidate destination feature vector \(d_{i,j}\) is concatenated with the repeated agent hidden state and encoded by a destination-specific multilayer perceptron:
 \begin{align}
-z_{i,j} = f_{\theta}^{\mathrm{dest}}(d_{i,j}),
+u_{i,j} = f_{\theta}^{\mathrm{dest}}([d_{i,j}; h_i]),
 \end{align}
-again using a two-layer MLP with \(\tanh\) activations. Destination logits are then computed through an interaction between the agent encoding and every destination encoding,
+again using a two-layer MLP with hidden size 128 and \(\tanh\) activations. A linear destination head then scores every encoded candidate:
 \begin{align}
-\ell_{i,j}^{\mathrm{dest}} = h_i^\top z_{i,j},
+\ell_{i,j}^{\mathrm{dest}} = w_{\mathrm{dest}}^\top u_{i,j} + b_{\mathrm{dest}},
 \end{align}
 followed by masked softmax and categorical sampling:
 \begin{align}
@@ -77,12 +111,16 @@ followed by masked softmax and categorical sampling:
 \mathrm{Softmax}\!\left(\mathrm{Mask}\!\left(\ell_{i,j}^{\mathrm{dest}}, m_i\right)\right).
 \end{align}
 
-The PRB head is conditioned on the selected destination. In the implementation, the PRB logits are produced from the joint representation of the agent encoding and the chosen destination encoding, which allows the bandwidth decision to depend on where the task will be executed:
+The PRB head is conditioned on the selected destination. In the implementation, the hidden vector of the selected destination is concatenated with the agent hidden state and passed to a dedicated PRB head:
+\begin{align}
+\ell_i^{\mathrm{prb}} = g_{\theta}\left([h_i ; u_{i,a_i^{\mathrm{dest}}}]\right),
+\end{align}
+followed by
 \begin{align}
 \pi_{\theta}^{\mathrm{prb}}(k \mid o_i, a_i^{\mathrm{dest}}) =
-\mathrm{Softmax}\!\left(g_{\theta}\left([h_i ; z_{i,a_i^{\mathrm{dest}}}]\right)\right).
+\mathrm{Softmax}\!\left(\ell_i^{\mathrm{prb}}\right).
 \end{align}
-This coupling is important because the desirable PRB level differs substantially between nearby edge nodes and the farther cloud tier.
+This coupling is important because the desirable PRB level differs substantially between nearby edge nodes and the farther cloud tier. In code, the PRB head is realized as \texttt{Linear(256,128)} \(\rightarrow\) \(\tanh\) \(\rightarrow\) \texttt{Linear(128,8)}.
 
 \subsubsection{CentralCritic}
 
@@ -94,7 +132,7 @@ The critic uses a two-layer MLP with hidden size 256 and \(\tanh\) activations. 
 
 \subsubsection{PPO Baseline Actor}
 
-The PPO baseline shares the same destination encoder, PRB head, and overall dual-head logic, but removes the learnable agent embedding. Its actor receives only the raw 13-dimensional device observation. As a result, PPO must represent all device roles through a single shared feature space, whereas MAPPO can condition each policy evaluation on an explicit agent identity. This architectural difference is the main controlled distinction between the two RL methods.
+The PPO baseline shares the same destination encoder, PRB head, and overall dual-head logic, but removes the learnable agent embedding. Its actor receives only the raw 13-dimensional device observation before constructing the same destination-conditioned hidden states. As a result, PPO must represent all device roles through a single shared feature space, whereas MAPPO can condition each policy evaluation on an explicit agent identity. This architectural difference is the main controlled distinction between the two RL methods.
 
 \subsection{Reward Function Design}
 \label{subsec:reward-function}
@@ -137,12 +175,12 @@ r_t(\theta) =
 \frac{\pi_{\theta}(a_t \mid o_t)}{\pi_{\theta_{\mathrm{old}}}(a_t \mid o_t)}.
 \end{align}
 
-The implementation uses generalized advantage estimation in the shared replay buffer:
+For the finalized training artifact used in this report, the implementation adopts a one-step event-level advantage rather than a long-horizon bootstrapped estimator. Specifically, the update code uses
 \begin{align}
-\delta_t &= r_t + \gamma V_{\phi}(s_{t+1}) - V_{\phi}(s_t), \\
-\hat{A}_t &= \sum_{l=0}^{T-t-1} (\gamma \lambda)^l \delta_{t+l},
+R_t &= r_t, \\
+\hat{A}_t &= r_t - V_{\phi}(s_t),
 \end{align}
-with \(\gamma = 0.99\) and \(\lambda = 0.95\). Although the environment is event-driven and many rewards are dominated by immediate task outcomes, the GAE formulation still improves update smoothness across long episodes.
+followed by minibatch normalization of \(\hat{A}_t\). This choice matches the event-driven nature of the environment: each transition already corresponds to a largely self-contained offloading transaction whose reward summarizes latency, energy, and PRB usage after the task outcome is known. The shared Python utilities still contain a generic GAE helper for future extensions, but the MAPPO and PPO runs reported here use the immediate-return form above.
 
 Entropy regularization is linearly annealed from 0.02 to 0.002, encouraging exploration early in training and sharper decisions later. The main hyperparameters are listed in \Tabref{tab:training-hyperparameters}.
 
@@ -153,8 +191,6 @@ Entropy regularization is linearly annealed from 0.02 to 0.002, encouraging expl
         \textbf{Hyperparameter} & \textbf{Value} \\
         \hline
         Training episodes & 40 \\
-        Discount factor \(\gamma\) & 0.99 \\
-        GAE parameter \(\lambda\) & 0.95 \\
         PPO clip \(\epsilon\) & 0.1 \\
         Actor learning rate & \(3 \times 10^{-4}\) \\
         Critic learning rate & \(3 \times 10^{-4}\) \\
@@ -172,6 +208,8 @@ Entropy regularization is linearly annealed from 0.02 to 0.002, encouraging expl
     \caption{Main training hyperparameters used for MAPPO and the PPO baseline.}
     \label{tab:training-hyperparameters}
 \end{table}
+
+The runtime configuration still records a nominal \(\gamma = 0.99\) for compatibility with the shared training scripts, but the reported runs do not bootstrap across future rewards in the update rule above.
 
 Algorithmically, one training episode proceeds as follows.
 \begin{enumerate}

@@ -117,6 +117,23 @@ The objective is to minimize a weighted system cost that reflects deadline satis
 \{\mathcal{A}_i\}_{i \in \mathcal{N}}, P, R \right\rangle .
 \end{align*}
 
+Let \(\pi = \{\pi_i\}_{i \in \mathcal{N}}\) denote the decentralized device policies. For decision step \(t\), define \(F_t \in \{0,1\}\) as the task-failure indicator, \(\widetilde{L}_t\) as the normalized latency ratio, \(\widetilde{E}_t\) as the normalized energy term, and \(\widetilde{B}_t\) as the normalized PRB cost. The long-run optimization target can then be written as
+\begin{align}
+J(\pi) = \E_{\pi} \left[\frac{1}{T}\sum_{t=1}^{T}
+\left(\lambda_f F_t + \lambda_l \widetilde{L}_t + \lambda_e \widetilde{E}_t + \lambda_b \widetilde{B}_t \right)\right].
+\label{eq:policy-objective}
+\end{align}
+In the implemented simulator, this objective is optimized indirectly through the task-level reward
+\begin{align}
+R_t =
+\begin{cases}
+-5.0, & \text{if the task fails},\\
+5.0 - 2.0\widetilde{L}_t - 0.5\widetilde{E}_t - \widetilde{B}_t, & \text{if the task succeeds},
+\end{cases}
+\label{eq:implemented-reward}
+\end{align}
+which is a shaped negative version of the cost in \Eqref{eq:policy-objective}. This reward prioritizes deadline satisfaction first, then lower latency, lower energy, and lighter PRB occupation.
+
 The agent set \(\mathcal{N}\) contains all devices with \texttt{generateTasks=true}, ordered by data-center identifier. The global state \(\mathcal{S}\) is represented by a 27-dimensional vector that summarizes local observations together with aggregate load, energy, task, and PRB statistics. Each local observation \(\mathcal{O}_i\) contains a 13-dimensional device feature vector and an \(N_{\mathrm{dest}} \times 11\) destination-feature matrix. The action space is the Cartesian product of a destination choice and an eight-level PRB choice:
 \begin{align*}
 \mathcal{A}_i = \mathcal{A}^{\mathrm{dest}}_i \times \mathcal{A}^{\mathrm{prb}}_i.
