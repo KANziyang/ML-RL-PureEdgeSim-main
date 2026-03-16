@@ -26,7 +26,12 @@
       "Bash(cd:*)",
       "Bash(find . -path */xchart*.jar -name *.jar)",
       "Read(//c/Users/hp/.m2/**)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Read(//c/Users/hp/Desktop/**)",
+      "Bash(unzip -q EE5003_Report.zip -d EE5003_Report)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:ar5iv.labs.arxiv.org)"
     ]
   }
 }

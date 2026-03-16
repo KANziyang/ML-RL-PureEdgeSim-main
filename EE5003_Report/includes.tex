@@ -1,0 +1,289 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% University Assignment Title Page 
+% LaTeX Template
+% Version 1.0 (27/12/12)
+%
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% Original author:
+% WikiBooks (http://en.wikibooks.org/wiki/LaTeX/Title_Creation)
+%
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+% 
+% Instructions for using this template:
+% This title page is capable of being compiled as is. This is not useful for 
+% including it in another document. To do this, you have two options: 
+%
+% 1) Copy/paste everything between \begin{document} and \end{document} 
+% starting at \begin{titlepage} and paste this into another LaTeX file where you 
+% want your title page.
+% OR
+% 2) Remove everything outside the \begin{titlepage} and \end{titlepage} and 
+% move this file to the same directory as the LaTeX file you wish to add it to. 
+% Then add \input{./title_page_1.tex} to your LaTeX file where you want your
+% title page.
+%
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+\usepackage{ifxetex}
+\usepackage{textpos}
+\usepackage{cite}
+\usepackage{kpfonts}
+\usepackage[letterpaper,hmargin=2.8cm,vmargin=2.0cm,includeheadfoot]{geometry}
+\usepackage{ifxetex}
+\usepackage{stackengine}
+\usepackage{tabularx,longtable,multirow,subfigure,caption}%hangcaption
+\usepackage{fancyhdr}
+\usepackage{color}
+\usepackage[tight,ugly]{units}
+\usepackage{url}
+\usepackage{float}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{dsfont}
+\usepackage{backref}
+\usepackage{array}
+\usepackage{latexsym}
+\usepackage{etoolbox}
+\usepackage{enumerate} % for numbering with [a)] format 
+\usepackage{mathptmx}
+\usepackage{indentfirst} 
+\usepackage{subfigure}
+
+\ifxetex
+\usepackage{fontspec}
+\setmainfont{Times New Roman}[Contextuals={WordInitial,WordFinal}]
+\else
+\usepackage[pdftex,pagebackref,hypertexnames=false,colorlinks]{hyperref} % provide links in pdf
+\hypersetup{pdftitle={},
+  pdfsubject={}, 
+  pdfauthor={\reportauthorOne},
+  pdfkeywords={}, 
+  pdfstartview=FitH,
+  pdfpagemode={UseOutlines},% None, FullScreen, UseOutlines
+  bookmarksnumbered=true, bookmarksopen=true, colorlinks,
+    citecolor=black,%
+    filecolor=black,%
+    linkcolor=black,%
+    urlcolor=black}
+\usepackage[all]{hypcap}
+\fi
+
+\usepackage{tcolorbox}
+
+% various theorems
+\usepackage{ntheorem}
+\theoremstyle{break}
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+\newtheorem{remark}{Remark}
+\newtheorem{definition}{Definition}
+\newtheorem{proof}{Proof}
+
+% example-environment
+\newenvironment{example}[1][]
+{ 
+\vspace{4mm}
+\noindent\makebox[\linewidth]{\rule{\hsize}{1.5pt}}
+\textbf{Example #1}\\
+}
+{ 
+\noindent\newline\makebox[\linewidth]{\rule{\hsize}{1.0pt}}
+}
+
+% code-environment
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygray}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+
+\lstset{ %
+  backgroundcolor=\color{white},   % choose the background color; you must add \usepackage{color} or \usepackage{xcolor}
+  basicstyle=\footnotesize,        % the size of the fonts that are used for the code
+  breakatwhitespace=false,         % sets if automatic breaks should only happen at whitespace
+  breaklines=true,                 % sets automatic line breaking
+  captionpos=bl,                    % sets the caption-position to bottom
+  commentstyle=\color{mygreen},    % comment style
+  deletekeywords={...},            % if you want to delete keywords from the given language
+  escapeinside={\%*}{*)},          % if you want to add LaTeX within your code
+  extendedchars=true,              % lets you use non-ASCII characters; for 8-bits encodings only, does not work with UTF-8
+  frame=single,                    % adds a frame around the code
+  keepspaces=true,                 % keeps spaces in text, useful for keeping indentation of code (possibly needs columns=flexible)
+  keywordstyle=\color{blue},       % keyword style
+  %language=Python,                 % the language of the code
+  morekeywords={*,...},            % if you want to add more keywords to the set
+  numbers=left,                    % where to put the line-numbers; possible values are (none, left, right)
+  numbersep=5pt,                   % how far the line-numbers are from the code
+  numberstyle=\tiny\color{mygray}, % the style that is used for the line-numbers
+  rulecolor=\color{black},         % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. comments (green here))
+  showspaces=false,                % show spaces everywhere adding particular underscores; it overrides 'showstringspaces'
+  showstringspaces=false,          % underline spaces within strings only
+  showtabs=false,                  % show tabs within strings adding particular underscores
+  stepnumber=1,                    % the step between two line-numbers. If it's 1, each line will be numbered
+  stringstyle=\color{orange},     % string literal style
+  tabsize=2,                       % sets default tabsize to 2 spaces
+  %title=myPython.py                   % show the filename of files included with \lstinputlisting; also try caption instead of title
+}
+
+
+
+%\renewcommand{\rmdefault}{pplx} % Palatino
+% \renewcommand{\rmdefault}{put} % Utopia
+
+\ifxetex
+\else
+\renewcommand*{\rmdefault}{bch} % Charter
+\renewcommand*{\ttdefault}{cmtt} % Computer Modern Typewriter
+%\renewcommand*{\rmdefault}{phv} % Helvetica
+%\renewcommand*{\rmdefault}{iwona} % Avant Garde
+\fi
+
+\setlength{\parindent}{2em}  % indentation of paragraph
+
+\setlength{\headheight}{14.5pt}
+\pagestyle{fancy}
+% make the heading left
+\fancyhead[EL,OL]{\textit{\leftmark}}
+\fancyhead[ER,OR]{}
+% make the foot on right
+\fancyfoot[ER,OR]{\thepage}%Page no. in the left on
+                                %odd pages and on right on even pages
+\fancyfoot[OC,EC]{\sffamily }
+\renewcommand{\headrulewidth}{0.1pt}
+\renewcommand{\footrulewidth}{0.1pt}
+\captionsetup{margin=10pt,font=small,labelfont=bf}
+
+
+%--- chapter heading
+
+\def\@makechapterhead#1{%
+  \vspace*{10\p@}%
+  {\parindent \z@ \raggedright %\sffamily
+        %{\Large \MakeUppercase{\@chapapp} \space \thechapter}
+        %\\
+        %\hrulefill
+        %\par\nobreak
+        %\vskip 10\p@
+    \interlinepenalty\@M
+    \Huge \bfseries 
+    \thechapter \space\space #1\par\nobreak
+    \vskip 30\p@
+  }}
+
+%---chapter heading for \chapter*  
+\def\@makeschapterhead#1{%
+  \vspace*{10\p@}%
+  {\parindent \z@ \raggedright
+    \sffamily
+    \interlinepenalty\@M
+    \Huge \bfseries  
+    #1\par\nobreak
+    \vskip 30\p@
+  }}
+  
+
+
+
+% %%%%%%%%%%%%% boxit
+\def\Beginboxit
+   {\par
+    \vbox\bgroup
+	   \hrule
+	   \hbox\bgroup
+		  \vrule \kern1.2pt %
+		  \vbox\bgroup\kern1.2pt
+   }
+
+\def\Endboxit{%
+			      \kern1.2pt
+		       \egroup
+		  \kern1.2pt\vrule
+		\egroup
+	   \hrule
+	 \egroup
+   }	
+
+\newenvironment{boxit}{\Beginboxit}{\Endboxit}
+\newenvironment{boxit*}{\Beginboxit\hbox to\hsize{}}{\Endboxit}
+
+
+
+\allowdisplaybreaks
+
+\makeatletter
+\newcounter{elimination@steps}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash$}p{#1}<{$}}
+\def\elimination@num@rights{}
+\def\elimination@num@variables{}
+\def\elimination@col@width{}
+\newenvironment{elimination}[4][0]
+{
+    \setcounter{elimination@steps}{0}
+    \def\elimination@num@rights{#1}
+    \def\elimination@num@variables{#2}
+    \def\elimination@col@width{#3}
+    \renewcommand{\arraystretch}{#4}
+    \start@align\@ne\st@rredtrue\m@ne
+}
+{
+    \endalign
+    \ignorespacesafterend
+}
+\newcommand{\eliminationstep}[2]
+{
+    \ifnum\value{elimination@steps}>0\leadsto\quad\fi
+    \left[
+        \ifnum\elimination@num@rights>0
+            \begin{array}
+            {@{}*{\elimination@num@variables}{R{\elimination@col@width}}
+            |@{}*{\elimination@num@rights}{R{\elimination@col@width}}}
+        \else
+            \begin{array}
+            {@{}*{\elimination@num@variables}{R{\elimination@col@width}}}
+        \fi
+            #1
+        \end{array}
+    \right]
+    & 
+    \begin{array}{l}
+        #2
+    \end{array}
+    &%                                    moved second & here
+    \addtocounter{elimination@steps}{1}
+}
+\makeatother
+
+%% Fast macro for column vectors
+\makeatletter  
+\def\colvec#1{\expandafter\colvec@i#1,,,,,,,,,\@nil}
+\def\colvec@i#1,#2,#3,#4,#5,#6,#7,#8,#9\@nil{% 
+  \ifx$#2$ \begin{bmatrix}#1\end{bmatrix} \else
+    \ifx$#3$ \begin{bmatrix}#1\\#2\end{bmatrix} \else
+      \ifx$#4$ \begin{bmatrix}#1\\#2\\#3\end{bmatrix}\else
+        \ifx$#5$ \begin{bmatrix}#1\\#2\\#3\\#4\end{bmatrix}\else
+          \ifx$#6$ \begin{bmatrix}#1\\#2\\#3\\#4\\#5\end{bmatrix}\else
+            \ifx$#7$ \begin{bmatrix}#1\\#2\\#3\\#4\\#5\\#6\end{bmatrix}\else
+              \ifx$#8$ \begin{bmatrix}#1\\#2\\#3\\#4\\#5\\#6\\#7\end{bmatrix}\else
+                 \PackageError{Column Vector}{The vector you tried to write is too big, use bmatrix instead}{Try using the bmatrix environment}
+              \fi
+            \fi
+          \fi
+        \fi
+      \fi
+    \fi
+  \fi 
+}  
+\makeatother
+
+\robustify{\colvec}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "notes"
+%%% End: 
