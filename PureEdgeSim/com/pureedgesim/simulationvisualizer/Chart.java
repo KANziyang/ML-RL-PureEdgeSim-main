@@ -40,8 +40,14 @@ public abstract class Chart {
 	protected static int width = 450;
 	protected int clock = -1;
 	protected SimulationManager simulationManager;
+	private String fileBaseName;
 
 	public Chart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
+		this(title, xAxisTitle, yAxisTitle, simulationManager, null);
+	}
+
+	public Chart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager, String fileBaseName) {
+		this.fileBaseName = fileBaseName;
 		chart = new XYChartBuilder().height(height).width(width).theme(ChartTheme.Matlab).title(title)
 				.xAxisTitle(xAxisTitle).yAxisTitle(yAxisTitle).build();
 		chart.getStyler().setLegendPosition(LegendPosition.OutsideE);
@@ -91,6 +97,10 @@ public abstract class Chart {
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to set chart size", e);
 		}
+	}
+
+	public String getFileBaseName() {
+		return fileBaseName;
 	}
 
 	protected double[] toArray(List<Double> list) {

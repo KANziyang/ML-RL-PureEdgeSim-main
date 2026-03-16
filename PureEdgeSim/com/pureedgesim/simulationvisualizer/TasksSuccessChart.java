@@ -33,7 +33,7 @@ public class TasksSuccessChart extends Chart {
 
 	private List<Double> tasksSucceedList = new ArrayList<>();
 	private List<Double> tasksTotalSucceedList = new ArrayList<>();
-	private List<Double> tasksTotalSucceedSimLogList = new ArrayList<>();
+	//private List<Double> tasksTotalSucceedSimLogList = new ArrayList<>();
 	
 	public TasksSuccessChart(String title, String xAxisTitle, String yAxisTitle, SimulationManager simulationManager) {
 		super(title, xAxisTitle, yAxisTitle, simulationManager);
@@ -47,7 +47,7 @@ public class TasksSuccessChart extends Chart {
 			
 			double tasksSucceed = 100.0 - simulationManager.getFailureRate();
 			double tasksSucceedTotal = 100.0 - simulationManager.getTotalFailuresRate();
-			double tasksSucceedSimLogTotal = 100.0 - simulationManager.getTotalFailuresRateSimLog();
+			//double tasksSucceedSimLogTotal = 100.0 - simulationManager.getTotalFailuresRateSimLog();
 			
 			double[] time = new double[clock];
 			for (int i = 0; i < clock; i++)
@@ -55,11 +55,11 @@ public class TasksSuccessChart extends Chart {
 			
 			tasksSucceedList.add(tasksSucceed);
 			tasksTotalSucceedList.add(tasksSucceedTotal);
-			tasksTotalSucceedSimLogList.add(tasksSucceedSimLogTotal);
+			//tasksTotalSucceedSimLogList.add(tasksSucceedSimLogTotal);
 			
 			updateSeries(getChart(), "Actual 30s Window rate", time, toArray(tasksSucceedList), SeriesMarkers.NONE, Color.BLACK);
-			//updateSeries(getChart(), "Total rate", time, toArray(tasksTotalSucceedList), SeriesMarkers.NONE, Color.BLACK);
-			updateSeries(getChart(), "Total rate", time, toArray(tasksTotalSucceedSimLogList), SeriesMarkers.NONE, Color.BLACK);
+			updateSeries(getChart(), "Total rate", time, toArray(tasksTotalSucceedList), SeriesMarkers.NONE, Color.BLACK);
+			//updateSeries(getChart(), "Total rate", time, toArray(tasksTotalSucceedSimLogList), SeriesMarkers.NONE, Color.BLACK);
 		}
 	}
 }
