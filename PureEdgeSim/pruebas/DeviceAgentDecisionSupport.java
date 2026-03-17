@@ -420,6 +420,10 @@ public class DeviceAgentDecisionSupport {
 	}
 
 	public double computeReward(Task task) {
+		return computeReward(task, false);
+	}
+
+	public double computeReward(Task task, boolean destFallback) {
 		boolean failed = task.getStatus() == Status.FAILED;
 
 		if (failed) {
@@ -439,7 +443,9 @@ public class DeviceAgentDecisionSupport {
 				? clamp(task.getRequestedLanPrbBlocks() / (double) Math.max(getMaxPrbPerTask(), 1), 0.0, 1.0)
 				: 0.0;
 
-		return 5.0 - 1.0 * latencyRatio - 2.0 * energyNorm - 1.5 * networkCost;
+		double fallbackPenalty = destFallback ? 1.5 : 0.0;
+
+		return 5.0 - 1.0 * latencyRatio - 2.0 * energyNorm - 1.5 * networkCost - fallbackPenalty;
 	}
 
 	public int sanitizeDestAction(int value) {

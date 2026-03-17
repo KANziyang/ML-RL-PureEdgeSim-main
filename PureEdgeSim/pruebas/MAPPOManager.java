@@ -34,7 +34,11 @@ public class MAPPOManager extends AbstractRLManager {
 
 		RLEnvServer.ActionData actionData;
 		if (isInferenceFailed() || !isEnvServerConnected()) {
-			actionData = new RLEnvServer.ActionData(0, 0, false);
+			int fallbackDest = 0;
+			for (int i = 0; i < turn.destMask.length; i++) {
+				if (turn.destMask[i] == 1) { fallbackDest = i; break; }
+			}
+			actionData = new RLEnvServer.ActionData(fallbackDest, 0, false);
 		} else {
 			actionData = envServer.waitForAction(turn.agentId, turn.agentObs, turn.destFeatures,
 					turn.globalState, turn.destMask, stepId, decisionSupport.getEnvConfigWithTelemetry());
@@ -72,7 +76,7 @@ public class MAPPOManager extends AbstractRLManager {
 		}
 		DeviceAgentDecisionSupport.DecisionMeta meta = (DeviceAgentDecisionSupport.DecisionMeta) metaObj;
 
-		double reward = decisionSupport.computeReward(task);
+		double reward = decisionSupport.computeReward(task, meta.destFallback);
 		traceWriter.appendTrace(task, meta, reward, true);
 		updateAvgReward(reward);
 

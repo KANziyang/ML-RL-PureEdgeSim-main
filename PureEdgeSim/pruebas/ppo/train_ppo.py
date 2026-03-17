@@ -290,6 +290,7 @@ def run_episode(
                     "dest_mask": dest_mask,
                     "state": state,
                     "value": float(value_t.item()),
+                    "actions": actions,
                 }
                 client.send_action(step_id, int(actions[0]), int(actions[1]))
                 continue
@@ -302,9 +303,24 @@ def run_episode(
                     continue
                 ctx = pending.pop(step_id)
                 reward = float(msg.get("reward", 0.0))
-                executed_dest = int(msg.get("executed_dest_action", 0))
-                executed_prb = int(msg.get("executed_prb_action", 0))
-                action = np.asarray([executed_dest, max(executed_prb, 0)], dtype=np.int64)
+                dest_fallback = bool(msg.get("dest_fallback", False))
+
+                if dest_fallback:
+                    episode_reward += reward
+                    transition_count += 1
+                    if transition_count % config.progress_log_interval == 0:
+                        print(
+                            f"episode={episode}/{config.episodes} "
+                            f"steps={transition_count} "
+                            f"reward_so_far={episode_reward:.4f} "
+                            f"(fallback skipped)",
+                            flush=True,
+                        )
+                    if max_env_steps is not None and transition_count >= max_env_steps:
+                        pending_terminate = True
+                    continue
+
+                action = ctx["actions"]
 
                 with torch.no_grad():
                     logp_t, _ = runtime.actor.evaluate_actions(

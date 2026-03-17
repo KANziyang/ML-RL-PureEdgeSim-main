@@ -89,7 +89,7 @@ public class RLEnvServer {
 	public synchronized ActionData waitForAction(int agentId, double[] agentObs, double[][] destFeatures, double[] state,
 			int[] destMask, long stepId, DeviceAgentDecisionSupport.EnvConfig config) {
 		if (!isConnected()) {
-			return defaultAction();
+			return defaultAction(destMask);
 		}
 		try {
 			sendConfigIfNeeded(config);
@@ -100,10 +100,10 @@ public class RLEnvServer {
 			String line = reader.readLine();
 			return parseAction(line);
 		} catch (SocketTimeoutException e) {
-			return defaultAction();
+			return defaultAction(destMask);
 		} catch (IOException e) {
 			System.err.println("RLEnvServer: failed waiting for action: " + e.getMessage());
-			return defaultAction();
+			return defaultAction(destMask);
 		}
 	}
 
@@ -296,6 +296,20 @@ public class RLEnvServer {
 	}
 
 	private ActionData defaultAction() {
+		return new ActionData(0, 0, false);
+	}
+
+	private ActionData defaultAction(int[] destMask) {
+		if (destMask != null) {
+			for (int i = 0; i < destMask.length; i++) {
+				if (destMask[i] == 1) {
+					return new ActionData(i, 0, false);
+				}
+			}
+			if (destMask.length > 0) {
+				return new ActionData(destMask.length - 1, 0, false);
+			}
+		}
 		return new ActionData(0, 0, false);
 	}
 }

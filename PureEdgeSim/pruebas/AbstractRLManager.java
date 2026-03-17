@@ -37,14 +37,14 @@ public abstract class AbstractRLManager implements RLManagerInterface {
 			if (envServerEnabled) {
 				// Training mode: external Python will connect
 				int port = Integer.getInteger(ENV_SERVER_PORT_PROP, 5006);
-				int timeoutMs = Integer.getInteger(ENV_SERVER_TIMEOUT_PROP, 500);
+				int timeoutMs = Integer.getInteger(ENV_SERVER_TIMEOUT_PROP, 30000);
 				System.out.println(getClass().getSimpleName() + ": env server enabled on port " + port);
 				this.envServer = new RLEnvServer(port, timeoutMs);
 				this.envServer.start();
 			} else {
 				// Offline inference mode: auto-launch RLEnvServer + Python inference
 				int port = findAvailablePort();
-				int timeoutMs = Integer.getInteger(ENV_SERVER_TIMEOUT_PROP, 500);
+				int timeoutMs = Integer.getInteger(ENV_SERVER_TIMEOUT_PROP, 5000);
 				System.out.println(getClass().getSimpleName() + ": offline inference mode, port " + port);
 				this.envServer = new RLEnvServer(port, timeoutMs);
 				this.envServer.start();
