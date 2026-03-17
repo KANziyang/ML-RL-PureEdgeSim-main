@@ -46,7 +46,7 @@ DEFAULT_TEST_VARIANTS = os.getenv("PUREEDGESIM_MAPPO_TEST_VARIANTS", "base")
 TEST_EPISODES_OVERRIDE: Optional[int] = 1
 TEST_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
 TEST_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 30
-TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
+TEST_DISPLAY_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = False
 TEST_AUTO_CLOSE_REAL_TIME_CHARTS_OVERRIDE: Optional[bool] = True
 
 # Algorithm/architecture overrides — applied to settings_base at runtime
