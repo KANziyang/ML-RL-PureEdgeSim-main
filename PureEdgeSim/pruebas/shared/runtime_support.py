@@ -293,6 +293,7 @@ def start_java_episode(
         [
             "-Dmappo.env.server=true",
             f"-Dmappo.env.port={config.port}",
+            "-Dmappo.env.action_timeout_ms=30000",
             f"-Dmappo.trajectory.dir={trajectory_dir.resolve()}",
             f"-DsettingsPath={with_trailing_separator(settings_dir)}",
             f"-DoutputPath={with_trailing_separator(output_dir)}",

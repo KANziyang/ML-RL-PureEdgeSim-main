@@ -24,9 +24,13 @@ import java.awt.Dimension;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.lang.reflect.InvocationTargetException;
 
 import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 import org.knowm.xchart.BitmapEncoder;
 import org.knowm.xchart.BitmapEncoder.BitmapFormat;
@@ -57,6 +61,7 @@ public class SimulationVisualizer {
 	private DestinationDistributionChart destinationDistributionChart;
 	private PriorityDistributionChart priorityDistributionChart;
 	private List<Chart> charts = new ArrayList<Chart>();
+	private Map<Chart, String> chartFileNames = new LinkedHashMap<>();
 	private boolean firstTime = true;
 	private final boolean headless;
 
@@ -79,6 +84,21 @@ public class SimulationVisualizer {
 				"Selection Rate (%)", simulationManager);
 		priorityDistributionChart = new PriorityDistributionChart("PRB Priority Distribution", "Time (s)",
 				"Selection Rate (%)", simulationManager);
+
+		// Assign file base names for saving
+		chartFileNames.put(mapChart, "map_chart");
+		chartFileNames.put(cpuUtilizationChart, "cpu_usage");
+		chartFileNames.put(blockChart, "prb_blocks");
+		chartFileNames.put(tasksSuccessChart, "tasks_success_rate");
+		chartFileNames.put(tasksFailedChart, "tasks_failed");
+		chartFileNames.put(edgeDeviceChart, "edge_devices");
+		chartFileNames.put(serversChart, "busy_servers");
+		chartFileNames.put(energyChart, "energy_consumption");
+		chartFileNames.put(delayChart, "delays");
+		chartFileNames.put(ppoChart, "ppo_reward");
+		chartFileNames.put(mappoRewardChart, "mappo_reward");
+		chartFileNames.put(destinationDistributionChart, "destination_distribution");
+		chartFileNames.put(priorityDistributionChart, "priority_distribution");
 
 		// Common charts for all algorithms
 		charts.add(mapChart);
@@ -138,6 +158,31 @@ public class SimulationVisualizer {
 	}
 
 	public void saveCharts() throws IOException {
+		if (!headless && !SwingUtilities.isEventDispatchThread()) {
+			try {
+				SwingUtilities.invokeAndWait(() -> {
+					try {
+						saveChartsInternal();
+					} catch (IOException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				return;
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new IOException("Interrupted while exporting charts", e);
+			} catch (InvocationTargetException e) {
+				Throwable cause = e.getCause();
+				if (cause instanceof RuntimeException && cause.getCause() instanceof IOException) {
+					throw (IOException) cause.getCause();
+				}
+				throw new IOException("Failed to export charts", cause);
+			}
+		}
+		saveChartsInternal();
+	}
+
+	private void saveChartsInternal() throws IOException {
 		String folderNameSimulation = Simulation.getOutputFolder() + "/"
 				+ simulationManager.getSimulationLogger().getSimStartTime() + "/simulation_"
 				+ simulationManager.getSimulationId();
@@ -160,21 +205,13 @@ public class SimulationVisualizer {
 			charts.get(i).setChartSize(exportWidth, exportHeight);
 		}
 
-		BitmapEncoder.saveBitmapWithDPI(mapChart.getChart(), folderName + "/map_chart", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/allocated_prb_blocks", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(blockChart.getChart(), folderName + "/prb_blocks", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(cpuUtilizationChart.getChart(), folderName + "/cpu_usage", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(energyChart.getChart(), folderName + "/energy_consumption", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(tasksSuccessChart.getChart(), folderName + "/tasks_success_rate", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(tasksFailedChart.getChart(), folderName + "/tasks_failed", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(edgeDeviceChart.getChart(), folderName + "/edge_devices", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(serversChart.getChart(), folderName + "/busy_servers", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(delayChart.getChart(), folderName + "/delays", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(mappoRewardChart.getChart(), folderName + "/mappo_reward", BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(destinationDistributionChart.getChart(), folderName + "/destination_distribution",
-				BitmapFormat.PNG, 300);
-		BitmapEncoder.saveBitmapWithDPI(priorityDistributionChart.getChart(), folderName + "/priority_distribution",
-				BitmapFormat.PNG, 300);
+		// Save each chart that is in the active charts list
+		for (Chart chart : charts) {
+			String baseName = chartFileNames.get(chart);
+			if (baseName != null) {
+				BitmapEncoder.saveBitmapWithDPI(chart.getChart(), folderName + "/" + baseName, BitmapFormat.PNG, 300);
+			}
+		}
 
 		List<org.knowm.xchart.internal.chartpart.Chart> sCharts = new ArrayList<org.knowm.xchart.internal.chartpart.Chart>();
 		for (Chart chart : charts) {
@@ -185,7 +222,8 @@ public class SimulationVisualizer {
 		}
 		int cols = chooseGridColumns(sCharts.size(), 3);
 		int rows = (int) Math.ceil(sCharts.size() / (double) cols);
-		List<org.knowm.xchart.internal.chartpart.Chart> exportCharts = buildExportCharts(sCharts, rows, cols);
+		List<org.knowm.xchart.internal.chartpart.Chart> exportCharts = buildExportCharts(sCharts, rows, cols,
+				exportWidth, exportHeight);
 		BitmapEncoder.saveBitmap(exportCharts, rows, cols, folderName + "/final", BitmapFormat.PNG);
 		BitmapEncoder.saveBitmap(exportCharts, rows, cols, folderNameSimulation + "/" + folderNameIteration + "_final",
 				BitmapFormat.PNG);
@@ -213,16 +251,17 @@ public class SimulationVisualizer {
 	}
 
 	private List<org.knowm.xchart.internal.chartpart.Chart> buildExportCharts(
-			List<org.knowm.xchart.internal.chartpart.Chart> source, int rows, int cols) {
+			List<org.knowm.xchart.internal.chartpart.Chart> source, int rows, int cols, int exportWidth,
+			int exportHeight) {
 		List<org.knowm.xchart.internal.chartpart.Chart> exportCharts = new ArrayList<>(source);
 		while (exportCharts.size() < rows * cols) {
-			exportCharts.add(createPlaceholderChart());
+			exportCharts.add(createPlaceholderChart(exportWidth, exportHeight));
 		}
 		return exportCharts;
 	}
 
-	private XYChart createPlaceholderChart() {
-		XYChart placeholder = new XYChartBuilder().height(Chart.height).width(Chart.width).theme(ChartTheme.Matlab)
+	private XYChart createPlaceholderChart(int width, int height) {
+		XYChart placeholder = new XYChartBuilder().height(height).width(width).theme(ChartTheme.Matlab)
 				.title("").xAxisTitle("").yAxisTitle("").build();
 		placeholder.getStyler().setLegendVisible(false);
 		placeholder.getStyler().setChartTitleVisible(false);

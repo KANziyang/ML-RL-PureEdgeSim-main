@@ -43,8 +43,8 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	MAPPOManager mappoManager;
 	PPOManager ppoManager;
 
-	// Generic destination tracker for non-RL algorithms (5 slots: Edge1-4 + Cloud)
-	private static final String[] GENERIC_DEST_LABELS = { "Edge 1", "Edge 2", "Edge 3", "Edge 4", "Cloud" };
+	// Generic destination tracker for non-RL algorithms (6 slots: Local + Edge1-4 + Cloud)
+	private static final String[] GENERIC_DEST_LABELS = { "Local", "Edge 1", "Edge 2", "Edge 3", "Edge 4", "Cloud" };
 	private static final String[] GENERIC_PRB_LABELS = {};
 	private final DeviceAgentDecisionSupport.DecisionTelemetryTracker genericDestTracker =
 			new DeviceAgentDecisionSupport.DecisionTelemetryTracker(GENERIC_DEST_LABELS, GENERIC_PRB_LABELS);
@@ -66,17 +66,8 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 			case "RANDOM":
 				bestVM = random(architecture, task);
 				break;
-			case "RANDOM_GOOD":
-				bestVM = randomGood(architecture, task);
-				break;
 			case "LOCAL":
 				bestVM = local(architecture, task);
-				break;
-			case "CLOSEST":
-				bestVM = closestMist(architecture, task);
-				break;
-			case "MIST":
-				bestVM = onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DEVICE);
 				break;
 			case "EDGE":
 				bestVM = onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DATACENTER);
@@ -95,9 +86,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 				break;
 			case "LATENCY_ENERGY_AWARE":
 				bestVM = LatencyAndEnergyAware(architecture, task);
-				break;
-			case "WEIGHT_GREEDY":
-				bestVM = weightGreedy(architecture, task);
 				break;
 			case "TEST":
 				bestVM = test(architecture, task);
@@ -119,17 +107,12 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		}
 
 		// Track destination distribution for all algorithms
-		trackGenericDestination(bestVM);
+		trackGenericDestination(bestVM, task);
 
 		return bestVM;
 	}
 
-	/**
-	 * Map a VM index to a 5-agent destination slot (Edge1-4 → 0-3, Cloud → 4)
-	 * and record it in the generic tracker so DestinationDistributionChart /
-	 * PriorityDistributionChart have data for every algorithm.
-	 */
-	private void trackGenericDestination(int vmIndex) {
+	private void trackGenericDestination(int vmIndex, Task task) {
 		if (vmIndex < 0 || vmIndex >= vmList.size()) {
 			return;
 		}
@@ -138,10 +121,13 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 		if (dc.getType() == SimulationParameters.TYPES.CLOUD) {
 			destSlot = GENERIC_DEST_LABELS.length - 1; // last slot = Cloud
 		} else if (dc.getType() == SimulationParameters.TYPES.EDGE_DATACENTER) {
-			int edgeSlot = ((int) dc.getId()) % (GENERIC_DEST_LABELS.length - 1);
+			int edgeSlot = ((int) dc.getId()) % 4 + 1; // slots 1-4
 			destSlot = edgeSlot;
+		} else if (task != null && isSourceLocalVm(task, vmList.get(vmIndex))) {
+			destSlot = 0; // Local
 		} else {
-			destSlot = 0;
+			int edgeSlot = ((int) dc.getId()) % 4 + 1; // remote EDGE_DEVICE → Edge slots
+			destSlot = edgeSlot;
 		}
 		genericDestTracker.update(destSlot, -1, false);
 	}
@@ -150,12 +136,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 
 	/************ Random ************/
 	private int random(String[] architecture, Task task) {
-		return randomGood(architecture, task);
-	}
-	/************ Random ************/
-
-	/************ Random Good ************/
-	private int randomGood(String[] architecture, Task task) {
 		int max = orchestrationHistory.size();
 		int random = SimulationParameters.ALGO_RNG.nextInt(max);
 
@@ -166,71 +146,13 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	}
 	/************ Random ************/
 
+
 	/************ Local ************/
 	private int local(String[] architecture, Task task) {
-		if (ArchitectureHelper.allowsLocal(architecture)) {
-			int vm = getSourceLocalVm(task);
-			if (vm != -1) {
-				return vm;
-			}
-			String[] fallbackArchitecture = getLocalFallbackArchitecture(architecture);
-			if (fallbackArchitecture.length == 0) {
-				return -1;
-			}
-			return roundRobin(fallbackArchitecture, task);
-		}
-
-		int vm = -1;
-		DataCenter device = (SimulationParameters.ENABLE_ORCHESTRATORS) ? task.getOrchestrator() : task.getEdgeDevice();
-		List<Vm> vmListDevice = device.getVmAllocationPolicy().getHostList().get(0).getVmList();
-		if (vmListDevice.size() > 0)
-			vm = (int) vmListDevice.get(0).getId();
-
-		if (vm == -1)
-			vm = onlyType(architecture, task, SimulationParameters.TYPES.EDGE_DEVICE);
-
-		return vm;
+		return getSourceLocalVm(task);
 	}
 	/************ Local ************/
 
-	private String[] getLocalFallbackArchitecture(String[] architecture) {
-		List<String> fallback = new ArrayList<String>();
-		if (ArchitectureHelper.allowsEdge(architecture)) {
-			fallback.add("Edge");
-		}
-		if (ArchitectureHelper.allowsCloud(architecture)) {
-			fallback.add("Cloud");
-		}
-		return fallback.toArray(new String[0]);
-	}
-
-
-	/************ Closest Mist ************/
-	private int closestMist(String[] architecture, Task task) {
-		int vm = -1;
-		double minDistance = SimulationParameters.EDGE_DEVICES_RANGE;
-		int minTasksCount = -1;
-		double minCPU = 1;
-		for (int i = 0; i < orchestrationHistory.size(); i++) {
-			if (((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() == SimulationParameters.TYPES.EDGE_DEVICE) {
-				if (offloadingIsPossible(task, vmList.get(i), architecture)) {
-					double localDistance = ((DataCenter)vmList.get(i).getHost().getDatacenter()).getMobilityManager().distanceTo(task.getOrchestrator());
-					int assignedTasksNum = orchestrationHistory.get(i).size();
-					double localCPU = vmList.get(i).getCpuPercentUtilization();
-					double taskRunning = orchestrationHistory.get(i).size() - vmList.get(i).getCloudletScheduler().getCloudletFinishedList().size() + 1;
-					if(minTasksCount == -1 || (localDistance < minDistance && assignedTasksNum <= minTasksCount)) {
-						minDistance = localDistance;
-						minTasksCount = assignedTasksNum;
-						minCPU = localCPU;
-						vm = i;
-					}
-				}
-			}
-		}
-
-		return vm;
-	}
-	/************ Closest Mist ************/
 
 	/************ Only Type ************/
 	private int onlyType(String[] architecture, Task task, TYPES tipo) {
@@ -361,67 +283,6 @@ public class CustomEdgeOrchestrator extends Orchestrator {
 	}
 	/************ LatencyAndEnergyAware ************/
 
-
-	/************ weightGreedy ************/
-	private int weightGreedy(String[] architecture, Task task) {
-		List<Double> disdelay = new ArrayList<>();
-		List<Double> exedelay = new ArrayList<>();
-		List<Double> vmnum = new ArrayList<>();
-		List<Double> energylim = new ArrayList<>();
-
-		for (int i = 0; i < orchestrationHistory.size(); i++) {
-			double localDistance;
-			if(((DataCenter) vmList.get(i).getHost().getDatacenter()).getType() != SimulationParameters.TYPES.CLOUD)
-				localDistance = ((DataCenter)vmList.get(i).getHost().getDatacenter()).getMobilityManager().distanceTo(task.getOrchestrator());
-			else
-				localDistance = 99999;
-
-			double disdelay_tem = localDistance / SimulationParameters.PROPAGATION_SPEED;
-			disdelay.add(disdelay_tem);
-			double exedelay_tem = task.getLength()/vmList.get(i).getMips();
-			exedelay.add(exedelay_tem);
-			vmnum.add((double)orchestrationHistory.get(i).size());
-			double energyuse =10*(Math.log10(((DataCenter) vmList.get(i).getHost().getDatacenter()).getEnergyModel().getTotalEnergyConsumption()));
-			energylim.add(energyuse);
-		}
-		List<Double> disdelay_stand = standardization(disdelay);
-		List<Double> exedelay_stand = standardization(exedelay);
-		List<Double> vmnum_stand = standardization(vmnum);
-		List<Double> energylim_stand = standardization(energylim);
-
-		int vm = -1;
-		double min = -1;
-		double min_factor;
-		double a=0.3, b=0.3, c=0.25, d=0.15;
-		for (int i = 0; i < orchestrationHistory.size(); i++) {
-			if (offloadingIsPossible(task, vmList.get(i), architecture)) {
-
-				min_factor = a*disdelay_stand.get(i) + b*exedelay_stand.get(i) + c*vmnum_stand.get(i) + d*energylim_stand.get(i);
-				if (min == -1) {
-					min = min_factor;
-					vm = i;
-				} else if (min > min_factor) {
-					min = min_factor;
-					vm = i;
-				}
-			}
-		}
-		return vm;
-	}
-
-
-	public List<Double> standardization (List<Double> Pre_standar){
-		List<Double> standard = new ArrayList<>();
-		double premax = Collections.max(Pre_standar);
-		double premin = Collections.min(Pre_standar);
-		for(int k=0; k<Pre_standar.size(); k++) {
-			double temp =(Pre_standar.get(k)-premin)/(premax-premin);
-			standard.add(temp);
-		}
-		return standard;
-	}
-
-	/************ weightGreedy ************/
 
 
 	/************ Test ************/

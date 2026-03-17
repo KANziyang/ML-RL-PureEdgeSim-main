@@ -1,0 +1,612 @@
+ ▐▛███▜▌   Claude Code v2.1.76
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    ~\Desktop\6G_EdgeCloudComputing_For_MAPPO
+
+❯ "C:\Users\hp\Desktop\EE5003_Report.zip"这是毕业论文的模板，分析它的结构。根据 
+我的项目内容，帮我草拟一份我的毕业论文详细的框架与大纲，我的标题是ON POLICY     
+MULTI-AGENT REINFORCEMENT LEARNING FOR 6G EDGE-CLOUD COMPUTING                  
+
+● Let me first examine the template structure, then draft an outline based on
+  your project.
+
+● Bash(cd /c/Users/hp/Desktop && ls -la EE5003_Report.zip && unzip -l
+      EE5003_Report.zip | head -80)
+  ⎿  -rw-r--r-- 1 hp 197121 5739045 Mar  3 22:08 EE5003_Report.zip
+     Archive:  EE5003_Report.zip
+       Length      Date    Time    Name
+     … +52 lines (ctrl+o to expand)
+  ⎿  Shell cwd was reset to 
+     C:\Users\hp\Desktop\6G_EdgeCloudComputing_For_MAPPO
+
+● Bash(cd /c/Users/hp/Desktop && unzip -q EE5003_Report.zip -d EE5003_Report)
+  ⎿  Shell cwd was reset to 
+     C:\Users\hp\Desktop\6G_EdgeCloudComputing_For_MAPPO
+
+● Read 3 files (ctrl+o to expand)
+
+● Now let me read the content files to understand the template's chapter
+  structure and depth.
+
+● Read 10 files (ctrl+o to expand)
+
+● Now I have a thorough understanding of the template structure. Let me also
+  quickly review the PDF to see the final rendered layout.
+
+● Read 3 files (ctrl+o to expand)
+
+● Now I have a complete picture of the template. Let me create the detailed
+  outline for your thesis.
+  ⎿  Error writing file
+
+● Write(thesis_outline.md)
+  ⎿  Tool use rejected with user message: 
+     https://github.com/alb1183/ML-RL-PureEdgeSim我是在这个项目写的环境的基础上
+     进行修改写的我自己的仿真环境，我希望在论文里面加入仿真环境的相关内容
+
+● Let me look at the original project to understand what you built on top of, so
+   I can properly frame the simulation environment section.
+
+● Fetch(https://github.com/alb1183/ML-RL-PureEdgeSim)
+  ⎿  Received 283.4KB (200 OK)
+
+● Explore(Explore simulation environment code)
+  ⎿  Done (0 tool uses · 1.1k tokens · 1s)
+  (ctrl+o to expand)
+
+● Let me re-explore the simulation environment more thoroughly and fetch the
+  GitHub project info.
+
+● Explore(Explore simulation environment deeply)
+  ⎿  Done (0 tool uses · 1.1k tokens · 2s)
+  (ctrl+o to expand)
+
+● Fetch(https://github.com/alb1183/ML-RL-PureEdgeSim)
+  ⎿  Received 283.4KB (200 OK)
+
+● Let me directly read the key files to understand the simulation environment.
+
+● Read 5 files (ctrl+o to expand)
+
+● Now I have all the information needed. Let me also quickly check the original
+  ML-RL-PureEdgeSim project for context on what you built upon.
+
+● Web Search("ML-RL-PureEdgeSim github alb1183 reinforcement learning edge
+            computing PureEdgeSim")
+  ⎿  Did 1 search in 2s
+
+● Web Search("PureEdgeSim simulation framework edge cloud computing paper")
+  ⎿  Did 1 search in 2s
+
+● Now I have all the context. Let me also check the EISim paper since it's
+  directly relevant — it extends PureEdgeSim for DRL-based orchestration,
+  similar to what you did.
+
+● Fetch(https://ar5iv.labs.arxiv.org/html/2311.01224)
+  ⎿  Received 554.5KB (200 OK)
+
+● Fetch(https://github.com/alb1183/ML-RL-PureEdgeSim)
+  ⎿  Received 283.4KB (200 OK)
+
+● Let me now write the complete thesis outline incorporating the simulation
+  environment details.
+  ⎿  Error writing file
+  ⎿  Error writing file
+  ⎿  Error writing file
+  ⎿  Error writing file
+  ⎿  Error writing file
+  ⎿  Error writing file
+  ⎿  Error writing file
+  ⎿  Error writing file
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ 你直接输出给我                                                                
+
+● 好的 kan，直接输出。
+
+  ---
+  模板结构分析
+
+  EE5003 模板是 NUS ECE 的 MSc Project Report 格式，基于 LaTeX article 文档类：
+
+  main.tex                          ← 主入口，定义标题/作者/导师，\input 各章节
+  ├── titlepage.tex                 ← NUS
+  封面（Logo、EE5003、标题、作者、导师、考官）
+  ├── includes.tex                  ← 宏包加载、页面布局(letterpaper, 2.8cm
+  hmargin)、页眉页脚、代码高亮、定理环境
+  ├── notation.tex                  ← 符号速查宏
+  ├── contents/
+  │   ├── abstract.tex              ← 摘要 + 关键词（无编号 section）
+  │   ├── acknowledgement.tex       ← 致谢
+  │   ├── declaration.tex           ← 原创声明 + 签名图片
+  │   ├── introduction.tex          ← Section 1: Overview / Background / Related
+   Work
+  │   ├── simulation.tex            ← Section 2:
+  仿真环境（模型参数、初始化、动力学）
+  │   ├── methodology.tex           ← Section 3: 方法论入口
+  │   │   ├── multi-stage.tex       ←   3.1 多阶段任务分解
+  │   │   ├── reinforcement.tex     ←   3.2 RL
+  观测/动作/Actor-Critic/奖励函数（最长，~400行）
+  │   │   └── two-stage-training.tex ←  3.3 两阶段训练
+  │   ├── result.tex                ← Section 4:
+  实验结果（硬件配置、训练曲线、成功率汇总表）
+  │   └── conclusion.tex            ← Section 5: 结论 + 未来工作
+  └── references.bib                ← IEEEtran 格式参考文献
+
+  写作特征：
+  - 三级标题：\section / \subsection / \subsubsection
+  - 大量 minipage 并排图表，公式用 gather* / align*
+  - 参考文献 IEEEtran 样式，总页数约 25-30 页
+  - 模板那篇论文是无人机穿越动态门的 RL 项目，结构上和你的项目有很好的对应关系
+
+  ---
+  你的论文详细框架
+
+  Title
+
+  ON POLICY MULTI-AGENT REINFORCEMENT LEARNING FOR 6G EDGE-CLOUD COMPUTING
+
+  ---
+  Front Matter
+
+  Abstract (~250 words)
+  - 问题：6G 网络中 LOCAL→EDGE→CLOUD 三层架构下，任务卸载与无线 PRB
+  资源分配是高维组合优化问题，传统启发式方法难以适应动态环境
+  - 方法：提出基于 MAPPO（Multi-Agent PPO）的多智能体强化学习框架，采用
+  CTDE（集中训练分散执行）范式，每个边缘设备作为独立智能体，联合决策卸载目的地和
+   PRB 分配
+  - 实现：基于 PureEdgeSim 离散事件仿真器构建定制仿真环境，扩展了 PRB
+  资源管理、距离衰减信道模型和 RL 交互接口；Java-Python 混合架构通过 TCP JSON
+  协议实时交互
+  - 结果：与 11 种基线算法对比，MAPPO
+  在任务成功率、延迟、能耗、网络代价上的综合表现
+  - Keywords: Multi-Agent Reinforcement Learning, MAPPO, Task Offloading, PRB
+  Allocation, 6G Edge-Cloud Computing, PureEdgeSim
+
+  Acknowledgement
+
+  Declaration
+
+  Table of Contents / List of Figures / List of Tables
+
+  List of Abbreviations（建议新增：MAPPO, PPO, PRB, MEC, MARL, GAE, CTDE,
+  Dec-POMDP 等）
+
+  ---
+  Section 1: Introduction
+
+  1.1 Overview
+
+  - 6G 愿景：超低延迟、海量连接、智能化网络
+  - 边缘-云计算范式：LOCAL→EDGE→CLOUD 三层卸载架构的必要性
+  - 核心挑战：异构设备、动态负载、无线资源受限条件下的联合任务卸载与 PRB 分配
+  - 本文贡献（4 点）：
+    a. 将任务卸载建模为去中心化部分可观测马尔可夫决策过程（Dec-POMDP）
+    b. 提出 MAPPO 框架：per-device actor（含 Agent Embedding）+ centralized
+  critic
+    c. 设计双头动作空间，联合优化卸载目的地选择与 PRB 分配
+    d. 基于 PureEdgeSim 构建完整的定制仿真环境和训练-推理-评估流水线，与 11
+  种算法全面对比
+
+  1.2 Background
+
+  - 6G 与移动边缘计算（MEC）
+    - 三层架构：本地设备、边缘数据中心、云服务器
+    - 任务特征：计算密集、延迟敏感、能耗受限
+  - 任务卸载问题的传统方法
+    - 启发式：贪心、轮询、加权代价
+    - 优化方法：凸优化、博弈论
+    - 局限性：难以适应动态环境、缺乏在线学习能力
+  - 强化学习在网络优化中的应用
+    - 单智能体 RL 的局限：状态空间爆炸、无法建模设备间交互
+    - 多智能体 RL 的优势：去中心化执行、可扩展性
+
+  1.3 Related Work
+
+  - 基于 DRL 的任务卸载（单智能体 DQN/PPO、多智能体 MADDPG/QMIX 等）
+  - 无线资源管理中的 RL（PRB 分配、功率控制）
+  - MAPPO 在协作任务中的成功案例（StarCraft, MPE 等）
+  - 边缘计算仿真平台（CloudSim, PureEdgeSim, EISim, ML-RL-PureEdgeSim）
+    -
+  ML-RL-PureEdgeSim：你的项目基于此扩展，需说明原项目提供了什么、你做了哪些改进
+  - 本文与现有工作的区别（表格对比）
+
+  1.4 Report Organization
+
+  - 各章节内容简述
+
+  ---
+  Section 2: System Model and Problem Formulation
+
+  2.1 Network Architecture
+
+  - LOCAL→EDGE→CLOUD 三层拓扑
+    - 边缘设备：4 类异构设备（智能手机 30%、树莓派 20%、笔记本 20%、传感器
+  30%），其中智能手机和传感器生成任务
+    - 边缘数据中心：4 个，分布在 200m×200m 区域的四个象限（(50,50), (150,50),
+  (50,150), (150,150)），覆盖半径 120m，每个 DC 有 2 个 host × 8 个 VM（60000
+  MIPS/VM）
+    - 云服务器：1 个，2 个 host × 8 个 VM（150000 MIPS/VM），等效距离 160m
+  - 图示：网络拓扑图
+
+  2.2 Task Model
+
+  - 3 类应用：
+  | 应用              | 生成速率 | 使用比例 | 最大延迟 | 数据量  | 计算量    |
+  |-------------------|----------|----------|----------|---------|-----------|
+  | AUGMENTED_REALITY | 25/min   | 20%      | 8s       | 1500KB  | 80000 MI  |
+  | E_HEALTH          | 20/min   | 25%      | 25s      | 10000KB | 400000 MI |
+  | HEAVY_COMP_APP    | 25/min   | 30%      | 12s      | 50KB    | 120000 MI |
+
+  - 任务生命周期：SEND_TO_ORCH → SEND_TO_DEST → EXECUTE → TRANSFER_RESULTS →
+  FINISHED
+  - 失败判定：延迟超限、设备死亡、移动性失效
+
+  2.3 Communication Model
+
+  - 无线信道模型
+    - WLAN 带宽：5000 Mbps，PRB 总量：5000 块
+    - 带宽公式：$BW = \frac{BW_{WLAN}}{PRB_{total}} \times blocks \times
+  \min(1.0, (d_0 / \max(d, d_0))^\alpha)$
+    - 参数：$d_0 = 20$m（参考距离），$\alpha = 0.5$（路径损耗指数）
+  - PRB 分配机制
+    - RL 固定分配：从全局池预留块数，上传完成后释放
+    - 非 RL 动态分配：BFS 构建冲突组件 + 按 $(1.0 + \text{lanPriorityBin})$
+  权重公平分配
+  - 云链路：等效距离 160m 的固定距离模型
+
+  2.4 Computation Model
+
+  - VM 资源分配：SPACE_SHARED 策略
+  - 执行时间：$T_{exec} = taskLength / vmMips$
+
+  2.5 Energy Model
+
+  - 传输能耗：$E_{tx} = E_{elec} \times bits + E_{amp} \times bits \times d^n$
+    - $E_{elec} = 5 \times 10^{-8}$ J/bit
+    - 自由空间：$E_{amp} = 10^{-11}$ J/bit/m²
+    - 多径衰落：$E_{amp} = 1.3 \times 10^{-15}$ J/bit/m⁴
+  - 能耗归一化：基于滑动窗口 P95（窗口大小 200 样本）
+
+  2.6 Problem Formulation
+
+  - 优化目标：最小化加权组合代价
+  - 约束：延迟不超限、设备存活、通信范围内、PRB 池不溢出
+  - 建模为 Dec-POMDP：
+    - 智能体集合 $\mathcal{N}$：所有 generateTasks=true 的设备（按 DataCenter ID
+   排序）
+    - 全局状态 $\mathcal{S}$（27 维）
+    - 局部观测 $\mathcal{O}_i$：agent_obs（13 维）+ dest_features（每目的地 11
+  维）
+    - 动作空间 $\mathcal{A}_i$：目的地选择（离散）× PRB 档位（8 档离散）
+    - 转移函数：由 PureEdgeSim 仿真引擎驱动
+
+  ---
+  Section 3: Simulation Environment
+
+  （这是你要求新增的重点章节，对应模板中的 Section 2: Simulation Setup）
+
+  3.1 PureEdgeSim Overview
+
+  - PureEdgeSim 简介：基于 CloudSim Plus 6.2.7 的离散事件仿真框架
+    - 支持 Cloud、Edge、Mist 三层计算环境
+    - 核心模块：仿真循环（SimulationManager）、任务编排（Orchestrator）、网络模
+  型、数据中心管理
+    - 引用 PureEdgeSim 原始论文
+  - ML-RL-PureEdgeSim 扩展
+    - 原项目（alb1183）在 PureEdgeSim 基础上增加了 RL 调度的初步框架
+    - 说明你从该项目继承了什么基础结构
+
+  3.2 Customized Simulation Environment
+
+  - 你对仿真环境做的核心改造（与原始 PureEdgeSim 和 ML-RL-PureEdgeSim 的区别）：
+    a. PRB 资源管理系统：在 DefaultNetworkModel 中新增 PRB
+  池管理、固定分配（RL）与动态分配（非 RL）双模式、BFS 冲突组件检测
+    b. 距离衰减信道模型：引入 $d_0$-$\alpha$ 路径损耗模型替代原始简单带宽模型
+    c. RL 
+  环境接口（DeviceAgentDecisionSupport）：观测构造、动作清洗、候选目标筛选、PRB
+  映射、奖励计算
+    d. TCP JSON 协议（RLEnvServer）：Java-Python 实时交互
+    e. 双模式运行（AbstractRLManager）：训练模式（Python
+  驱动）与离线推理模式（Java 驱动）
+    f. 自定义编排器（CustomEdgeOrchestrator）：统一分发所有算法，RL 通过 Manager
+   接入
+    g. 可视化扩展：MAPPORewardChart、PPOChart、DestinationDistributionChart、Pri
+  orityDistributionChart
+
+  3.3 Simulation Topology and Configuration
+
+  - 200m × 200m 仿真区域
+  - 设备配置表（4 类设备的 MIPS、RAM、移动性、电池等）
+  - 边缘数据中心配置表（4 个 DC 的位置、VM 数量、MIPS）
+  - 云服务器配置表
+  - 仿真参数表：simulation_time=30min, 160 设备, speed=1.4m/s, edge_range=40m,
+  edge_coverage=120m 等
+
+  3.4 Task Orchestration Flow
+
+  - 事件驱动流程图：任务生成 → SEND_TO_ORCH → CustomEdgeOrchestrator 分发 →
+  算法决策 → SEND_TO_DEST → EXECUTE → TRANSFER_RESULTS → FINISHED
+  - RL 算法路径：CustomEdgeOrchestrator → MAPPOManager/PPOManager → RLEnvServer
+  → Python
+  - 非 RL 算法路径：CustomEdgeOrchestrator → 直接计算目的地
+
+  3.5 Java-Python Co-simulation Architecture
+
+  - 训练模式
+    - Python 启动 Java（-Dmappo.env.server=true）
+    - Java 创建 RLEnvServer，Python 作为 TCP 客户端连接
+    - 交互流程：marl_config → (marl_turn_obs → marl_action → marl_transition)* →
+   marl_episode_end
+  - 离线推理模式
+    - Java 自动 fork inference_server.py
+    - 模型路径解析优先级（显式路径 > 最新训练运行 > 遗留路径）
+    - 失败降级：模型缺失时退化为默认动作
+  - TCP 协议消息格式表
+  - 架构图：训练模式 vs 推理模式的数据流
+
+  3.6 Baseline Algorithms
+
+  - 表格列出全部 11 种基线算法：
+
+  ┌──────────────────────┬───────────────────────────────────────────────────┐
+  │         算法         │                       策略                        │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ RANDOM               │ 随机选择可行 VM                                   │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ LOCAL                │ 优先本地，fallback 到 Edge/Cloud 轮询             │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ CLOSEST              │ 最近 Edge，距离排序，任务数 tiebreaker            │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ EDGE                 │ 仅 Edge 层，最少任务数 VM                         │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ CLOUD                │ 仅 Cloud 层，最少任务数 VM                        │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ ROUND_ROBIN          │ 所有层中最少任务数 VM                             │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ TRADE_OFF            │ 加权代价：(tasks+1) × weight × taskLength /       │
+  │                      │ vmMips                                            │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ INCREASE_LIFETIME    │ 电池感知调度                                      │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ LATENCY_ENERGY_AWARE │ 多因子加权                                        │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ WEIGHT_GREEDY        │ 归一化加权和：0.3×距离延迟 + 0.3×执行延迟 +       │
+  │                      │ 0.25×负载 + 0.15×能耗                             │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ PPO                  │ 单策略 RL，所有设备共享网络（无 Agent Embedding） │
+  └──────────────────────┴───────────────────────────────────────────────────┘
+
+  ---
+  Section 4: Methodology
+
+  4.1 MAPPO Framework Overview
+
+  - Centralized Training with Decentralized Execution (CTDE)
+    - 训练时：centralized critic 接收 global state（27D）
+    - 执行时：每个 agent 仅依赖自身观测做决策
+  - 整体框架图
+
+  4.2 Observation and State Design
+
+  - Agent Observation（13 维）：设备自身状态（CPU
+  利用率、任务队列、电池、位置等）
+  - Destination Features（每目的地 11 维）：类型、距离、CPU、队列、可用性等
+    - 目的地顺序：local(0) → edge（按 dcId 排序）→ cloud（按 dcId 排序）
+  - Destination Mask：基于 offloadingIsPossible() 的可行性掩码
+  - Global State（27 维）：各层平均负载、PRB 使用率、任务成功率等
+  - 公式化定义各维度
+
+  4.3 Action Space Design
+
+  - 双头动作空间
+    - Destination Head：masked softmax → categorical 分布
+    - PRB Head：8 档离散选择
+        - 比例映射：{0.02, 0.05, 0.10, 0.20, 0.40, 0.60, 0.80, 1.00}
+      - 实际块数：$\max(1, maxPerTask \times ratio)$，maxPerTask = 50
+    - 本地执行时 PRB 强制为 0
+  - Destination Fallback 机制：不可用时 fallback 到预估完成时间最短的目的地
+
+  4.4 Network Architecture
+
+  4.4.1 TurnActor（MAPPO Actor）
+
+  - Agent Embedding：16D 可学习嵌入，按智能体 ID 索引
+    - resize_agent_embedding() 动态适配不同智能体数量
+  - Agent Encoder：agent_obs(13D) ⊕ embedding(16D) → 2 层 MLP + Tanh
+  - Destination Encoder：dest_features(11D) → 2 层 MLP + Tanh
+  - Destination Head：agent_encoding 与各 dest_encoding 点积 → masked softmax →
+  categorical
+  - PRB Head：agent_encoding → linear → 8-way softmax → categorical
+  - 本地目的地（action=0）时 PRB log_prob 和 entropy 自动置零
+  - 网络结构图
+
+  4.4.2 CentralCritic
+
+  - 输入：global_state（27D）
+  - 结构：2 层 MLP（256 hidden）+ Tanh → 标量 value
+
+  4.4.3 PPO Baseline Actor
+
+  - 与 TurnActor 结构一致，但去掉 Agent Embedding
+  - agent_encoder 直接接收 agent_obs
+
+  4.5 Reward Function Design
+
+  $$R = \begin{cases} -5.0 & \text{task failed} \ 5.0 - 2.0 \times latencyRatio
+  - 0.5 \times energyNorm - 1.0 \times networkCost & \text{task succeeded}
+  \end{cases}$$
+  - latencyRatio：实际延迟 / 最大允许延迟
+  - energyNorm：基于滑动窗口 P95 归一化
+  - networkCost：PRB 使用比例
+  - 设计动机分析
+
+  4.6 Training Algorithm
+
+  - PPO Clipped Objective 公式
+  - 优势估计：$\hat{A}_t = R_t - V(s_t)$（每步独立任务决策，无跨步时序折扣）
+  - Entropy 退火：0.02 → 0.002 线性衰减
+  - 超参数表：40 episodes, γ=0.99, clip ε=0.1, LR=3e-4, 4 PPO epochs,
+  minibatch=1024
+  - 训练流程伪代码
+
+  ---
+  Section 5: Experiment Results
+
+  5.1 Experimental Setup
+
+  - 硬件软件配置表
+  - 评估指标：任务成功率、平均延迟、能耗、PRB 使用率、目的地分布
+
+  5.2 Training Performance
+
+  - MAPPO 训练曲线（episode reward vs episode）
+  - PPO 训练曲线（对比）
+  - 收敛速度对比
+
+  5.3 Task Success Rate Comparison
+
+  - 柱状图/表格：全部 13 种算法的任务成功率
+  - 分析 MAPPO 相对各基线的提升
+
+  5.4 Latency Analysis
+
+  - 各算法平均延迟对比
+  - MAPPO 的延迟-成功率权衡
+
+  5.5 Energy Consumption Analysis
+
+  - 各算法平均能耗对比
+
+  5.6 Destination Distribution Analysis
+
+  - 各算法的 Local / Edge / Cloud 卸载比例
+  - MAPPO 学到的卸载策略分析（就近卸载倾向、负载均衡效果）
+
+  5.7 PRB Allocation Analysis
+
+  - MAPPO 的 PRB 档位分布
+  - PRB 使用率 vs 任务成功率
+
+  5.8 Ablation Study（如果数据支持）
+
+  - Agent Embedding 的作用（MAPPO vs PPO）
+  - PRB 分配头的作用
+  - 奖励函数各分量的贡献
+
+  5.9 Robustness
+
+  - 多种子评估（9001, 9002, 9003）
+  - Stress test（如果有数据）
+
+  5.10 Summary
+
+  - 综合对比表（所有算法 × 所有指标）
+  - 关键发现
+
+  ---
+  Section 6: Conclusion
+
+  6.1 Summary
+
+  - 回顾问题、方法、主要结果
+
+  6.2 Limitations
+
+  - 仿真与真实网络的差距
+  - 固定设备数量（160）
+  - 奖励函数手工设计
+  - 无跨步时序折扣的简化
+
+  6.3 Future Work
+
+  - 更大规模场景
+  - 动态智能体数量
+  - GAE 引入与时序折扣完善
+  - 与真实 5G/6G 测试床集成
+  - 奖励函数自动搜索
+
+  ---
+  Back Matter
+
+  References (IEEEtran 格式) — 建议引用方向：
+  - 6G 白皮书/综述
+  - MEC 任务卸载经典论文
+  - MAPPO 原始论文（Yu et al., 2022, "The Surprising Effectiveness of PPO in
+  Cooperative MARL"）
+  - PPO 原始论文（Schulman et al., 2017）
+  - CTDE / MADDPG（Lowe et al.）
+  - PureEdgeSim 论文（Mechalikh et al.）
+  - CloudSim Plus 论文
+  - ML-RL-PureEdgeSim（alb1183）
+  - EISim（PureEdgeSim 的 DRL 扩展）
+  - 相关 DRL for MEC 论文
+
+  Appendix（可选）
+  - A. TCP 协议完整消息格式
+  - B. 完整超参数表
+  - C. 补充实验图表
+
+  ---
+  预估页数分配
+
+  ┌───────────────────────────────────────────────┬──────────┐
+  │                     章节                      │ 预估页数 │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ Front Matter                                  │ 4-5      │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ Section 1: Introduction                       │ 4-5      │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ Section 2: System Model & Problem Formulation │ 4-5      │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ Section 3: Simulation Environment             │ 5-6      │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ Section 4: Methodology                        │ 5-7      │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ Section 5: Experiment Results                 │ 6-8      │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ Section 6: Conclusion                         │ 1-2      │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ References + Appendix                         │ 2-3      │
+  ├───────────────────────────────────────────────┼──────────┤
+  │ Total                                         │ ~32-40   │
+  └───────────────────────────────────────────────┴──────────┘
+
+  ---
+  建议图表清单
+
+  Figures:
+  1. 6G Edge-Cloud 三层网络拓扑图（200m×200m 区域，4 个 Edge DC，设备分布）
+  2. PureEdgeSim 仿真框架模块图（标注你的定制扩展点）
+  3. MAPPO 框架总览图（CTDE 架构）
+  4. Java-Python 协同仿真架构图（训练模式 + 推理模式数据流）
+  5. TCP 协议交互时序图
+  6. TurnActor 网络结构图（embedding + dual head）
+  7. CentralCritic 网络结构图
+  8. 任务编排流程图（事件驱动）
+  9. 训练奖励曲线（MAPPO vs PPO）
+  10. 任务成功率对比柱状图
+  11. 延迟对比图
+  12. 能耗对比图
+  13. 目的地分布堆叠柱状图
+  14. PRB 档位分布直方图
+
+  Tables:
+  1. 缩写表
+  2. 边缘设备配置表（4 类设备）
+  3. 边缘数据中心 / 云服务器配置表
+  4. 应用类型配置表（3 类应用）
+  5. 仿真参数表
+  6. 基线算法策略表（11 种）
+  7. MAPPO / PPO 超参数表
+  8. 硬件软件配置表
+  9. 综合实验结果对比表
+
+  Sources:
+  - https://github.com/CharafeddineMechalikh/PureEdgeSim
+  - https://github.com/alb1183/ML-RL-PureEdgeSim
+  - https://arxiv.org/abs/2311.01224v1
+  - https://www.researchgate.net/publication/347134683_PureEdgeSim_A_simulation_
+  framework_for_performance_evaluation_of_cloud_edge_and_mist_computing_environm
+  ents
+
+✻ Brewed for 2m 29s

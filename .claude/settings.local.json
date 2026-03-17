@@ -26,7 +26,20 @@
       "Bash(cd:*)",
       "Bash(find . -path */xchart*.jar -name *.jar)",
       "Read(//c/Users/hp/.m2/**)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Read(//c/Users/hp/Desktop/**)",
+      "Bash(unzip -q EE5003_Report.zip -d EE5003_Report)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:ar5iv.labs.arxiv.org)",
+      "Bash(awk -F',' '{print NF}')",
+      "Bash(python -c \":*)",
+      "Bash(sed -i '40s/500/30000/' PureEdgeSim/pruebas/AbstractRLManager.java)",
+      "Bash(sed -i '47s/500/5000/' PureEdgeSim/pruebas/AbstractRLManager.java)",
+      "Bash(mvn -q -DskipTests compile)",
+      "Bash(python -m py_compile PureEdgeSim/pruebas/mappo/train_mappo.py)",
+      "Bash(python -m py_compile PureEdgeSim/pruebas/ppo/train_ppo.py)",
+      "Bash(python -m py_compile PureEdgeSim/pruebas/shared/runtime_support.py)"
     ]
   }
 }

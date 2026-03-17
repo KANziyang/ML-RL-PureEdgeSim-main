@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code when working with this repository.
+This file provides guidance to Codex when working with this repository.
 
 ## 协作规则
 
@@ -142,37 +142,28 @@ RL 相关入口还包括：
 - `CustomEdgeOrchestrator.java`
   - 所有算法统一从这里分发。
   - RL 算法通过 `MAPPOManager` / `PPOManager` 接入。
-  - `MAPPOManager` / `PPOManager` 降级模式（推理失败或未连接）从 `turn.destMask` 选第一个合法目的地，不再硬编码 `(0,0)`。
-  - `reinforcementFeedback()` 调用 `computeReward(task, meta.destFallback)` 传递 fallback 标记。
   - 非 RL 算法的目的地分布也会被记录到遥测统计里。
 
 - `AbstractRLManager.java`
   - 负责训练模式与离线推理模式切换。
   - 负责推理子进程拉起、模型路径解析、连接等待和失败降级。
-  - 默认超时：训练模式 30000ms，离线推理模式 5000ms（通过 `-Dmappo.env.action_timeout_ms` 可覆盖）。
 
 - `RLEnvServer.java`
   - 定义 TCP 协议。
   - 主要消息类型有 `marl_config`、`marl_turn_obs`、`marl_transition`、`marl_episode_end`。
-  - turn-based `waitForAction` 超时/断连时使用 `defaultAction(int[] destMask)`，从 mask 中选第一个合法目的地，避免选出 mask=0 的非法动作。legacy `waitForAction` 仍用无参 `defaultAction()`。
 
 - `DeviceAgentDecisionSupport.java`
   - 这是 RL 环境建模的核心。
   - 负责观测构造、动作清洗、候选目标筛选、PRB 映射和奖励计算。
-  - 基础维度常量：
+  - 当前维度固定为：
     - `AGENT_OBS_SIZE = 13`
     - `DEST_FEAT_SIZE = 11`
-    - `GLOBAL_STATE_SIZE = 27`（基础 global state，PPO 使用此维度）
+    - `GLOBAL_STATE_SIZE = 27`
     - `PRB_BINS = 8`
-  - MAPPO 扩展 state：`buildTurn(task, telemetry)` 生成 `GLOBAL_STATE_SIZE + numDest + PRB_BINS` 维 state（约 41D，以 6 目的地为例），额外维度为：
-    - `[27 .. 27+numDest-1]`: 近期目的地选择分布（滑动窗口 200，每个 count/total，0-1）
-    - `[27+numDest .. 27+numDest+7]`: 近期 PRB 档位分布（仅 offload 决策，每个 count/total，0-1）
-  - PPO 路径：`buildTurn(task)`（无 telemetry 参数）仍返回 27D state，不受影响。
-  - `getEnvConfig()` 返回 `stateDim=27`（PPO 用），`getEnvConfigWithTelemetry()` 返回 `stateDim=27+numDest+8`（MAPPO 用）。
   - 目的地顺序是：`local(0)` -> 按数据中心 ID 排序的 edge -> 按数据中心 ID 排序的 cloud。
   - 智能体索引：按 DataCenter ID 排序所有 `isGeneratingTasks()` 的设备。
   - 目的地解析：`resolveDestination()` 优先使用请求的目的地，若不可用（mask=0 或 vmIndex=-1）则 fallback 到预估完成时间最短的目的地，记录 `destFallback=true`。
-  - 奖励函数：`computeReward(Task task, boolean destFallback)`，失败 -5.0，成功 5.0 - 1.0×latencyRatio - 2.0×energyNorm - 1.5×networkCost - (destFallback ? 1.5 : 0.0)。无参版本 `computeReward(Task)` 等价于 `destFallback=false`。energyMean/Var 基于 EMA（α=0.01）。
+  - 奖励函数：失败 -5.0，成功 5.0 - 2.0×latencyRatio - 0.5×energyNorm - 1.0×networkCost。energyP95 基于滑动窗口（200 样本）。
   - PRB 映射：8 档比例 {0.02, 0.05, 0.10, 0.20, 0.40, 0.60, 0.80, 1.00}，映射到 `max(1, maxPerTask × ratio)` 块数。本地执行强制 PRB=0。
 
 - `DefaultNetworkModel.java`
@@ -207,18 +198,17 @@ RL 相关入口还包括：
   - 支持 `resize_agent_embedding()` 适配不同智能体数量，新智能体循环复制已有嵌入。
   - `evaluate_actions()` 用于 PPO 更新时重新计算 log_prob 和 entropy。
   - 本地目的地（action=0）时 PRB log_prob 和 entropy 自动置零。
-  - `CentralCritic`：2层MLP(256 hidden)+Tanh，输入 global_state（维度由 `marl_config.state_dim` 决定，当前 MAPPO 为 27+numDest+8 ≈ 41D），输出标量 value。
+  - `CentralCritic`：2层MLP(256 hidden)+Tanh，输入 global_state(27D)，输出标量 value。
 
 - `ppo/models.py`
   - `PPOActor`：与 TurnActor 结构一致，但去掉了 agent_embedding。`agent_encoder` 直接接收 `agent_obs`（不拼接嵌入）。
-  - `PPOCritic`：与 CentralCritic 结构一致，但 `state_dim` 固定为 27D（不含遥测分布）。
+  - `PPOCritic`：与 CentralCritic 结构一致。
 
 - `shared/runtime_support.py`
   - 管理 Java 启动、日志、运行目录、运行时 settings 克隆与覆盖。
   - `RuntimeConfig`：从 `runtime_config.json` 加载，支持环境变量覆盖（`PUREEDGESIM_MAPPO_*`）。
   - `RunLayout`：管理训练/评估的完整目录树（models/trajectories/logs/runtime_settings/episodes）。
   - `JavaEpisodeProcess`：包装 subprocess，后台线程流式读取 stdout，保留最近 50 行 tail。
-  - `start_java_episode()`：启动 Java 仿真进程，训练模式下自动传递 `-Dmappo.env.action_timeout_ms=30000`。
   - `prepare_effective_settings_dir()`：克隆 settings_base，覆盖 simulation_time/algorithm/architecture/charts 等参数。
   - `prepare_stress_settings_dir()`：额外覆盖 edge_datacenters_coverage 和应用生成速率，用于压力测试。
   - `connect_client_with_retry()`：重试连接 TCP，每 0.25s 一次，30s 超时。
@@ -240,7 +230,6 @@ RL 相关入口还包括：
   - 超参数通过环境变量配置（`PUREEDGESIM_MAPPO_*` / `PUREEDGESIM_PPO_*`）。
   - Entropy 系数从 `ENTROPY_COEF_START`(0.02) 线性退火到 `ENTROPY_COEF_END`(0.002)。
   - 默认：40 episodes, γ=0.99, clip=0.1, LR=3e-4, 4 PPO epochs, minibatch=1024。
-  - Fallback 处理：pending dict 存储 Python `act()` 返回的 actions；收到 `dest_fallback=true` 的 transition 时跳过不入 buffer（reward 仍计入 episode 统计）；非 fallback transition 使用 Python 原始 action 计算 log_prob，避免 executed_action 导致的梯度错位。
 
 - `mappo/test_mappo.py`
   - 支持多 variant（base / stress）和多种子（默认 9001/9002/9003）。
@@ -327,8 +316,6 @@ RL 相关入口还包括：
 
 - 不要假设 Java 源码在 `src/`，这里直接在 `PureEdgeSim/` 下。
 - 如果改动了观测维度、动作空间、消息协议或模型输入输出，需要同时检查 Java 和 Python 两侧。
-- MAPPO 和 PPO 的 state 维度已分离：MAPPO 使用 `getEnvConfigWithTelemetry()` / `buildTurn(task, telemetry)`（扩展 state），PPO 使用 `getEnvConfig()` / `buildTurn(task)`（27D）。改动 state 相关逻辑时注意区分两条路径。
-- MAPPO 的 state 维度依赖目的地数量（`27 + numDest + 8`），改变目的地配置会导致旧 checkpoint 不兼容。
 - 如果改动了 `simulation_parameters.properties` 的键名，记得同步检查 `FilesParser.java`、`runtime_support.py` 和 `run_simulation.py`。
 - 优先保持训练模式和离线推理模式同时可用，除非 `kan` 明确要求只保留一种。
 - `CustomDataCenter`、`CustomEnergyModel` 目前更像示例扩展点，不是主路径。
@@ -368,8 +355,8 @@ Python → Java: control           {command: "terminate"}  （可选，提前结
 | LATENCY_ENERGY_AWARE | 多因子：(tasks+1) x latencyWeight(Cloud=1.6) x energyWeight(EdgeDevice=1.4) x taskLength / vmMips |
 | WEIGHT_GREEDY | 归一化加权和：0.3x距离延迟 + 0.3x执行延迟 + 0.25xVM负载 + 0.15x能耗 |
 | TEST | 实验性：weight x (taskLength / effectiveMips) x (cpuUtil x 20 + 1) |
-| MAPPO | 多智能体 RL，每设备独立策略（含 Agent Embedding 16D），centralized critic 接收扩展 state（27D 基础 + 目的地分布 + PRB 分布） |
-| PPO | 单策略 RL，所有设备共享网络（无 Agent Embedding），critic 仅接收 27D 基础 state |
+| MAPPO | 多智能体 RL，每设备独立策略（含 Agent Embedding 16D） |
+| PPO | 单策略 RL，所有设备共享网络（无 Agent Embedding） |
 
 ## 可视化图表
 
