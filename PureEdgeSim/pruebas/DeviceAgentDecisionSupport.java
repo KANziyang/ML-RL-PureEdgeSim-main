@@ -279,11 +279,25 @@ public class DeviceAgentDecisionSupport {
 				PRB_BINS, getDestinationLabels(), getPrbBinLabels());
 	}
 
+	public EnvConfig getEnvConfigWithTelemetry() {
+		int extendedStateDim = GLOBAL_STATE_SIZE + getDestinationCount() + PRB_BINS;
+		return new EnvConfig(agentDevices.size(), getDestinationCount(), AGENT_OBS_SIZE, DEST_FEAT_SIZE, extendedStateDim,
+				PRB_BINS, getDestinationLabels(), getPrbBinLabels());
+	}
+
 	public DecisionTelemetryTracker createTelemetryTracker() {
 		return new DecisionTelemetryTracker(getDestinationLabels(), getPrbBinLabels());
 	}
 
 	public TurnObservation buildTurn(Task task) {
+		return buildTurnInternal(task, GLOBAL_STATE_SIZE, null);
+	}
+
+	public TurnObservation buildTurn(Task task, DecisionTelemetrySnapshot telemetry) {
+		return buildTurnInternal(task, GLOBAL_STATE_SIZE + getDestinationCount() + PRB_BINS, telemetry);
+	}
+
+	private TurnObservation buildTurnInternal(Task task, int stateDim, DecisionTelemetrySnapshot telemetry) {
 		DataCenter source = task.getEdgeDevice();
 		if (source == null) {
 			throw new IllegalStateException("MAPPO requires task edge device to be set.");
@@ -296,7 +310,7 @@ public class DeviceAgentDecisionSupport {
 		int destinationCount = getDestinationCount();
 		double[] agentObs = new double[AGENT_OBS_SIZE];
 		double[][] destFeatures = new double[destinationCount][DEST_FEAT_SIZE];
-		double[] state = new double[GLOBAL_STATE_SIZE];
+		double[] state = new double[stateDim];
 		int[] destMask = new int[destinationCount];
 		DestinationCandidate[] candidates = new DestinationCandidate[destinationCount];
 
@@ -342,6 +356,9 @@ public class DeviceAgentDecisionSupport {
 		}
 
 		fillGlobalState(state, agentObs);
+		if (telemetry != null && stateDim > GLOBAL_STATE_SIZE) {
+			appendTelemetryToState(state, telemetry);
+		}
 		return new TurnObservation(agentId.intValue(), source.getId(), agentObs, destFeatures, state, destMask, candidates);
 	}
 
@@ -576,6 +593,22 @@ public class DeviceAgentDecisionSupport {
 		state[p++] = normalize(getTotalActiveTasks(), maxActiveTasks, 2.0);
 		state[p++] = getAllocatedPrbRatio();
 		state[p++] = computeDestinationCpuImbalanceStd();
+	}
+
+	private void appendTelemetryToState(double[] state, DecisionTelemetrySnapshot telemetry) {
+		int destCount = getDestinationCount();
+		int offset = GLOBAL_STATE_SIZE;
+		double destTotal = Math.max(telemetry.destWindowDecisionCount, 1);
+		for (int i = 0; i < destCount; i++) {
+			state[offset + i] = (i < telemetry.destWindowCounts.length)
+					? telemetry.destWindowCounts[i] / destTotal : 0.0;
+		}
+		offset += destCount;
+		double prbTotal = Math.max(telemetry.prbWindowDecisionCount, 1);
+		for (int i = 0; i < PRB_BINS; i++) {
+			state[offset + i] = (i < telemetry.prbWindowCounts.length)
+					? telemetry.prbWindowCounts[i] / prbTotal : 0.0;
+		}
 	}
 
 	private double[] computeSourceStat(String key) {

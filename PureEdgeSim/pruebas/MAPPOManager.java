@@ -29,7 +29,7 @@ public class MAPPOManager extends AbstractRLManager {
 	public int reinforcementLearning(String[] architecture, Task task) {
 		waitForEnvConnection();
 
-		DeviceAgentDecisionSupport.TurnObservation turn = decisionSupport.buildTurn(task);
+		DeviceAgentDecisionSupport.TurnObservation turn = decisionSupport.buildTurn(task, telemetryTracker.snapshot());
 		long stepId = task.getId();
 
 		RLEnvServer.ActionData actionData;
@@ -37,7 +37,7 @@ public class MAPPOManager extends AbstractRLManager {
 			actionData = new RLEnvServer.ActionData(0, 0, false);
 		} else {
 			actionData = envServer.waitForAction(turn.agentId, turn.agentObs, turn.destFeatures,
-					turn.globalState, turn.destMask, stepId, decisionSupport.getEnvConfig());
+					turn.globalState, turn.destMask, stepId, decisionSupport.getEnvConfigWithTelemetry());
 		}
 
 		if (actionData.terminate) {
@@ -92,8 +92,9 @@ public class MAPPOManager extends AbstractRLManager {
 		finishedEpisodes++;
 		try {
 			if (isEnvServerConnected()) {
-				envServer.sendConfigIfNeeded(decisionSupport.getEnvConfig());
-				double[] state = lastState != null ? lastState : new double[DeviceAgentDecisionSupport.GLOBAL_STATE_SIZE];
+				envServer.sendConfigIfNeeded(decisionSupport.getEnvConfigWithTelemetry());
+				double[] state = lastState != null ? lastState
+						: new double[DeviceAgentDecisionSupport.GLOBAL_STATE_SIZE + decisionSupport.getDestinationCount() + DeviceAgentDecisionSupport.PRB_BINS];
 				envServer.sendEpisodeEnd(state, finishedEpisodes, fallbackCount);
 			}
 		} finally {
