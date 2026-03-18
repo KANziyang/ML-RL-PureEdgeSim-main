@@ -131,16 +131,22 @@ def load_mappo_actor(model_path: str, device: torch.device) -> tuple:
         )
         mappo_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mappo_mod)
+        ablation = cfg.get("ablation", "")
+        use_emb = ablation != "no_embedding"
+        fixed_prb = int(cfg["fixed_prb_bin"]) if ablation == "fixed_prb" else None
         actor = mappo_mod.TurnActor(
             agent_obs_dim=int(cfg["agent_obs_dim"]),
             dest_feat_dim=int(cfg["dest_feat_dim"]),
             num_agents=int(cfg["num_agents"]),
             num_destinations=int(cfg["num_destinations"]),
             prb_bins=int(cfg["prb_bins"]),
+            use_agent_embedding=use_emb,
+            fixed_prb_bin=fixed_prb,
         ).to(device)
         actor.load_state_dict(ckpt["actor"])
         actor.eval()
-        print("inference_server: loaded TurnActor (new MAPPO)", flush=True)
+        ablation_info = f" ablation={ablation}" if ablation else ""
+        print(f"inference_server: loaded TurnActor (new MAPPO){ablation_info}", flush=True)
         return actor, MODEL_TURN_ACTOR
 
     # Old SharedActor checkpoint
@@ -206,8 +212,12 @@ def _adapt_turn_actor(actor, msg: dict) -> None:
     """Resize TurnActor embedding / num_destinations to match the live env."""
     env_agents = int(msg.get("num_agents", actor.num_agents))
     if env_agents != actor.num_agents:
-        print(f"inference_server: resizing agent_embedding "
-              f"{actor.num_agents} -> {env_agents}", flush=True)
+        if actor.use_agent_embedding:
+            print(f"inference_server: resizing agent_embedding "
+                  f"{actor.num_agents} -> {env_agents}", flush=True)
+        else:
+            print(f"inference_server: updating num_agents "
+                  f"{actor.num_agents} -> {env_agents} (no embedding)", flush=True)
         actor.resize_agent_embedding(env_agents)
 
     env_dest = int(msg.get("num_destinations", actor.num_destinations))

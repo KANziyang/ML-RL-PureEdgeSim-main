@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
@@ -15,6 +17,8 @@ class TurnActor(nn.Module):
         prb_bins: int,
         agent_embedding_dim: int = 16,
         hidden_dim: int = 128,
+        use_agent_embedding: bool = True,
+        fixed_prb_bin: Optional[int] = None,
     ) -> None:
         super().__init__()
         self.agent_obs_dim = agent_obs_dim
@@ -22,9 +26,15 @@ class TurnActor(nn.Module):
         self.num_agents = num_agents
         self.num_destinations = num_destinations
         self.prb_bins = prb_bins
-        self.agent_embedding = nn.Embedding(num_agents, agent_embedding_dim)
+        self.use_agent_embedding = use_agent_embedding
+        self.fixed_prb_bin = fixed_prb_bin
+        if use_agent_embedding:
+            self.agent_embedding = nn.Embedding(num_agents, agent_embedding_dim)
+            encoder_input_dim = agent_obs_dim + agent_embedding_dim
+        else:
+            encoder_input_dim = agent_obs_dim
         self.agent_encoder = nn.Sequential(
-            nn.Linear(agent_obs_dim + agent_embedding_dim, hidden_dim),
+            nn.Linear(encoder_input_dim, hidden_dim),
             nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.Tanh(),
@@ -49,6 +59,9 @@ class TurnActor(nn.Module):
         over the original embeddings so that every new agent starts with a
         reasonable representation.
         """
+        if not self.use_agent_embedding:
+            self.num_agents = new_num_agents
+            return
         if new_num_agents == self.num_agents:
             return
         old_weight = self.agent_embedding.weight.data          # [old_N, dim]
@@ -89,8 +102,11 @@ class TurnActor(nn.Module):
         if dest_features.size(1) != self.num_destinations:
             raise ValueError(f"Expected {self.num_destinations} destinations, got {dest_features.size(1)}")
 
-        agent_embed = self.agent_embedding(agent_ids.long())
-        agent_input = torch.cat([agent_obs, agent_embed], dim=-1)
+        if self.use_agent_embedding:
+            agent_embed = self.agent_embedding(agent_ids.long())
+            agent_input = torch.cat([agent_obs, agent_embed], dim=-1)
+        else:
+            agent_input = agent_obs
         agent_hidden = self.agent_encoder(agent_input)
         repeated_agent_hidden = agent_hidden.unsqueeze(1).expand(-1, self.num_destinations, -1)
         dest_input = torch.cat([dest_features, repeated_agent_hidden], dim=-1)
@@ -113,6 +129,16 @@ class TurnActor(nn.Module):
             dest_action = torch.argmax(dest_logits, dim=-1)
         else:
             dest_action = dest_dist.sample()
+
+        if self.fixed_prb_bin is not None:
+            # Fixed PRB: skip prb_head, use constant bin
+            fixed_prb = torch.full_like(dest_action, self.fixed_prb_bin)
+            is_local = dest_action == 0
+            effective_prb_action = torch.where(is_local, torch.zeros_like(fixed_prb), fixed_prb)
+            log_probs = dest_dist.log_prob(dest_action)
+            entropy = dest_dist.entropy()
+            actions = torch.stack([dest_action, effective_prb_action], dim=-1)
+            return actions, log_probs, entropy
 
         batch_indices = torch.arange(dest_hidden.size(0), device=dest_hidden.device)
         selected_dest_hidden = dest_hidden[batch_indices, dest_action]
@@ -151,6 +177,11 @@ class TurnActor(nn.Module):
         agent_hidden, dest_hidden, dest_logits = self.encode(agent_ids, agent_obs, dest_features, dest_mask)
         dest_dist = Categorical(logits=dest_logits)
         dest_action = actions[..., 0].long()
+
+        if self.fixed_prb_bin is not None:
+            log_probs = dest_dist.log_prob(dest_action)
+            entropy = dest_dist.entropy()
+            return log_probs, entropy
 
         batch_indices = torch.arange(dest_hidden.size(0), device=dest_hidden.device)
         selected_dest_hidden = dest_hidden[batch_indices, dest_action]

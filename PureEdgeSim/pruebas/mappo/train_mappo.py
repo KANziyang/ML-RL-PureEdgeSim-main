@@ -59,6 +59,10 @@ EPISODES_PER_UPDATE = int(os.getenv("PUREEDGESIM_MAPPO_EPISODES_PER_UPDATE", "1"
 
 TRAIN_BASE_SEED = int(os.getenv("PUREEDGESIM_MAPPO_TRAIN_BASE_SEED", "1000"))
 
+# Ablation control
+ABLATION_MODE = os.getenv("PUREEDGESIM_MAPPO_ABLATION", "").strip().lower()  # "", "no_embedding", "fixed_prb"
+FIXED_PRB_BIN = int(os.getenv("PUREEDGESIM_MAPPO_FIXED_PRB_BIN", "3"))  # default bin 3 (ratio=0.20)
+
 TRAIN_EPISODES_OVERRIDE: Optional[int] = 40
 TRAIN_MAX_ENV_STEPS_OVERRIDE: Optional[int] = None
 TRAIN_SIMULATION_MINUTES_OVERRIDE: Optional[int] = 30
@@ -95,7 +99,7 @@ class EnvSpec:
         )
 
     def to_checkpoint_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "num_agents": self.num_agents,
             "num_destinations": self.num_destinations,
             "agent_obs_dim": self.agent_obs_dim,
@@ -105,6 +109,11 @@ class EnvSpec:
             "destination_labels": list(self.destination_labels),
             "prb_bin_labels": list(self.prb_bin_labels),
         }
+        if ABLATION_MODE:
+            d["ablation"] = ABLATION_MODE
+        if ABLATION_MODE == "fixed_prb":
+            d["fixed_prb_bin"] = FIXED_PRB_BIN
+        return d
 
     def same_shape(self, other: "EnvSpec") -> bool:
         return (
@@ -128,12 +137,16 @@ class ModelRuntime:
     def ensure_initialized(self, env_spec: EnvSpec, device: torch.device) -> None:
         if self.env_spec is None:
             self.env_spec = env_spec
+            use_emb = ABLATION_MODE != "no_embedding"
+            fixed_prb = FIXED_PRB_BIN if ABLATION_MODE == "fixed_prb" else None
             self.actor = TurnActor(
                 agent_obs_dim=env_spec.agent_obs_dim,
                 dest_feat_dim=env_spec.dest_feat_dim,
                 num_agents=env_spec.num_agents,
                 num_destinations=env_spec.num_destinations,
                 prb_bins=env_spec.prb_bins,
+                use_agent_embedding=use_emb,
+                fixed_prb_bin=fixed_prb,
             ).to(device)
             self.critic = CentralCritic(state_dim=env_spec.state_dim).to(device)
             self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=ACTOR_LR)

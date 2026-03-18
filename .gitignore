@@ -1,9 +1,13 @@
 target/
 output/
+Results/
+results/
 /EE5003_Report/
 PureEdgeSim/pruebas/output/
 PureEdgeSim/pruebas/output_builtin/
 PureEdgeSim/pruebas/output_mappo/
+PureEdgeSim/pruebas/output_mappo_no_embedding/
+PureEdgeSim/pruebas/output_mappo_fixed_prb/
 PureEdgeSim/pruebas/output_ppo_5agent/
 PureEdgeSim/pruebas/output_tradeoff_5agent/
 PureEdgeSim/output/
@@ -11,6 +15,8 @@ PureEdgeSim/output/
 # RL artifacts
 PureEdgeSim/pruebas/mappo/trajectory/
 PureEdgeSim/pruebas/mappo/model/
+PureEdgeSim/pruebas/mappo/model_no_embedding/
+PureEdgeSim/pruebas/mappo/model_fixed_prb/
 PureEdgeSim/pruebas/mappo/runtime_config.json
 PureEdgeSim/pruebas/mappo/__pycache__/
 PureEdgeSim/pruebas/ppo/trajectory/

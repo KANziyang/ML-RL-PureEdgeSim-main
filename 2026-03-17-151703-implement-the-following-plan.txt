@@ -1,0 +1,262 @@
+ ▐▛███▜▌   Claude Code v2.1.77
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    ~\Desktop\6G_EdgeCloudComputing_For_MAPPO
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Plan to implement                                                            │
+│                                                                              │
+│ MAPPO 消融实验：no-embedding + fixed-prb                                     │
+│                                                                              │
+│ Context                                                                      │
+│                                                                              │
+│ 为了量化 MAPPO 中两个关键设计的贡献，需要做消融实验：                        │
+│ 1. no-embedding：去掉 agent_embedding（16D），所有智能体共享同一策略（类似   │
+│ PPO 但保留 centralized critic + 扩展 state）                                 │
+│ 2. fixed-prb：固定 PRB 分配为某个档位，只学习目的地选择                      │
+│                                                                              │
+│ 消融仅改 Python 侧，Java 不动。                                              │
+│                                                                              │
+│ 设计决策                                                                     │
+│                                                                              │
+│ - 在 TurnActor 上加两个 flag（use_agent_embedding,                           │
+│ fixed_prb_bin），不新建模型类                                                │
+│ - 通过环境变量 PUREEDGESIM_MAPPO_ABLATION 控制消融模式，复用现有             │
+│ train_mappo.py                                                               │
+│ - 输出目录通过 PUREEDGESIM_MAPPO_OUTPUT_ROOT / PUREEDGESIM_MAPPO_MODEL_DIR   │
+│ 环境变量区分                                                                 │
+│ - Checkpoint 中存储 ablation 字段，eval/inference 自动识别                   │
+│                                                                              │
+│ 修改文件清单                                                                 │
+│                                                                              │
+│ 1. PureEdgeSim/pruebas/mappo/models.py — TurnActor 加消融 flag               │
+│                                                                              │
+│ __init__ 新增参数：                                                          │
+│ - use_agent_embedding: bool = True                                           │
+│ - fixed_prb_bin: Optional[int] = None（None=学习，int=固定到该档位）         │
+│                                                                              │
+│ 当 use_agent_embedding=False：                                               │
+│ - 不创建 self.agent_embedding                                                │
+│ - agent_encoder 输入维度改为 agent_obs_dim（去掉 + agent_embedding_dim）     │
+│                                                                              │
+│ 当 fixed_prb_bin is not None：                                               │
+│ - prb_head 仍创建（保持 state_dict key 一致性），但 forward 时不使用         │
+│                                                                              │
+│ encode() 改动：                                                              │
+│ - use_agent_embedding=False 时忽略 agent_ids，agent_obs 直接进 agent_encoder │
+│                                                                              │
+│ act() / evaluate_actions() 改动：                                            │
+│ - fixed_prb_bin is not None 时跳过 prb_head，prb_action                      │
+│ 固定为该值，log_prob/entropy 只含 dest 部分                                  │
+│                                                                              │
+│ resize_agent_embedding() 改动：                                              │
+│ - use_agent_embedding=False 时直接 return                                    │
+│                                                                              │
+│ 2. PureEdgeSim/pruebas/mappo/train_mappo.py — 解析消融环境变量               │
+│                                                                              │
+│ 顶部新增：                                                                   │
+│ ABLATION_MODE = os.getenv("PUREEDGESIM_MAPPO_ABLATION", "").strip().lower()  │
+│  # "", "no_embedding", "fixed_prb"                                           │
+│ FIXED_PRB_BIN = int(os.getenv("PUREEDGESIM_MAPPO_FIXED_PRB_BIN", "3"))       │
+│  # 默认档位 3 (ratio=0.20)                                                   │
+│                                                                              │
+│ ModelRuntime.ensure_initialized()：传 flag 给 TurnActor 构造函数             │
+│                                                                              │
+│ EnvSpec.to_checkpoint_dict()：写入 ablation 和 fixed_prb_bin                 │
+│                                                                              │
+│ main()：打印消融模式                                                         │
+│                                                                              │
+│ 3. PureEdgeSim/pruebas/mappo/test_mappo.py — 从 checkpoint 读消融配置        │
+│                                                                              │
+│ actor 构造时从 model_cfg 读 ablation / fixed_prb_bin，传给 TurnActor         │
+│                                                                              │
+│ _adapt_actor_to_env()：use_agent_embedding=False 时跳过 embedding resize     │
+│                                                                              │
+│ 4. PureEdgeSim/pruebas/shared/inference_server.py — 离线推理支持消融模型     │
+│                                                                              │
+│ load_mappo_actor()：从 checkpoint config 读 ablation / fixed_prb_bin，传给   │
+│ TurnActor                                                                    │
+│                                                                              │
+│ _adapt_turn_actor()：无 embedding 时跳过 resize                              │
+│                                                                              │
+│ 5. .gitignore — 排除消融产物目录                                             │
+│                                                                              │
+│ PureEdgeSim/pruebas/output_mappo_no_embedding/                               │
+│ PureEdgeSim/pruebas/output_mappo_fixed_prb/                                  │
+│                                                                              │
+│ 运行方式                                                                     │
+│                                                                              │
+│ no-embedding 训练：                                                          │
+│ cd PureEdgeSim/pruebas/mappo                                                 │
+│ PUREEDGESIM_MAPPO_ABLATION=no_embedding \                                    │
+│ PUREEDGESIM_MAPPO_OUTPUT_ROOT=PureEdgeSim/pruebas/output_mappo_no_embedding  │
+│ \                                                                            │
+│ PUREEDGESIM_MAPPO_MODEL_DIR=PureEdgeSim/pruebas/mappo/model_no_embedding \   │
+│ python train_mappo.py                                                        │
+│                                                                              │
+│ fixed-prb 训练（默认固定到档位 3 = 0.20 比例）：                             │
+│ cd PureEdgeSim/pruebas/mappo                                                 │
+│ PUREEDGESIM_MAPPO_ABLATION=fixed_prb \                                       │
+│ PUREEDGESIM_MAPPO_FIXED_PRB_BIN=3 \                                          │
+│ PUREEDGESIM_MAPPO_OUTPUT_ROOT=PureEdgeSim/pruebas/output_mappo_fixed_prb \   │
+│ PUREEDGESIM_MAPPO_MODEL_DIR=PureEdgeSim/pruebas/mappo/model_fixed_prb \      │
+│ python train_mappo.py                                                        │
+│                                                                              │
+│ 评估： test_mappo.py 从 checkpoint 自动读取消融配置，只需指向对应            │
+│ model_dir。                                                                  │
+│                                                                              │
+│ 验证                                                                         │
+│                                                                              │
+│ 1. 编译 Java：mvn -q -DskipTests compile                                     │
+│ 2. 分别运行 no-embedding 和 fixed-prb 训练各 2-3 个 episode，确认：          │
+│   - 训练正常启动，无报错                                                     │
+│   - Checkpoint 中包含正确的 ablation 字段                                    │
+│   - no-embedding 的 checkpoint 无 agent_embedding.weight key                 │
+│   - fixed-prb 的 entropy 只有 dest 部分（应比完整 MAPPO 低）                 │
+│ 3. 用 test_mappo.py 加载消融 checkpoint 评估，确认推理正常                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+● I'll start by reading the files that need to be modified to understand the
+  current code.
+
+● Read 5 files (ctrl+o to expand)
+
+● Now I have all the context. Let me create the task list and start
+  implementing.
+
+● Let me create the remaining tasks and start implementing.
+
+● Starting with the TurnActor changes in models.py.
+
+● Update(PureEdgeSim\pruebas\mappo\models.py)
+  ⎿  Added 12 lines, removed 2 lines
+      1  from __future__ import annotations
+      2  
+      3 +from typing import Optional                                     
+      4 +                                                                
+      5  import torch
+      6  import torch.nn as nn
+      7  from torch.distributions import Categorical
+     ...
+      17          prb_bins: int,
+      18          agent_embedding_dim: int = 16,
+      19          hidden_dim: int = 128,
+      20 +        use_agent_embedding: bool = True,                      
+      21 +        fixed_prb_bin: Optional[int] = None,                   
+      22      ) -> None:
+      23          super().__init__()
+      24          self.agent_obs_dim = agent_obs_dim
+     ...
+      26          self.num_agents = num_agents
+      27          self.num_destinations = num_destinations
+      28          self.prb_bins = prb_bins
+      25 -        self.agent_embedding = nn.Embedding(num_agents, agent_e
+         -mbedding_dim)                                                  
+      29 +        self.use_agent_embedding = use_agent_embedding         
+      30 +        self.fixed_prb_bin = fixed_prb_bin                     
+      31 +        if use_agent_embedding:                                
+      32 +            self.agent_embedding = nn.Embedding(num_agents, age
+         +nt_embedding_dim)                                              
+      33 +            encoder_input_dim = agent_obs_dim + agent_embedding
+         +_dim                                                           
+      34 +        else:                                                  
+      35 +            encoder_input_dim = agent_obs_dim                  
+      36          self.agent_encoder = nn.Sequential(
+      27 -            nn.Linear(agent_obs_dim + agent_embedding_dim, hidd
+         -en_dim),                                                       
+      37 +            nn.Linear(encoder_input_dim, hidden_dim),          
+      38              nn.Tanh(),
+      39              nn.Linear(hidden_dim, hidden_dim),
+      40              nn.Tanh(),
+
+● Now update resize_agent_embedding to early-return when embedding is disabled.
+
+● Update(PureEdgeSim\pruebas\mappo\models.py)
+  ⎿  Added 3 lines
+      59          over the original embeddings so that every new agent st
+          arts with a
+      60          reasonable representation.
+      61          """
+      62 +        if not self.use_agent_embedding:                       
+      63 +            self.num_agents = new_num_agents                   
+      64 +            return                                             
+      65          if new_num_agents == self.num_agents:
+      66              return
+      67          old_weight = self.agent_embedding.weight.data          
+          # [old_N, dim]
+
+● Now update the encode method to handle use_agent_embedding=False.
+
+● Update(PureEdgeSim\pruebas\mappo\models.py)
+  ⎿  Added 5 lines, removed 2 lines
+      102          if dest_features.size(1) != self.num_destinations:
+      103              raise ValueError(f"Expected {self.num_destinations
+           } destinations, got {dest_features.size(1)}")
+      104  
+      105 -        agent_embed = self.agent_embedding(agent_ids.long())  
+      106 -        agent_input = torch.cat([agent_obs, agent_embed], dim=
+          --1)                                                           
+      105 +        if self.use_agent_embedding:                          
+      106 +            agent_embed = self.agent_embedding(agent_ids.long(
+          +))                                                            
+      107 +            agent_input = torch.cat([agent_obs, agent_embed], 
+          +dim=-1)                                                       
+      108 +        else:                                                 
+      109 +            agent_input = agent_obs                           
+      110          agent_hidden = self.agent_encoder(agent_input)
+      111          repeated_agent_hidden = agent_hidden.unsqueeze(1).expa
+           nd(-1, self.num_destinations, -1)
+      112          dest_input = torch.cat([dest_features, repeated_agent_
+           hidden], dim=-1)
+
+● Now update the act method to handle fixed_prb_bin.
+
+● Update(PureEdgeSim\pruebas\mappo\models.py)
+  ⎿  Added 10 lines
+      130          else:
+      131              dest_action = dest_dist.sample()
+      132  
+      133 +        if self.fixed_prb_bin is not None:                    
+      134 +            # Fixed PRB: skip prb_head, use constant bin      
+      135 +            fixed_prb = torch.full_like(dest_action, self.fixe
+          +d_prb_bin)                                                    
+      136 +            is_local = dest_action == 0                       
+      137 +            effective_prb_action = torch.where(is_local, torch
+          +.zeros_like(fixed_prb), fixed_prb)                            
+      138 +            log_probs = dest_dist.log_prob(dest_action)       
+      139 +            entropy = dest_dist.entropy()                     
+      140 +            actions = torch.stack([dest_action, effective_prb_
+          +action], dim=-1)                                              
+      141 +            return actions, log_probs, entropy                
+      142 +                                                              
+      143          batch_indices = torch.arange(dest_hidden.size(0), devi
+           ce=dest_hidden.device)
+      144          selected_dest_hidden = dest_hidden[batch_indices, dest
+           _action]
+      145          prb_input = torch.cat([agent_hidden, selected_dest_hid
+           den], dim=-1)
+
+● Now update evaluate_actions to handle fixed_prb_bin.
+
+● Update(PureEdgeSim\pruebas\mappo\models.py)
+  ⎿  Added 5 lines
+      178          dest_dist = Categorical(logits=dest_logits)
+      179          dest_action = actions[..., 0].long()
+      180  
+      181 +        if self.fixed_prb_bin is not None:                    
+      182 +            log_probs = dest_dist.log_prob(dest_action)       
+      183 +            entropy = dest_dist.entropy()                     
+      184 +            return log_probs, entropy                         
+      185 +                                                              
+      186          batch_indices = torch.arange(dest_hidden.size(0), devi
+           ce=dest_hidden.device)
+      187          selected_dest_hidden = dest_hidden[batch_indices, dest
+           _action]
+      188          prb_input = torch.cat([agent_hidden, selected_dest_hid
+           den], dim=-1)
+  ⎿  API Error: 403 {"error":{"message":"令牌[3s2lO*****************************
+     *********nhih4]额度不足 (request id: 
+     2026031715151367831580646433440)","localized_message":"Unknown error","type
+     ":"shell_api_error","param":"","code":"pre_consume_token_quota_failed"}} · 
+     Please run /login
+
+✻ Crunched for 2m 2s

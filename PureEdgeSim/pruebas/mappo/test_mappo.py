@@ -87,12 +87,17 @@ def main() -> None:
         describe_runtime(config, logger)
         compile_java_project(config, logger)
 
+        ablation = model_cfg.get("ablation", "")
+        use_emb = ablation != "no_embedding"
+        fixed_prb = int(model_cfg["fixed_prb_bin"]) if ablation == "fixed_prb" else None
         actor = TurnActor(
             agent_obs_dim=int(model_cfg["agent_obs_dim"]),
             dest_feat_dim=int(model_cfg["dest_feat_dim"]),
             num_agents=int(model_cfg["num_agents"]),
             num_destinations=int(model_cfg["num_destinations"]),
             prb_bins=int(model_cfg["prb_bins"]),
+            use_agent_embedding=use_emb,
+            fixed_prb_bin=fixed_prb,
         ).to(device)
         actor.load_state_dict(ckpt["actor"])
         actor.eval()
@@ -254,8 +259,12 @@ def _adapt_actor_to_env(actor: TurnActor, model_cfg: Dict[str, Any],
     env_num_agents = int(msg["num_agents"])
     ckpt_num_agents = int(model_cfg["num_agents"])
     if env_num_agents != ckpt_num_agents:
-        print(f"test_mappo: resizing agent_embedding "
-              f"{ckpt_num_agents} -> {env_num_agents}", flush=True)
+        if actor.use_agent_embedding:
+            print(f"test_mappo: resizing agent_embedding "
+                  f"{ckpt_num_agents} -> {env_num_agents}", flush=True)
+        else:
+            print(f"test_mappo: updating num_agents "
+                  f"{ckpt_num_agents} -> {env_num_agents} (no embedding)", flush=True)
         actor.resize_agent_embedding(env_num_agents)
 
     env_num_dest = int(msg["num_destinations"])
