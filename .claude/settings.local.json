@@ -39,7 +39,19 @@
       "Bash(mvn -q -DskipTests compile)",
       "Bash(python -m py_compile PureEdgeSim/pruebas/mappo/train_mappo.py)",
       "Bash(python -m py_compile PureEdgeSim/pruebas/ppo/train_ppo.py)",
-      "Bash(python -m py_compile PureEdgeSim/pruebas/shared/runtime_support.py)"
+      "Bash(python -m py_compile PureEdgeSim/pruebas/shared/runtime_support.py)",
+      "Bash(cp \"C:/Users/hp/Desktop/6G/Results/ablation_devices/comparison/train_reward_curves.png\" \"C:/Users/hp/Desktop/6G/EE5003_Report/figures/ablation_devices_train_reward.png\")",
+      "Bash(cp \"C:/Users/hp/Desktop/6G/Results/ablation_devices/comparison/eval_tasks_success_rate.png\" \"C:/Users/hp/Desktop/6G/EE5003_Report/figures/ablation_devices_success_rate.png\")",
+      "Bash(cp \"C:/Users/hp/Desktop/6G/Results/ablation_devices/comparison/eval_average_total_time_s.png\" \"C:/Users/hp/Desktop/6G/EE5003_Report/figures/ablation_devices_total_time.png\")",
+      "Bash(cp \"C:/Users/hp/Desktop/6G/Results/ablation_devices/comparison/eval_energy_consumption_w.png\" \"C:/Users/hp/Desktop/6G/EE5003_Report/figures/ablation_devices_energy.png\")",
+      "Bash(cp \"C:/Users/hp/Desktop/6G/Results/ablation_devices/comparison/eval_reward.png\" \"C:/Users/hp/Desktop/6G/EE5003_Report/figures/ablation_devices_eval_reward.png\")",
+      "Bash(pdflatex -interaction=nonstopmode main.tex)",
+      "Bash(ls:*)",
+      "Bash(pip list:*)",
+      "Bash(pip3 list:*)",
+      "Bash(pdftotext 'C:\\\\Users\\\\hp\\\\Desktop\\\\6G\\\\Paper\\\\Aghapour et al. - 2023 - Task offloading and resource allocation algorithm based on deep reinforcement learning for distribut.pdf' -)",
+      "Bash(pdftotext 'C:\\\\Users\\\\hp\\\\Desktop\\\\6G\\\\Paper\\\\Cao et al. - 2025 - A deep Q-network-based edge service offloading in cloud–edge–terminal environment.pdf' -)",
+      "Bash(pdftotext:*)"
     ]
   }
 }

@@ -2,7 +2,6 @@ target/
 output/
 Results/
 results/
-/EE5003_Report/
 PureEdgeSim/pruebas/output/
 PureEdgeSim/pruebas/output_builtin/
 PureEdgeSim/pruebas/output_mappo/
