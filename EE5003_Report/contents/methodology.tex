@@ -31,7 +31,7 @@ The vector \(x_i\) contains three categories of local information. The first fiv
 
 All 13 dimensions are normalized before being sent to the actor. Task length, deadline, request size, result size, and container size are divided by their corresponding global maxima and clipped to \([0,1]\). CPU utilization, battery level, PRB ratios, and simulation progress are also clipped to \([0,1]\). Running-task counts are normalized by the maximum VM count per node and clipped to \([0,2]\). If no feasible local VM exists, \texttt{sourceLocalVmMipsNorm} is set to \(0.0\).
 
-\begin{table}[htbp]
+\begin{table}[!tbp]
     \centering
     \small
     \setlength{\tabcolsep}{4pt}
@@ -63,7 +63,7 @@ The matrix \(D_i\) contains one 11-dimensional row for each candidate destinatio
 
 The destination features are likewise normalized before policy evaluation. CPU utilization, total MIPS, VM count, and estimated PRB demand are scaled to \([0,1]\). Running-task counts are normalized by the maximum VM count per node and clipped to \([0,2]\). The term \texttt{estimatedFinishOverDeadline} is clipped to \([0,2]\), taking the value \(2.0\) when no candidate VM is available. For \texttt{distanceNorm}, local execution uses \(0.0\), cloud destinations use \(1.0\), and edge destinations use the normalized source-to-destination distance. The indicators \texttt{networkAdmissible}, \texttt{isLocal}, \texttt{isEdge}, and \texttt{isCloud} remain binary.
 
-\begin{table}[htbp]
+\begin{table}[!tbp]
     \centering
     \small
     \setlength{\tabcolsep}{4pt}
@@ -105,14 +105,17 @@ s_{\mathrm{base}} \in \R^{27},
 \end{align}
 which is built by \texttt{fillGlobalState()}. The first 13 dimensions are an exact copy of the active agent's local observation \(x_i\). The remaining 14 dimensions are aggregated system statistics that summarize source-device load and energy, edge-side load dispersion, cloud utilization, active-task intensity, and global PRB usage. \Tabref{tab:global-state-features} lists the full composition of this base state.
 
-\begingroup
-\renewcommand{\arraystretch}{0.94}
-\setlength{\abovecaptionskip}{3pt}
-\setlength{\belowcaptionskip}{0pt}
-\begin{table}[H]
+For MAPPO, the critic receives an augmented state in which the 27-dimensional base state is extended with recent decision telemetry:
+\begin{align}
+s_{\mathrm{aug}} = \left[s_{\mathrm{base}}; h^{\mathrm{dest}}; h^{\mathrm{prb}}\right]
+\in \R^{27 + N_d + 8},
+\end{align}
+where \(h^{\mathrm{dest}} \in \R^{N_d}\) is the normalized histogram of destination selections over the latest 200 decisions and \(h^{\mathrm{prb}} \in \R^{8}\) is the normalized histogram of PRB-bin selections over the latest 200 offloading decisions for which PRB allocation is actually applied. These telemetry terms are appended by \texttt{appendTelemetryToState()} and provide the critic with a compact summary of recent multi-agent coordination patterns. Under the default topology with one local option, four edge data centers, and one cloud destination, \(N_d = 6\), so the MAPPO critic input dimension becomes \(27 + 6 + 8 = 41\).
+
+\begin{table}[!htbp]
     \centering
     \small
-    \setlength{\tabcolsep}{3pt}
+    \setlength{\tabcolsep}{4pt}
     \begin{tabular}{>{\raggedright\arraybackslash}p{0.08\linewidth}>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.56\linewidth}}
         \hline
         \textbf{Index} & \textbf{Component} & \textbf{Meaning} \\
@@ -137,33 +140,56 @@ which is built by \texttt{fillGlobalState()}. The first 13 dimensions are an exa
     \caption{Composition of the 27-dimensional base global state used by the critic.}
     \label{tab:global-state-features}
 \end{table}
-\endgroup
-
-For MAPPO, the critic receives an augmented state in which the 27-dimensional base state is extended with recent decision telemetry:
-\begin{align}
-s_{\mathrm{aug}} = \left[s_{\mathrm{base}}; h^{\mathrm{dest}}; h^{\mathrm{prb}}\right]
-\in \R^{27 + N_d + 8},
-\end{align}
-where \(h^{\mathrm{dest}} \in \R^{N_d}\) is the normalized histogram of destination selections over the latest 200 decisions and \(h^{\mathrm{prb}} \in \R^{8}\) is the normalized histogram of PRB-bin selections over the latest 200 offloading decisions for which PRB allocation is actually applied. These telemetry terms are appended by \texttt{appendTelemetryToState()} and provide the critic with a compact summary of recent multi-agent coordination patterns. Under the default topology with one local option, four edge data centers, and one cloud destination, \(N_d = 6\), so the MAPPO critic input dimension becomes \(27 + 6 + 8 = 41\).
 
 Overall, the actor faces a partially observed local decision problem, whereas the critic evaluates each action against a richer aggregated state that captures both instantaneous system conditions and recent coordination behaviour.
+
+\FloatBarrier
 
 \subsection{Action Space Design}
 \label{subsec:action-space}
 
-The agent action is factorized into a destination head and a PRB head:
+At each decision step, agent \(i\) produces a composite action consisting of a destination selection and a PRB allocation level:
 \begin{align}
-a_i = \left(a_i^{\mathrm{dest}}, a_i^{\mathrm{prb}}\right).
+a_i = \left(a_i^{\mathrm{dest}},\; a_i^{\mathrm{prb}}\right)
+\in \{0, \dots, N_d - 1\} \times \{0, \dots, 7\}.
 \end{align}
-The destination head selects one element from the ordered candidate list. The PRB head selects one out of eight discrete bins. The bins represent relative fractions of the per-task PRB limit:
+The two heads are sampled sequentially within a single forward pass: the destination head is evaluated first, and its output conditions the PRB head.
+
+\paragraph{Destination head.}
+The destination head selects one element from the ordered candidate list defined in \Secref{subsec:observation-state}: index~0 corresponds to local execution, indices \(1\) through \(N_d{-}2\) correspond to edge data centers sorted by identifier, and the last index corresponds to the cloud. Before sampling, the destination logits are masked by the feasibility vector \(m_i\) so that destinations with no available VM or no network admissibility receive \(-\infty\) and are never selected. Under the default topology, \(N_d = 6\).
+
+\paragraph{PRB head.}
+The PRB head selects one of eight discrete bins. Each bin specifies a ratio \(\rho_k\) of the per-task PRB cap \(B_{\max}\):
 \begin{align}
-\rho \in \{0.02, 0.05, 0.10, 0.20, 0.40, 0.60, 0.80, 1.00\}.
+\rho \in \{0.02,\; 0.05,\; 0.10,\; 0.20,\; 0.40,\; 0.60,\; 0.80,\; 1.00\},
 \end{align}
-Under the reported simulator setting \(\texttt{maxPerTask}=50\), the selected ratio is converted into an integer reservation capped at 50 blocks.
+and the integer block reservation is computed as
+\begin{align}
+b_k = \max\!\left(1,\; \left\lfloor \rho_k \cdot B_{\max} \right\rfloor\right).
+\label{eq:prb-mapping}
+\end{align}
+Under the default configuration where \(B_{\max} = \lfloor 0.01 \times 5000 \rfloor = 50\), the eight bins map to \(\{1, 2, 5, 10, 20, 30, 40, 50\}\) blocks respectively. \Tabref{tab:prb-bin-mapping} lists the complete mapping.
 
-If the chosen destination is local execution, the PRB action is ignored and replaced by zero because no wireless upload is required. In the implementation, the PRB log-probability and entropy contributions are also neutralized for such local actions so that the policy is not affected by an irrelevant bandwidth decision.
+\begin{table}[htbp]
+    \centering
+    \small
+    \begin{tabular}{ccccccccc}
+        \hline
+        \textbf{Bin index} & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
+        \hline
+        Ratio \(\rho_k\) & 0.02 & 0.05 & 0.10 & 0.20 & 0.40 & 0.60 & 0.80 & 1.00 \\
+        Blocks \(b_k\) & 1 & 2 & 5 & 10 & 20 & 30 & 40 & 50 \\
+        \hline
+    \end{tabular}
+    \caption{PRB bin-to-block mapping under the default per-task cap \(B_{\max}=50\).}
+    \label{tab:prb-bin-mapping}
+\end{table}
 
-Although destination masking prevents most invalid actions, a final destination fallback rule is retained for runtime robustness. If the sampled action still points to an infeasible destination at execution time, the system replaces it with the feasible destination that has the shortest estimated completion time. This mechanism protects the simulator from transient infeasibility while preserving a clear distinction between the requested action and the executed action.
+\paragraph{Local-execution coupling.}
+If the selected destination is local execution (\(a_i^{\mathrm{dest}} = 0\)), no wireless upload is required and the PRB reservation is forced to zero regardless of the PRB head output. In the policy, the log-probability and entropy contributions of the PRB head are also set to zero for local actions, so that the gradient signal is not distorted by an irrelevant bandwidth decision.
+
+\paragraph{Destination fallback.}
+Although destination masking prevents most invalid selections, a runtime fallback rule is retained for robustness against transient state changes between observation construction and action execution. If the sampled destination turns out to be infeasible at execution time---for example, because the target device has moved out of coverage during the intervening network delay---the environment replaces it with the feasible destination that has the shortest estimated completion time. The transition records both the originally requested action and the actually executed action, and the fallback event is signaled through a dedicated flag. As described in \Secref{subsec:training-algorithm}, fallback transitions are excluded from the PPO update buffer and penalized in the reward to discourage the policy from relying on environment-side corrections.
 
 \subsection{Network Architecture}
 \label{subsec:network-architecture}
