@@ -115,12 +115,50 @@ In the actual scheduler, destination evaluation uses estimated finish time rathe
 \subsection{Energy Model}
 \label{subsec:energy-model}
 
-Wireless transmission energy follows the simulator's radio model
+The simulator tracks two categories of energy consumption for each device: wireless communication energy and CPU computation energy. Both are accumulated in watt-hours over the simulation lifetime.
+
+\paragraph{Wireless communication energy.}
+The radio energy model follows the EEZC protocol~\cite{abidi2017eezc}. A crossover distance \(d_0 = \sqrt{E_{\mathrm{fs}} / E_{\mathrm{mp}}}\) determines whether the free-space or multipath channel model applies. The transmission energy for a transfer of \(B\) bits over distance \(d\) is
 \begin{align}
-E_{\mathrm{tx}} = E_{\mathrm{elec}} \cdot bits + E_{\mathrm{amp}} \cdot bits \cdot d^n,
-\label{eq:energy-model}
+E_{\mathrm{tx}} =
+\begin{cases}
+E_{\mathrm{elec}} \cdot B + E_{\mathrm{fs}} \cdot B \cdot d^{2}, & d \le d_0, \\
+E_{\mathrm{elec}} \cdot B + E_{\mathrm{mp}} \cdot B \cdot d^{4}, & d > d_0,
+\end{cases}
+\label{eq:energy-tx}
 \end{align}
-where \(E_{\mathrm{elec}} = 5 \times 10^{-8}\,\mathrm{J/bit}\), \(E_{\mathrm{amp}} = 10^{-11}\,\mathrm{J/bit/m^2}\) in the free-space regime, and \(E_{\mathrm{amp}} = 1.3 \times 10^{-15}\,\mathrm{J/bit/m^4}\) in the multipath regime. The simulator accumulates the resulting communication cost into the per-task total energy. It should be noted that this energy module uses a separate coarse distance approximation: transfers involving the cloud or an edge data center reuse the data-center communication range rather than the \(160\,\mathrm{m}\) cloud constant from the bandwidth model. To stabilize policy learning, the reward does not use raw energy directly; instead, the task energy is standardized online through exponential moving estimates of the mean and variance with smoothing factor \(\alpha = 0.01\).
+where \(E_{\mathrm{elec}} = 5 \times 10^{-8}\,\mathrm{J/bit}\) is the per-bit circuit dissipation, \(E_{\mathrm{fs}} = 10^{-11}\,\mathrm{J/bit/m^2}\) is the free-space amplifier coefficient, and \(E_{\mathrm{mp}} = 1.3 \times 10^{-15}\,\mathrm{J/bit/m^4}\) is the multipath amplifier coefficient. The reception energy accounts only for the circuit component:
+\begin{align}
+E_{\mathrm{rx}} = E_{\mathrm{elec}} \cdot B.
+\label{eq:energy-rx}
+\end{align}
+Both \(E_{\mathrm{tx}}\) and \(E_{\mathrm{rx}}\) are converted from joules to watt-hours and accumulated into the respective device's wireless energy counter. Each task-level transfer triggers energy updates on both the sender and the receiver at every communication phase.
+
+\paragraph{CPU computation energy.}
+Each device consumes CPU energy according to a linear utilization model. Let \(P_{\mathrm{idle}}\) and \(P_{\mathrm{max}}\) denote the idle and maximum active power consumption of the device (in Wh per hour), respectively. When a task begins execution, the energy model updates the host device's CPU energy by
+\begin{align}
+\Delta E_{\mathrm{cpu}} = \frac{P_{\mathrm{idle}} + (P_{\mathrm{max}} - P_{\mathrm{idle}}) \cdot u}{3600} \cdot \Delta t,
+\label{eq:energy-cpu}
+\end{align}
+where \(u = L / M_{\mathrm{total}}\) is the instantaneous CPU utilization contributed by the task (\(L\) is the task length in MI, \(M_{\mathrm{total}}\) is the total MIPS of the data center), and \(\Delta t\) is the update interval in seconds. The total device energy is the sum of the wireless and CPU components:
+\begin{align}
+E_{\mathrm{total}} = E_{\mathrm{cpu}} + E_{\mathrm{wireless}}.
+\label{eq:energy-total}
+\end{align}
+
+\paragraph{Energy normalization for RL reward.}
+To stabilize policy learning, the reward function does not use raw energy directly. Instead, the per-task energy is standardized online through exponential moving average (EMA) estimates of the mean \(\hat{\mu}_E\) and variance \(\hat{\sigma}_E^2\), updated with smoothing factor \(\alpha_E = 0.01\):
+\begin{align}
+\hat{\mu}_E &\leftarrow \hat{\mu}_E + \alpha_E (E_t - \hat{\mu}_E), \notag \\
+\hat{\sigma}_E^2 &\leftarrow \hat{\sigma}_E^2 + \alpha_E \bigl((E_t - \hat{\mu}_E)^2 - \hat{\sigma}_E^2\bigr).
+\label{eq:energy-ema}
+\end{align}
+The normalized energy term used in the reward (\Eqref{eq:implemented-reward}) is then
+\begin{align}
+\widetilde{E}_t = \mathrm{clamp}\!\left(\frac{E_t - \hat{\mu}_E}{\sqrt{\hat{\sigma}_E^2 + \epsilon}},\; -2,\; 2\right),
+\label{eq:energy-norm}
+\end{align}
+where \(\epsilon = 10^{-8}\) prevents division by zero. This running standardization allows the energy penalty to adapt to the scale of the current workload without requiring manual tuning of the reward coefficient.
 
 \subsection{Problem Formulation}
 \label{subsec:problem-formulation}
