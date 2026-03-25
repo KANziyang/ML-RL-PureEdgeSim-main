@@ -46,12 +46,12 @@ All 13 dimensions are normalized before being sent to the actor. Task length, de
         4 & \texttt{containerSizeNorm} & Container-image size. \\
         5 & \texttt{sourceCpuNorm} & Source-device CPU utilization. \\
         6 & \texttt{sourceEnergyNorm} & Source-device battery level. \\
-        7 & \shortstack[l]{\texttt{sourceRunning}\\\texttt{TasksNorm}} & Source-device running-task count. \\
-        8 & \shortstack[l]{\texttt{sourceLocalVm}\\\texttt{MipsNorm}} & MIPS of the best local VM. \\
-        9 & \shortstack[l]{\texttt{reachableEdge}\\\texttt{CountNorm}} & Number of reachable edge destinations. \\
+        7 & \texttt{sourceRunning}\newline\texttt{TasksNorm} & Source-device running-task count. \\
+        8 & \texttt{sourceLocalVm}\newline\texttt{MipsNorm} & MIPS of the best local VM. \\
+        9 & \texttt{reachableEdge}\newline\texttt{CountNorm} & Number of reachable edge destinations. \\
         10 & \texttt{prbRemainingRatio} & Globally remaining PRB ratio. \\
         11 & \texttt{simTimeNorm} & Simulation progress. \\
-        12 & \shortstack[l]{\texttt{prbMaxAffordable}\\\texttt{Norm}} & Maximum PRB fraction currently affordable for the task. \\
+        12 & \texttt{prbMaxAffordable}\newline\texttt{Norm} & Maximum PRB fraction currently affordable for the task. \\
         \hline
     \end{tabular}
     \caption{Detailed 13-dimensional agent observation used by the actor.}
@@ -59,6 +59,7 @@ All 13 dimensions are normalized before being sent to the actor. Task length, de
 \end{table}
 
 The matrix \(D_i\) contains one 11-dimensional row for each candidate destination. Each row combines four types of destination-side information: current load and compute capacity, delay and distance proxies, network admissibility, and tier/capacity indicators. As a result, the actor can evaluate not only how busy a destination is, but also whether it belongs to the local, edge, or cloud tier, whether offloading is currently admissible, and how much PRB may be needed if that destination is selected. \Tabref{tab:destination-features} summarizes the complete destination-feature design.
+
 
 The destination features are likewise normalized before policy evaluation. CPU utilization, total MIPS, VM count, and estimated PRB demand are scaled to \([0,1]\). Running-task counts are normalized by the maximum VM count per node and clipped to \([0,2]\). The term \texttt{estimatedFinishOverDeadline} is clipped to \([0,2]\), taking the value \(2.0\) when no candidate VM is available. For \texttt{distanceNorm}, local execution uses \(0.0\), cloud destinations use \(1.0\), and edge destinations use the normalized source-to-destination distance. The indicators \texttt{networkAdmissible}, \texttt{isLocal}, \texttt{isEdge}, and \texttt{isCloud} remain binary.
 
@@ -71,16 +72,16 @@ The destination features are likewise normalized before policy evaluation. CPU u
         \textbf{Index} & \textbf{Field} & \textbf{Meaning} \\
         \hline
         0 & \texttt{cpuNorm} & Destination CPU utilization. \\
-        1 & \shortstack[l]{\texttt{runningTasks}\\\texttt{Norm}} & Destination running-task count. \\
+        1 & \texttt{runningTasksNorm} & Destination running-task count. \\
         2 & \texttt{totalMipsNorm} & Destination total MIPS. \\
-        3 & \shortstack[l]{\texttt{estimatedFinish}\\\texttt{OverDeadline}} & Estimated finish time divided by task deadline. \\
+        3 & \texttt{estimatedFinish}\newline\texttt{OverDeadline} & Estimated finish time divided by task deadline. \\
         4 & \texttt{distanceNorm} & Source-to-destination distance. \\
-        5 & \shortstack[l]{\texttt{network}\\\texttt{Admissible}} & Whether network admission is feasible. \\
+        5 & \texttt{network}\newline\texttt{Admissible} & Whether network admission is feasible. \\
         6 & \texttt{isLocal} & Local-destination indicator. \\
         7 & \texttt{isEdge} & Edge-datacenter indicator. \\
         8 & \texttt{isCloud} & Cloud-destination indicator. \\
         9 & \texttt{vmCountNorm} & Number of VMs at the destination. \\
-        10 & \shortstack[l]{\texttt{estimatedTransfer}\\\texttt{PrbNeed}} & Estimated PRB fraction required to upload the task. \\
+        10 & \texttt{estimatedTransfer}\newline\texttt{PrbNeed} & Estimated PRB fraction required to upload the task. \\
         \hline
     \end{tabular}
     \caption{Detailed 11-dimensional feature vector for each candidate destination.}
@@ -104,10 +105,14 @@ s_{\mathrm{base}} \in \R^{27},
 \end{align}
 which is built by \texttt{fillGlobalState()}. The first 13 dimensions are an exact copy of the active agent's local observation \(x_i\). The remaining 14 dimensions are aggregated system statistics that summarize source-device load and energy, edge-side load dispersion, cloud utilization, active-task intensity, and global PRB usage. \Tabref{tab:global-state-features} lists the full composition of this base state.
 
-\begin{table}[htbp]
+\begingroup
+\renewcommand{\arraystretch}{0.94}
+\setlength{\abovecaptionskip}{3pt}
+\setlength{\belowcaptionskip}{0pt}
+\begin{table}[H]
     \centering
     \small
-    \setlength{\tabcolsep}{4pt}
+    \setlength{\tabcolsep}{3pt}
     \begin{tabular}{>{\raggedright\arraybackslash}p{0.08\linewidth}>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.56\linewidth}}
         \hline
         \textbf{Index} & \textbf{Component} & \textbf{Meaning} \\
@@ -115,13 +120,13 @@ which is built by \texttt{fillGlobalState()}. The first 13 dimensions are an exa
         0--12 & \texttt{agentObs[0..12]} & Direct copy of the active agent's 13-dimensional local observation. \\
         13 & \texttt{sourceCpuStats.mean} & Mean CPU utilization across all source devices. \\
         14 & \texttt{sourceCpuStats.max} & Maximum CPU utilization across all source devices. \\
-        15 & \shortstack[l]{\texttt{sourceEnergy}\\\texttt{Stats.mean}} & Mean battery level across all source devices. \\
-        16 & \shortstack[l]{\texttt{sourceEnergy}\\\texttt{Stats.max}} & Maximum battery level across all source devices. \\
-        17 & \shortstack[l]{\texttt{sourceRunning}\\\texttt{Stats.mean}} & Mean normalized running-task count across all source devices. \\
-        18 & \shortstack[l]{\texttt{sourceRunning}\\\texttt{Stats.max}} & Maximum normalized running-task count across all source devices. \\
+        15 & \texttt{sourceEnergy}\newline\texttt{Stats.mean} & Mean battery level across all source devices. \\
+        16 & \texttt{sourceEnergy}\newline\texttt{Stats.max} & Maximum battery level across all source devices. \\
+        17 & \texttt{sourceRunning}\newline\texttt{Stats.mean} & Mean normalized running-task count across all source devices. \\
+        18 & \texttt{sourceRunning}\newline\texttt{Stats.max} & Maximum normalized running-task count across all source devices. \\
         19 & \texttt{edgeCpuStats.mean} & Mean CPU utilization across all edge data centers. \\
         20 & \texttt{edgeCpuStats.std} & Standard deviation of CPU utilization across all edge data centers. \\
-        21 & \shortstack[l]{\texttt{edgeRunning}\\\texttt{Stats.mean}} & Mean normalized running-task count across all edge data centers. \\
+        21 & \texttt{edgeRunning}\newline\texttt{Stats.mean} & Mean normalized running-task count across all edge data centers. \\
         22 & \texttt{edgeRunningStats.std} & Standard deviation of normalized running-task count across all edge data centers. \\
         23 & \texttt{cloudCpuMean} & Mean CPU utilization across all cloud nodes. \\
         24 & \texttt{totalActiveTasksNorm} & Normalized total number of active tasks across all VMs. \\
@@ -132,6 +137,7 @@ which is built by \texttt{fillGlobalState()}. The first 13 dimensions are an exa
     \caption{Composition of the 27-dimensional base global state used by the critic.}
     \label{tab:global-state-features}
 \end{table}
+\endgroup
 
 For MAPPO, the critic receives an augmented state in which the 27-dimensional base state is extended with recent decision telemetry:
 \begin{align}
