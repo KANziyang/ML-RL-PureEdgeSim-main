@@ -113,7 +113,7 @@ By reusing one message protocol across both modes, the implementation keeps trai
 \subsection{Evaluated Scheduling Algorithms}
 \label{subsec:baseline-algorithms}
 
-The simulator is used to evaluate the proposed MAPPO policy against both heuristic and learning-based references. This follows the general evaluation logic of the Robles studies, where RL methods are judged against simpler alternatives rather than in isolation \cite{robles2022continuum, robles2023multilayer}. In total, MAPPO is compared against ten heuristic schedulers and one single-policy PPO variant. The heuristic set spans naive, locality-driven, load-driven, and multi-factor rules, while PPO serves as a learning baseline under the same environment and dual-action formulation.
+This subsection defines the algorithm set used in the later offline comparison (\Secref{subsec:rl-vs-baselines}). The comparison includes eight heuristic schedulers and two reinforcement-learning schedulers under the same simulator configuration. The eight heuristic baselines only choose the execution destination; they do not produce explicit PRB actions, so wireless PRBs are assigned by the simulator's default dynamic network allocator rather than by learned or fixed PRB control. MAPPO is the proposed multi-agent scheduler, whereas PPO is the closest single-policy learning baseline because both policies preserve the same joint destination-and-PRB action structure while PPO removes explicit multi-agent conditioning. Among the heuristic methods, ROUND\_ROBIN is highlighted again in the later runtime figures because it is the strongest non-learning baseline in the aggregate comparison.
 
 \begin{table}[htbp]
     \centering
@@ -122,20 +122,20 @@ The simulator is used to evaluate the proposed MAPPO policy against both heurist
         \textbf{Algorithm} & \textbf{Decision rule} \\
         \hline
         RANDOM & Randomly select a feasible VM. \\
-        LOCAL & Prefer local execution and fall back to edge or cloud through a simple backup rule. \\
-        CLOSEST & Choose the nearest edge node, with queue length as the tie-breaker. \\
+        LOCAL & Apply a local-first scheduling rule without learned coordination across tiers. \\
         EDGE & Restrict execution to the edge tier and choose the least-loaded feasible VM. \\
         CLOUD & Restrict execution to the cloud tier and choose the least-loaded feasible VM. \\
-        ROUND\_ROBIN & Select the VM with the smallest task count across all tiers. \\
-        TRADE\_OFF & Use a weighted cost proportional to \((tasks+1)\times weight \times taskLength / vmMips\). \\
-        INCREASE\_LIFETIME & Favor decisions that preserve device battery lifetime. \\
-        LATENCY\_ENERGY\_AWARE & Combine delay and energy terms in a hand-crafted weighted policy. \\
-        WEIGHT\_GREEDY & Minimize a normalized weighted sum of distance delay, execution delay, load, and energy. \\
-        PPO & Single-policy PPO baseline that removes agent embeddings and shares one actor across all devices. \\
+        ROUND\_ROBIN & Select the feasible VM with the smallest current task count across all tiers. \\
+        TRADE\_OFF & Use a weighted compute-load cost proportional to \((tasks+1)\times weight \times taskLength / vmMips\). \\
+        LAT\_EN\_AWARE & Use a latency-energy-aware heuristic that combines delay and energy terms through a hand-crafted rule. \\
+        TEST & Apply an experimental composite heuristic that combines effective compute rate with instantaneous load. \\
+        \hline
+        PPO & Use a single shared actor as the closest RL baseline, keeping the same dual-action interface without agent-specific embeddings. \\
+        MAPPO & Use the proposed multi-agent RL scheduler with agent-specific conditioning and centralized training over the shared environment. \\
         \hline
     \end{tabular}
-    \caption{Scheduling baselines evaluated in the customized orchestrator.}
+    \caption{Algorithm set used in the offline comparison, with heuristic schedulers listed first and RL schedulers separated below.}
     \label{tab:baseline-algorithms}
 \end{table}
 
-This distinction is important. PPO and MAPPO share the same PureEdgeSim-based environment and the same destination/PRB action structure, but MAPPO adds agent-specific embeddings and centralized multi-agent training over a global state. PPO therefore functions as a controlled baseline for isolating the contribution of the multi-agent design rather than as merely another RL competitor. Across all methods, the simulator side remains identical, preserving fairness of comparison.
+All ten algorithms are executed through the same simulator-side orchestration path, so the comparison isolates decision quality rather than environment differences. For the heuristic baselines, this means destination-only decisions under the shared dynamic PRB allocator; for PPO and MAPPO, it means explicit joint control over both destination selection and PRB reservation. The full offline comparison in \Secref{subsec:rl-vs-baselines} reports aggregate metrics for the entire set. The later detailed runtime figures then focus on MAPPO, PPO, and ROUND\_ROBIN because they represent the proposed method, the closest learning baseline, and the strongest heuristic baseline, respectively.
