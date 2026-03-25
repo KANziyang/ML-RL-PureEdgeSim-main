@@ -1,0 +1,143 @@
+\newpage
+\section{Simulation Environment}
+\label{sec:simulation}
+
+\subsection{Open-Source Foundation}
+\label{subsec:simulation-overview}
+
+The simulator used in this report is not a system built from scratch. It is a research extension of the open-source PureEdgeSim line, which was introduced by Mechalikh \emph{et al.} as a modular discrete-event framework for cloud, edge, and mist computing evaluation \cite{mechalikh2021pureedgesim, pureedgesimgithub}. The original motivation of PureEdgeSim is closely aligned with the needs of this project: heterogeneous devices, mobility, latency-sensitive applications, and energy-aware orchestration are difficult to study analytically, but can be explored systematically in a simulator that already models tasks, data centers, networking, and event scheduling.
+
+The 2021 PureEdgeSim paper is particularly important because it describes the simulator as a layered and modular environment built on top of CloudSim Plus, with dedicated managers for simulation control, data-center generation, task generation, mobility, networking, and orchestration \cite{mechalikh2021pureedgesim, silvafilho2017cloudsimplus}. That architecture is precisely what makes PureEdgeSim a good modification target: it already provides the event-driven backbone, CSV logging, infrastructure configuration, and heterogeneous device support required for edge-cloud studies, so the project can focus on extending the scheduler and network logic rather than reimplementing an entire simulator stack.
+
+The later comparative study by Mechalikh \emph{et al.} evaluates 24 edge simulators and identifies PureEdgeSim as one of the few tools that remained regularly maintained while also showing strong scalability and reliability characteristics \cite{mechalikh2025quality}. This is an important justification for the simulator choice in a report like this one. Since the project goal is to study a new scheduling method rather than defend a new simulator, using a maintained and open-source research platform is methodologically stronger than inventing a custom environment with no external baseline. The codebase used in this report follows the CloudSim-Plus-based PureEdgeSim line, with PureEdgeSim 4.2.0 and CloudSim Plus 6.2.7 as the immediate software foundation.
+
+\subsection{Relation to Prior PureEdgeSim-Based RL Systems}
+\label{subsec:customized-environment}
+
+The two papers by Robles-Enciso and Skarmeta are especially relevant because they show how PureEdgeSim can be extended beyond heuristic orchestration and used as a reinforcement-learning testbed \cite{robles2022continuum, robles2023multilayer}. In the 2022 conference paper and the 2023 journal version, the authors modify PureEdgeSim v4.2 to evaluate greedy, single-layer RL, and multi-layer guided RL solutions for task offloading in a computing continuum. Their evaluation uses a \(200\,\mathrm{m} \times 200\,\mathrm{m}\) scenario, an edge--fog--cloud hierarchy, repeated random simulations, and metrics such as task success rate, average total time, latency failures, CPU usage, and energy consumption. These papers are therefore strong evidence that PureEdgeSim is not only suitable for classical heuristic studies, but also suitable for repeated RL experiments over heterogeneous multi-tier infrastructures.
+
+At the same time, the environment required by this report is substantially different from the one used in those papers. Robles-Enciso and Skarmeta study task assignment among local, edge, fog, and cloud processing nodes, and their learning agents operate on offloading choices without an explicit radio-resource action space \cite{robles2022continuum, robles2023multilayer}. By contrast, the present work targets a LOCAL--EDGE--CLOUD architecture and treats wireless Physical Resource Block (PRB) reservation as part of the decision itself. The project therefore reuses the open-source event-driven simulator foundation validated by those studies, but it extends the environment toward joint communication-and-computation control and deep on-policy learning.
+
+The main project-specific extensions are summarized in \Figref{fig:pureedgesim-extensions}. Compared with the published PureEdgeSim architecture and the earlier PureEdgeSim-based RL studies, this report introduces the following additional components.
+\begin{enumerate}[(a)]
+    \item \textbf{PRB-aware network manager.} The default network layer is extended with a global PRB pool, fixed reservations for RL-selected actions, and a dynamic allocator for non-RL baselines.
+    \item \textbf{Device-level decision support.} \texttt{DeviceAgentDecisionSupport} constructs local observations, destination features, feasibility masks, PRB mappings, fallback handling, and rewards.
+    \item \textbf{Unified RL orchestration path.} \texttt{CustomEdgeOrchestrator} routes heuristic and RL algorithms through the same event-driven task lifecycle.
+    \item \textbf{Java--Python environment interface.} \texttt{RLEnvServer} turns the Java simulator into a synchronous JSON-over-TCP environment for MAPPO and PPO policies implemented in Python.
+    \item \textbf{Dual execution modes.} \texttt{AbstractRLManager} supports both external training mode and offline inference mode with automatic Python process launch and failure fallback.
+    \item \textbf{Telemetry and diagnostics.} The simulator exports trajectory CSV files, seed-wise summaries, and RL-specific charts for destination usage, PRB usage, and reward evolution.
+\end{enumerate}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\textwidth]{figures/pureedgesim_extensions.png}
+    \caption{PureEdgeSim modules and the main customization points introduced for this project.}
+    \label{fig:pureedgesim-extensions}
+\end{figure}
+
+\subsection{Instantiated Experimental Environment}
+\label{subsec:simulation-configuration}
+
+The previous subsection explains why PureEdgeSim is an appropriate open-source base and why further extensions are required. This subsection records how that simulator is instantiated in this report. The detailed computation, communication, energy, and reward models are formalized later in \Secref{sec:system-model}; here the emphasis is on the concrete experimental environment used to run the simulations.
+
+The scenario contains 160 devices in a \(200\,\mathrm{m} \times 200\,\mathrm{m}\) area, four edge data centers, and one cloud node. The simulation horizon is 30 minutes, which is deliberately longer than in the Robles PureEdgeSim studies so that each episode generates tens of thousands of scheduling decisions and exposes the learning algorithms to sustained congestion and mobility effects. The overall configuration remains close enough to prior PureEdgeSim practice to preserve comparability, but it is specialized to the LOCAL--EDGE--CLOUD architecture required by this project.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{p{0.48\linewidth}p{0.32\linewidth}}
+        \hline
+        \textbf{Parameter} & \textbf{Value} \\
+        \hline
+        Simulation area & \(200\,\mathrm{m} \times 200\,\mathrm{m}\) \\
+        Number of devices & 160 \\
+        Simulation time & 30 min \\
+        Mobile device speed & \(1.4\,\mathrm{m/s}\) \\
+        Edge-device communication range & \(40\,\mathrm{m}\) \\
+        Edge data-center coverage radius & \(120\,\mathrm{m}\) \\
+        Cloud equivalent distance & \(160\,\mathrm{m}\) \\
+        WLAN bandwidth & \(5000\,\mathrm{Mbps}\) \\
+        Total PRB blocks & 5000 \\
+        Reference distance \(d_0\) & \(20\,\mathrm{m}\) \\
+        Distance exponent \(\alpha\) & 0.5 \\
+        Maximum PRBs per task & 50 blocks \\
+        VM scheduling policy & \texttt{SPACE\_SHARED} \\
+        Random-seed set for final evaluation & 9001, 9002, 9003 \\
+        \hline
+    \end{tabular}
+    \caption{Main simulation parameters used throughout the experiments.}
+    \label{tab:simulation-parameters}
+\end{table}
+
+The agent set consists only of devices with \texttt{generateTasks=true}. In the current workload, these are the smartphones and sensors. This design follows the same general PureEdgeSim idea used in the Robles papers, namely that learning should be attached to actual task initiators rather than to every entity in the simulator. At the same time, the remaining devices still influence the environment through compute competition, mobility, and shared wireless contention, so the environment stays coupled even though not every entity is an RL agent.
+
+\subsection{Event-Driven Task Lifecycle}
+\label{subsec:task-orchestration-flow}
+
+One of the main reasons for using PureEdgeSim is that it is fundamentally event-driven rather than organized as a fixed-step game loop \cite{mechalikh2021pureedgesim}. The present project keeps that design choice. Each decision is triggered only when a task reaches the orchestration point, not at an artificial global clock tick. This preserves the temporal structure of the simulator and avoids introducing synchronization assumptions that do not exist in the original open-source system.
+
+Once a task is generated, it is sent to the orchestrator, which decides the execution destination and, for RL algorithms, the PRB level used for the wireless upload. After that, the task is transmitted to the selected destination, executed on the assigned VM, and finally returned to the originating device. \Figref{fig:task-orchestration-flow} shows the high-level flow used in this report.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\textwidth]{figures/task_orchestration_flow.png}
+    \caption{Event-driven task orchestration flow implemented in the customized simulator.}
+    \label{fig:task-orchestration-flow}
+\end{figure}
+
+For heuristic baselines, \texttt{CustomEdgeOrchestrator} computes the destination directly. For RL-based algorithms, the same orchestrator delegates the decision to \texttt{MAPPOManager} or \texttt{PPOManager}, which collect the observation, query the Python policy, sanitize the returned action, and push the selected destination and PRB allocation back into the event pipeline. This arrangement keeps all algorithms inside the same PureEdgeSim event lifecycle, so every method is evaluated under the same task generator, mobility model, network model, and data-center configuration.
+
+\subsection{Java-Python Co-Simulation Architecture}
+\label{subsec:java-python-cosim}
+
+\subsubsection{Training Mode}
+
+The Robles studies already demonstrated that PureEdgeSim can be modified to host RL-based offloading logic inside the simulator loop \cite{robles2022continuum, robles2023multilayer}. The present project pushes that idea further by separating the simulator and the policy learner across Java and Python. In training mode, Python launches the Java simulator with the environment-server flag enabled. Java creates an \texttt{RLEnvServer} instance and waits for the Python client to connect. The first message is \texttt{marl\_config}, which informs Python about the number of agents, observation dimensions, destination labels, and PRB bins. Thereafter, the interaction proceeds in a repeated request-response cycle:
+\begin{align*}
+\texttt{marl\_turn\_obs} \rightarrow \texttt{marl\_action} \rightarrow \texttt{marl\_transition},
+\end{align*}
+followed by \texttt{marl\_episode\_end} at the end of each episode.
+
+This protocol has two advantages. First, the policy code remains in Python, which simplifies neural-network implementation and logging. Second, the simulator remains authoritative for validity checks, fallback handling, timing, and reward calculation.
+
+\subsubsection{Offline Inference Mode}
+
+In offline inference mode, Java automatically launches \texttt{inference\_server.py} and connects to it through the same TCP protocol. The model path is resolved by priority: an explicitly provided checkpoint is used first, otherwise the latest training run is searched, and finally a legacy fallback path is checked. If no model can be loaded successfully, the manager falls back to a safe default action, ensuring that evaluation runs do not terminate because of a missing checkpoint.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\textwidth]{figures/java_python_cosim.png}
+    \caption{Training-mode and inference-mode data flow in the Java-Python co-simulation architecture.}
+    \label{fig:java-python-cosim}
+\end{figure}
+
+The same message protocol is reused in both modes, so training and evaluation share a common environment interface. This reduces train-test skew and makes the RL pipeline easier to debug.
+
+\subsection{Evaluated Scheduling Algorithms}
+\label{subsec:baseline-algorithms}
+
+The open-source simulator is used to evaluate not only the proposed MAPPO policy, but also a range of heuristic and learning-based references. This follows the evaluation style used in the Robles papers, where RL methods are judged against greedy or simpler alternatives rather than in isolation \cite{robles2022continuum, robles2023multilayer}. In this report, MAPPO is compared against ten heuristic schedulers and one single-policy PPO variant. The heuristics span naive, locality-driven, load-driven, and multi-factor strategies so that the evaluation covers both simple and stronger rule-based references.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{p{0.22\linewidth}p{0.68\linewidth}}
+        \hline
+        \textbf{Algorithm} & \textbf{Decision rule} \\
+        \hline
+        RANDOM & Randomly select a feasible VM. \\
+        LOCAL & Prefer local execution and fall back to edge or cloud through a simple backup rule. \\
+        CLOSEST & Choose the nearest edge node, with queue length as the tie-breaker. \\
+        EDGE & Restrict execution to the edge tier and choose the least-loaded feasible VM. \\
+        CLOUD & Restrict execution to the cloud tier and choose the least-loaded feasible VM. \\
+        ROUND\_ROBIN & Select the VM with the smallest task count across all tiers. \\
+        TRADE\_OFF & Use a weighted cost proportional to \((tasks+1)\times weight \times taskLength / vmMips\). \\
+        INCREASE\_LIFETIME & Favor decisions that preserve device battery lifetime. \\
+        LATENCY\_ENERGY\_AWARE & Combine delay and energy terms in a hand-crafted weighted policy. \\
+        WEIGHT\_GREEDY & Minimize a normalized weighted sum of distance delay, execution delay, load, and energy. \\
+        PPO & Single-policy PPO baseline that removes agent embeddings and shares one actor across all devices. \\
+        \hline
+    \end{tabular}
+    \caption{Baseline algorithms implemented in the customized orchestrator.}
+    \label{tab:baseline-algorithms}
+\end{table}
+
+The PPO baseline is particularly important because it isolates the contribution of the multi-agent design. Both PPO and MAPPO use the same PureEdgeSim-based environment and the same dual decision heads, but MAPPO introduces agent-specific embeddings and centralized training over a global state. This makes the PPO baseline a much closer comparison than a purely heuristic scheduler. Overall, the simulation environment is therefore best understood as an open-source PureEdgeSim foundation, validated in prior literature and then extended in this project toward PRB-aware multi-agent deep reinforcement learning.

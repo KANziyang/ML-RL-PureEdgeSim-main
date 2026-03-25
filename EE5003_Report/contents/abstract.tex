@@ -1,0 +1,16 @@
+\newpage
+\addcontentsline{toc}{section}{Abstract}
+\renewcommand{\abstractname}{\Large Abstract}
+\begin{abstract}
+
+Task offloading in 6G edge-cloud systems requires joint decisions over heterogeneous computing resources and wireless bandwidth, while the environment evolves continuously because of mobility, load fluctuations, and link contention. Under a three-tier LOCAL--EDGE--CLOUD architecture, the coupled offloading and Physical Resource Block (PRB) allocation problem becomes a high-dimensional combinatorial optimization task for which static heuristics are difficult to tune across changing conditions. This report presents an on-policy multi-agent reinforcement learning framework based on Multi-Agent Proximal Policy Optimization (MAPPO) to address this challenge.
+
+The proposed formulation models each task-generating edge device as an autonomous agent in a decentralized partially observable Markov decision process. The framework follows centralized training with decentralized execution: each device actor selects an offloading destination and a PRB allocation level from a dual-head discrete action space using only its local observation, while a centralized critic evaluates the global system state during training. To support this learning loop, PureEdgeSim is extended with PRB-aware wireless resource management, a distance-attenuated bandwidth model, a device-centric reinforcement learning interface, and a Java-Python co-simulation layer based on a TCP JSON protocol.
+
+The implementation combines a Java discrete-event simulator and Python learning modules for both MAPPO and a shared-policy PPO baseline. Under the standard 160-device, 30-minute configuration, both learned policies substantially outperform heuristic schedulers. MAPPO reaches a three-seed mean task success rate of \(99.9237\%\), PPO reaches \(99.9436\%\), and both remain far above the strongest preserved heuristic baseline, ROUND\_ROBIN, at \(90.3869\%\). The finalized ablation results further clarify the design: removing agent embeddings causes only a small reliability drop to \(99.8148\%\), whereas fixing PRB requests degrades mean success to \(92.3822\%\) and raises mean energy consumption to \(309.2645\,\mathrm{W}\). These results show that on-policy reinforcement learning is a practical direction for adaptive offloading control, that adaptive PRB allocation is essential to system quality, and that explicit multi-agent conditioning provides a smaller but still measurable benefit on top of joint offloading-and-radio optimization.
+
+\vspace{1em}
+
+\textbf{Keywords:} Multi-Agent Reinforcement Learning, MAPPO, PPO, Task Offloading, PRB Allocation, 6G Edge-Cloud Computing, PureEdgeSim.
+
+\end{abstract}

@@ -1,0 +1,31 @@
+\newpage
+\section{Conclusion}
+\label{sec:conclusion}
+
+\subsection{Summary}
+\label{subsec:conclusion-summary}
+
+This report studied joint task offloading and PRB allocation for a three-tier 6G edge-cloud computing architecture. The problem was formulated as a Dec-POMDP and implemented through a customized PureEdgeSim environment that supports PRB-aware networking, device-level observations, Java--Python co-simulation, and on-policy reinforcement learning. Both MAPPO and PPO significantly outperform the heuristic baselines. In the offline single-seed all-algorithm comparison, MAPPO reaches a task success rate of \(99.96\%\), PPO reaches \(99.94\%\), and the strongest heuristic, ROUND\_ROBIN, remains at \(90.39\%\).
+
+Under the standard 40-episode training setting, MAPPO converges quickly, exceeds \(99\%\) task success by episode 13, and evaluates stably on all three test seeds with a mean success rate of \(99.9237\%\), zero fallback events, a mean total time of \(4.5284\,\mathrm{s}\), and a mean energy consumption of \(227.6360\,\mathrm{W}\). PPO retains a small edge in cross-seed mean performance, with \(99.9436\%\) success, a standard deviation of \(0.0137\), and a mean total time of \(4.4665\,\mathrm{s}\), but the gap is very small. The ablation study clarifies the architectural contribution: removing agent embeddings only reduces mean success to \(99.8148\%\), whereas fixing PRB requests collapses performance to \(92.3822\%\) and raises mean energy to \(309.2645\,\mathrm{W}\). The device-count scalability study further shows that MAPPO scales gracefully from 80 to 240 devices (maintaining success rates above \(99.4\%\)), with the 320-device collapse attributable to infrastructure saturation rather than algorithmic failure. The main conclusion is therefore threefold: on-policy reinforcement learning is clearly effective for this problem, adaptive PRB control is essential to the final scheduler quality, and explicit multi-agent conditioning provides a smaller but still measurable reliability gain on top of that joint control.
+
+\subsection{Limitations}
+\label{subsec:conclusion-limitations}
+
+Several limitations should be noted. First, the study is still simulation-based, so there remains a gap between the modeled wireless environment and a real 5G or 6G deployment. Second, although the device-count scalability study covers four configurations and the ablation study isolates two controlled variants, a broader architectural search (e.g., varying critic input design, reward coefficients, or PRB bin granularity) would strengthen the conclusions. Third, the reward function is hand-designed and may not be optimal for every workload mix or operator objective. Fourth, while the training pipeline already supports GAE, the event-driven task setting still simplifies some long-horizon temporal dependencies that would become more pronounced in persistent real-world traffic traces.
+
+Another practical limitation is artifact completeness. MAPPO preserves detailed trajectory CSV files and supports fine-grained action analysis, but the finalized PPO run does not preserve the same trajectory exports. This does not invalidate the aggregate PPO metrics, but it does prevent a fully symmetric behavioral audit. Finally, although the preserved three seeds no longer show MAPPO collapse, broader robustness validation across more seeds, traffic mixes, and topology perturbations is still necessary before claiming general superiority.
+
+\subsection{Future Work}
+\label{subsec:conclusion-future}
+
+There are several natural directions for future work.
+\begin{itemize}
+    \item Expand the ablation family beyond NoEmbedding and FixedPRB to cover additional architectural variants such as critic input design, reward coefficient sensitivity, and PRB bin granularity.
+    \item Investigate robustness-oriented improvements for MAPPO, including broader seed sweeps, checkpoint selection based on validation stability, and alternative reward shaping for safer PRB allocation behavior.
+    \item Regenerate PPO trajectory exports so that destination-choice and PRB-behavior analysis can be compared directly against MAPPO at the action level.
+    \item Scale the simulator to denser deployments and larger edge clusters in order to test how coordinated policies behave under heavier multi-agent coupling, particularly beyond the 240-device infrastructure saturation boundary identified in the current study.
+    \item Integrate the scheduling framework with richer traffic traces or a hardware testbed to reduce the simulation-to-reality gap.
+\end{itemize}
+
+Overall, the results indicate that on-policy learning is a practical and promising approach for coordinated offloading and radio-resource control in hierarchical edge-cloud systems. The current evidence strongly supports reinforcement learning over rule-based scheduling, identifies adaptive PRB control as the key design factor, and shows that MAPPO is now a technically credible multi-agent scheduler rather than an unstable curiosity, even though PPO remains a very strong benchmark and broader validation is still required.

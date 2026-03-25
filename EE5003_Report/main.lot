@@ -1,0 +1,20 @@
+\babel@toc {english}{}\relax 
+\contentsline {table}{\numberline {1}{\ignorespaces Comparison of this work with the most closely related studies. PRB/BW action indicates whether the method includes an explicit wireless resource allocation decision.}}{6}{table.caption.19}%
+\contentsline {table}{\numberline {2}{\ignorespaces Main simulation parameters used throughout the experiments.}}{10}{table.caption.32}%
+\contentsline {table}{\numberline {3}{\ignorespaces Baseline algorithms implemented in the customized orchestrator.}}{13}{table.caption.40}%
+\contentsline {table}{\numberline {4}{\ignorespaces Edge-device configuration extracted from \texttt {edge\_devices.xml}.}}{15}{table.caption.44}%
+\contentsline {table}{\numberline {5}{\ignorespaces Edge and cloud server configuration.}}{15}{table.caption.45}%
+\contentsline {table}{\numberline {6}{\ignorespaces Application workload configuration. Result sizes are \(100\,\mathrm {KB}\), \(10{,}000\,\mathrm {KB}\), and \(50\,\mathrm {KB}\), respectively.}}{15}{table.caption.47}%
+\contentsline {table}{\numberline {7}{\ignorespaces Agent-observation dimensions implemented in \texttt {DeviceAgentDecisionSupport}.}}{21}{table.caption.64}%
+\contentsline {table}{\numberline {8}{\ignorespaces Destination-feature groups and critic-state composition.}}{22}{table.caption.65}%
+\contentsline {table}{\numberline {9}{\ignorespaces Main training hyperparameters used for MAPPO and the PPO baseline.}}{26}{table.caption.91}%
+\contentsline {table}{\numberline {10}{\ignorespaces Selected MAPPO checkpoints under the standard training setting.}}{27}{table.caption.101}%
+\contentsline {table}{\numberline {11}{\ignorespaces MAPPO evaluation results across three test seeds.}}{29}{table.caption.103}%
+\contentsline {table}{\numberline {12}{\ignorespaces Three-seed mean evaluation metrics for MAPPO under different device counts. Fallback rate is zero for all configurations. All values are averaged over seeds 9001, 9002, and 9003.}}{35}{table.caption.126}%
+\contentsline {table}{\numberline {13}{\ignorespaces Three-seed mean destination distribution for MAPPO under different device counts. The policy progressively shifts from cloud-dominant to local-dominant as infrastructure becomes saturated.}}{36}{table.caption.131}%
+\contentsline {table}{\numberline {14}{\ignorespaces Three-seed evaluation summary of the MAPPO ablations.}}{38}{table.caption.138}%
+\contentsline {table}{\numberline {15}{\ignorespaces Offline comparison of all algorithms under the standard 160-device scenario. Avg.\ CPU is the overall VM utilization; Avg.\ BW is the mean bandwidth per task. LOCAL uses no network offloading, so bandwidth is not applicable. A horizontal rule separates the RL policies from the heuristic baselines.}}{44}{table.caption.165}%
+\contentsline {table}{\numberline {16}{\ignorespaces Per-tier task distribution and success counts. RL policies achieve near-perfect success on every tier, while heuristics suffer heavy losses on the tiers they overload.}}{46}{table.caption.175}%
+\contentsline {table}{\numberline {17}{\ignorespaces Selected training checkpoints for MAPPO and PPO under the standard setting.}}{49}{table.caption.193}%
+\contentsline {table}{\numberline {18}{\ignorespaces Summary comparison of MAPPO and PPO under the finalized three-seed evaluation.}}{50}{table.caption.195}%
+\contentsline {table}{\numberline {19}{\ignorespaces TCP JSON protocol used by the co-simulation interface.}}{55}{table.caption.204}%
