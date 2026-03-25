@@ -97,9 +97,9 @@ and each episode terminates with \texttt{marl\_episode\_end}.
 
 The implemented architecture assigns complementary responsibilities to the two runtimes. Java retains authority over event timing, feasibility checks, fallback handling, and reward computation so that every transition remains consistent with the simulator state. Python is responsible for policy inference, trajectory buffering, and parameter updates. \Figref{fig:java-python-training-architecture} illustrates how the training pipeline connects simulator-side execution with learner-side optimization.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
-    \includegraphics[width=0.92\textwidth]{figures/java_python_training_architecture.png}
+    \includegraphics[width=0.84\textwidth]{figures/java_python_training_architecture.png}
     \caption{Training-time Java--Python co-simulation architecture linking simulator-side execution with MAPPO/PPO policy interaction and optimization.}
     \label{fig:java-python-training-architecture}
 \end{figure}
@@ -115,8 +115,9 @@ By reusing one message protocol across both modes, the implementation keeps trai
 
 This subsection defines the algorithm set used in the later offline comparison (\Secref{subsec:rl-vs-baselines}). The comparison includes eight heuristic schedulers and two reinforcement-learning schedulers under the same simulator configuration. The eight heuristic baselines only choose the execution destination; they do not produce explicit PRB actions, so wireless PRBs are assigned by the simulator's default dynamic network allocator rather than by learned or fixed PRB control. MAPPO is the proposed multi-agent scheduler, whereas PPO is the closest single-policy learning baseline because both policies preserve the same joint destination-and-PRB action structure while PPO removes explicit multi-agent conditioning. Among the heuristic methods, ROUND\_ROBIN is highlighted again in the later runtime figures because it is the strongest non-learning baseline in the aggregate comparison.
 
-\begin{table}[htbp]
+\begin{table}[H]
     \centering
+    \small
     \begin{tabular}{p{0.22\linewidth}p{0.68\linewidth}}
         \hline
         \textbf{Algorithm} & \textbf{Decision rule} \\
