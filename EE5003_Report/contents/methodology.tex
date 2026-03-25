@@ -194,87 +194,120 @@ Although destination masking prevents most invalid selections, a runtime fallbac
 \subsection{Network Architecture}
 \label{subsec:network-architecture}
 
+The learning system consists of an actor that maps local observations to actions and a critic that estimates the value of the global state. Both MAPPO and the PPO baseline share the same dual-head actor topology and differ only in whether agent identity is modelled and how much information the critic receives. \Tabref{tab:nn-layer-summary} summarizes the layer dimensions of all components, reported as layer-width tuples. In the equations below, \(f_{\theta}^{\mathrm{agent}}\), \(f_{\theta}^{\mathrm{dest}}\), \(f_{\theta}^{\mathrm{prb}}\), and \(f_{\phi}^{\mathrm{critic}}\) denote the agent encoder, destination encoder, PRB head, and critic network respectively.
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \setlength{\tabcolsep}{5pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.20\linewidth}>{\raggedright\arraybackslash}X>{\centering\arraybackslash}p{0.17\linewidth}>{\centering\arraybackslash}p{0.17\linewidth}}
+        \hline
+        \textbf{Component} & \textbf{Layer sequence} & \textbf{MAPPO} & \textbf{PPO} \\
+        \hline
+        Agent embedding & \texttt{Embedding} plus concatenation with the agent observation & \checkmark & --- \\
+        Agent encoder & Two-layer MLP with \(\tanh\) activations & \((29, 128, 128)\) & \((13, 128, 128)\) \\
+        Destination encoder & Two-layer MLP with \(\tanh\) activations & \multicolumn{2}{c}{\((139, 128, 128)\)} \\
+        Destination head & Linear projection & \multicolumn{2}{c}{\((128, 1)\)} \\
+        PRB head & Two-layer MLP with \(\tanh\) activations & \multicolumn{2}{c}{\((256, 128, 8)\)} \\
+        Critic & Two-hidden-layer MLP with \(\tanh\) activations & \((41, 256, 256, 1)\) & \((27, 256, 256, 1)\) \\
+        \hline
+    \end{tabularx}
+    \caption{Layer dimensions of the actor and critic networks, reported as layer-width tuples. The destination encoder input width is \(11 + 128 = 139\) because each destination feature vector is concatenated with the agent hidden state. The PRB head input width is \(128 + 128 = 256\) because the agent and selected-destination hidden states are concatenated.}
+    \label{tab:nn-layer-summary}
+\end{table}
+
 \subsubsection{TurnActor (MAPPO Actor)}
 
-The MAPPO actor is implemented as a \texttt{TurnActor}. Each agent identifier is mapped to a learnable 16-dimensional embedding \(e_i\). The embedding is concatenated with the 13-dimensional agent observation and passed through a two-layer multilayer perceptron with hidden size 128 and \(\tanh\) activations:
-\begin{align}
-h_i = f_{\theta}^{\mathrm{agent}}\left([x_i ; e_i]\right).
-\end{align}
-The embedding table can be resized dynamically when the number of task-generating devices changes, which avoids hard-coding the agent count into the model definition.
+The MAPPO actor is implemented as a \texttt{TurnActor} with four stages: agent encoding, destination encoding, destination selection, and PRB selection.
 
-Each candidate destination feature vector \(d_{i,j}\) is concatenated with the repeated agent hidden state and encoded by a destination-specific multilayer perceptron:
+\paragraph{Agent encoding.}
+Each agent identifier is mapped to a learnable 16-dimensional embedding \(e_i\). The embedding is concatenated with the 13-dimensional agent observation to form a 29-dimensional input, which is then passed through a two-layer MLP with hidden size 128 and \(\tanh\) activations:
 \begin{align}
-u_{i,j} = f_{\theta}^{\mathrm{dest}}([d_{i,j}; h_i]),
+h_i = f_{\theta}^{\mathrm{agent}}\!\left([x_i ;\, e_i]\right) \in \R^{128}.
 \end{align}
-again using a two-layer MLP with hidden size 128 and \(\tanh\) activations. A linear destination head then scores every encoded candidate:
-\begin{align}
-\ell_{i,j}^{\mathrm{dest}} = w_{\mathrm{dest}}^\top u_{i,j} + b_{\mathrm{dest}},
-\end{align}
-followed by masked softmax and categorical sampling:
-\begin{align}
-\pi_{\theta}^{\mathrm{dest}}(j \mid o_i) =
-\mathrm{Softmax}\!\left(\mathrm{Mask}\!\left(\ell_{i,j}^{\mathrm{dest}}, m_i\right)\right).
-\end{align}
+The embedding table can be resized at runtime when the number of task-generating devices changes: new rows are initialized by cycling over existing embeddings, so that every new agent starts with a reasonable representation without retraining.
 
-The PRB head is conditioned on the selected destination. In the implementation, the hidden vector of the selected destination is concatenated with the agent hidden state and passed to a dedicated PRB head:
+\paragraph{Destination encoding.}
+Each candidate destination feature vector \(d_{i,j} \in \R^{11}\) is concatenated with the agent hidden state \(h_i\) and encoded by a shared destination MLP, again two layers with hidden size 128 and \(\tanh\) activations:
 \begin{align}
-\ell_i^{\mathrm{prb}} = g_{\theta}\left([h_i ; u_{i,a_i^{\mathrm{dest}}}]\right),
+u_{i,j} = f_{\theta}^{\mathrm{dest}}\!\left([d_{i,j} ;\, h_i]\right) \in \R^{128}.
 \end{align}
-followed by
+Because \(h_i\) is broadcast across all \(N_d\) destinations, the destination encoder jointly conditions on both the candidate's properties and the requesting agent's context.
+
+\paragraph{Destination head.}
+A linear projection scores every encoded candidate, and the feasibility mask \(m_i\) suppresses infeasible destinations before sampling:
 \begin{align}
-\pi_{\theta}^{\mathrm{prb}}(k \mid o_i, a_i^{\mathrm{dest}}) =
+\ell_{i,j}^{\mathrm{dest}} &= w_{\mathrm{dest}}^\top u_{i,j} + b_{\mathrm{dest}}, \\
+\pi_{\theta}^{\mathrm{dest}}(j \mid o_i) &=
+\mathrm{Softmax}\!\left(\mathrm{Mask}\!\left(\ell_{i,j}^{\mathrm{dest}},\, m_i\right)\right),
+\end{align}
+where \(\mathrm{Mask}\) sets logits of infeasible destinations to \(-10^{9}\). As a safety fallback, if no destination is feasible the mask is bypassed entirely so that the policy can still produce a valid sample.
+
+\paragraph{PRB head.}
+The PRB head is conditioned on the selected destination. The hidden vector of the chosen destination is concatenated with the agent hidden state and passed through a two-layer MLP:
+\begin{align}
+\ell_i^{\mathrm{prb}} &= f_{\theta}^{\mathrm{prb}}\!\left([h_i ;\, u_{i,a_i^{\mathrm{dest}}}]\right), \\
+\pi_{\theta}^{\mathrm{prb}}(k \mid o_i, a_i^{\mathrm{dest}}) &=
 \mathrm{Softmax}\!\left(\ell_i^{\mathrm{prb}}\right).
 \end{align}
-This coupling is important because the desirable PRB level differs substantially between nearby edge nodes and the farther cloud tier. In code, the PRB head is realized as \texttt{Linear(256,128)} \(\rightarrow\) \(\tanh\) \(\rightarrow\) \texttt{Linear(128,8)}.
+This destination-conditioned design is important because the desirable PRB level differs substantially between a nearby edge node and the more distant cloud tier. The total action log-probability used for PPO updates is the sum of the two heads:
+\begin{align}
+\log \pi_{\theta}(a_i \mid o_i) = \log \pi_{\theta}^{\mathrm{dest}}(a_i^{\mathrm{dest}} \mid o_i)
++ \log \pi_{\theta}^{\mathrm{prb}}(a_i^{\mathrm{prb}} \mid o_i, a_i^{\mathrm{dest}}),
+\end{align}
+with the PRB term zeroed out when local execution is selected, as described in \Secref{subsec:action-space}.
 
-\subsubsection{CentralCritic}
+\subsubsection{CentralCritic (MAPPO Critic)}
 
-The centralized critic takes the augmented global state as input and outputs one scalar value estimate:
+The centralized critic maps the augmented global state to a scalar value estimate:
 \begin{align}
 V_{\phi}(s_{\mathrm{aug}}) = f_{\phi}^{\mathrm{critic}}(s_{\mathrm{aug}}).
 \end{align}
-The critic uses a two-layer MLP with hidden size 256 and \(\tanh\) activations. For the reported 6-destination scenario, the input dimension is therefore 41 rather than 27. This augmented critic is central to the MAPPO design adopted here: instead of evaluating an action only against static load and PRB summaries, it also conditions on recent joint behaviour of the agent population. Because the critic observes information that is unavailable to any single device, it can provide a more coordination-aware baseline for policy optimization than a purely local value function.
+The network is a three-layer MLP with two 256-unit hidden layers and \(\tanh\) activations, corresponding to the tuple \((41, 256, 256, 1)\) under the default 6-destination topology. Because the augmented state includes both instantaneous system statistics and recent decision-distribution telemetry, the critic can evaluate each action against not only the current load and PRB conditions but also the recent coordination behaviour of the agent population. This information asymmetry between actor and critic is the core of the CTDE paradigm: the critic exploits privileged global context during training to provide a more coordination-aware baseline, while the actor retains a purely local interface suitable for decentralized deployment.
 
-\subsubsection{PPO Baseline Actor}
+\subsubsection{PPO Baseline}
 
-The PPO baseline shares the same destination encoder, PRB head, and overall dual-head decision logic, but removes the learnable agent embedding. Its actor receives only the raw 13-dimensional device observation before constructing the same destination-conditioned hidden states. In addition, PPO keeps the original 27-dimensional critic state instead of the telemetry-augmented 41-dimensional MAPPO state. The comparison between PPO and MAPPO therefore isolates two main differences: whether device identity is explicitly modelled in the actor, and whether the critic observes recent multi-agent coordination statistics.
+The PPO baseline reuses the same destination encoder, destination head, and PRB head, but differs from MAPPO in two respects. First, the actor removes the learnable agent embedding, so the agent encoder receives only the raw 13-dimensional observation, corresponding to the tuple \((13, 128, 128)\). All devices therefore share one undifferentiated policy without explicit identity modelling. Second, the critic receives the base 27-dimensional global state rather than the telemetry-augmented 41-dimensional state, so its architecture follows the tuple \((27, 256, 256, 1)\) and has no visibility into recent joint-decision patterns. The comparison between PPO and MAPPO therefore isolates two factors: whether device identity is explicitly modelled in the actor, and whether the critic observes recent multi-agent coordination statistics.
 
 \subsection{Reward Function Design}
 \label{subsec:reward-function}
 
-The reward is defined at the task level:
+The environment returns one scalar reward after each task has been fully resolved:
 \begin{align}
-R =
+R_t =
 \begin{cases}
 -5.0, & \text{if the task fails}, \\
-5.0 - 1.0 \cdot latencyRatio - 2.0 \cdot energyNorm
-\notag\\
-\quad - 1.5 \cdot networkCost - fallbackPenalty,
-& \text{if the task succeeds}.
+5.0 - \ell_t - 2.0\, e_t - 1.5\, n_t - p_t^{\mathrm{fb}}, & \text{if the task succeeds}.
 \end{cases}
 \label{eq:reward}
 \end{align}
-Here,
+The four success-side terms are defined as
 \begin{align}
-latencyRatio &= \frac{\text{actual latency}}{\text{maximum allowed latency}}, \\
-energyNorm &= \frac{E_t - \mu_t}{\sqrt{\sigma_t^2 + \epsilon}}, \\
-networkCost &= \frac{\text{reserved PRB blocks}}{50},
-\end{align}
-and
-\begin{align}
-fallbackPenalty &=
+\ell_t &= \mathrm{clip}\!\left(\frac{T_t}{T_t^{\max}},\, 0,\, 2\right), \\
+e_t &= \mathrm{clip}\!\left(\frac{E_t - \mu_t}{\sqrt{\sigma_t^2 + 10^{-8}}},\, -2,\, 2\right), \\
+n_t &= \mathrm{clip}\!\left(\frac{B_t}{\max(B_{\max}, 1)},\, 0,\, 1\right), \\
+p_t^{\mathrm{fb}} &=
 \begin{cases}
-1.5, & \text{if the requested destination is replaced by a feasible fallback}, \\
-0, & \text{otherwise}.
+1.5, & \text{if destination fallback is triggered}, \\
+0, & \text{otherwise},
 \end{cases}
 \end{align}
+where \(T_t\) is the realized end-to-end task latency, \(T_t^{\max}\) is the task deadline, \(E_t\) is the total task energy reported by the simulator, \(B_t\) is the requested PRB reservation, and \(B_{\max}\) is the per-task PRB cap determined by the current system configuration.
 
-This formulation explicitly prioritizes deadline satisfaction while still discouraging wasteful wireless reservations, excessive transmission energy, and policy choices that trigger environment-side fallback. A failed task receives a fixed negative reward because lateness, mobility loss, or network failure all indicate a clear scheduling breakdown. For successful tasks, the positive base reward is reduced according to delay, energy, PRB cost, and fallback. Compared with a fixed normalization scheme, the present implementation standardizes energy online through an exponential moving average with \(\alpha = 0.01\), which makes unusually energy-hungry decisions more visible to the learner as operating conditions evolve.
+This reward is designed to align policy optimization with the QoS objective of the system. In the present edge-cloud setting, QoS is reflected most directly by whether a task finishes successfully and whether it finishes within a small fraction of its latency budget. For that reason, task failure receives the strongest negative signal, while successful completion starts from a positive base reward and is then discounted according to the quality of the realized service. The reward therefore does not merely ask the agent to offload somewhere feasible; it pushes the policy toward decisions that improve completion reliability and reduce end-to-end delay, which are the two most immediate manifestations of user-perceived QoS in this workload.
+
+The remaining terms are included because QoS in a congested mobile edge system is not determined by latency alone. The latency term \(\ell_t\) directly penalizes schedules that consume too much of the deadline budget. The energy term \(e_t\) is not a QoS metric in isolation, but it acts as a service-sustainability term: repeatedly choosing energy-expensive actions increases device stress and can degrade long-run service continuity, so the reward discourages such behaviour. In the implementation, \(\mu_t\) and \(\sigma_t^2\) are updated by exponential moving averages with smoothing factor \(\alpha = 0.01\), allowing this penalty to adapt online to the operating regime. The network term \(n_t\) penalizes aggressive PRB reservations, which helps prevent the policy from improving one task's delay at the expense of wider wireless congestion and degraded QoS for subsequent tasks. Finally, the fallback penalty \(p_t^{\mathrm{fb}}\) discourages decisions that are not robustly executable in the actual system state. Taken together, these terms make the reward QoS-oriented in a strict sense: it prioritizes successful and timely task completion directly, while using energy, PRB, and fallback penalties to suppress myopic actions that would otherwise erode overall service quality.
 
 \subsection{Training Algorithm}
 \label{subsec:training-algorithm}
 
-Policy optimization follows the clipped PPO objective \cite{schulman2017ppo}. For trajectory sample \(t\),
+Policy optimization follows the clipped PPO framework \cite{schulman2017ppo}. For transition \(t\), the policy ratio is
+\begin{align}
+\rho_t(\theta) =
+\frac{\pi_{\theta}(a_t \mid o_t)}{\pi_{\theta_{\mathrm{old}}}(a_t \mid o_t)},
+\end{align}
+and the actor is optimized with the standard clipped surrogate
 \begin{align}
 L^{\mathrm{clip}}(\theta) =
 \E_t \left[
@@ -282,24 +315,24 @@ L^{\mathrm{clip}}(\theta) =
 \rho_t(\theta)\hat{A}_t,\,
 \mathrm{clip}(\rho_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t
 \right)
-\right],
+\right].
 \end{align}
-where
+The critic is trained to regress the return through a mean-squared error objective,
 \begin{align}
-\rho_t(\theta) =
-\frac{\pi_{\theta}(a_t \mid o_t)}{\pi_{\theta_{\mathrm{old}}}(a_t \mid o_t)}.
+L^{\mathrm{value}}(\phi) = \E_t \left[\left(V_{\phi}(s_t) - G_t\right)^2\right].
 \end{align}
+In practice, the actor and critic are updated with separate Adam optimizers, and the actor objective includes entropy regularization to maintain exploration during early training.
 
-For the finalized training setup used in this report, the implementation adopts a one-step event-level advantage rather than a long-horizon bootstrapped estimator. Specifically, the update uses
+For the finalized experiments reported here, the return is defined at the event level rather than through long-horizon bootstrapping:
 \begin{align}
 G_t &= r_t, \\
-\hat{A}_t &= r_t - V_{\phi}(s_t),
+\hat{A}_t &= r_t - V_{\phi}(s_t).
 \end{align}
-followed by minibatch normalization of \(\hat{A}_t\). This choice matches the event-driven nature of the environment: each transition corresponds to a largely self-contained offloading transaction whose reward is available after the task outcome is known. The shared Python utilities still contain a generic GAE helper for future extensions, but the MAPPO and PPO runs reported here use the immediate-return form above.
+The resulting advantages are normalized within each update minibatch. This immediate-return design is intentional. In the present simulator, each transition corresponds to a completed task-offloading decision whose outcome is directly observable once the task finishes. Treating each decision as a one-step event therefore matches the underlying interaction structure and avoids injecting additional variance from unnecessary multi-step credit assignment.
 
-One additional implementation detail is important for MAPPO stability. If the environment replaces the requested destination with a feasible fallback, that transition is not inserted into the MAPPO update buffer. Otherwise, the PPO ratio would be computed against an action that the policy did not actually sample. For non-fallback transitions, the training code recomputes the log-probability using the original Python action rather than the post-resolution executed action. This design removes a direct source of off-policy noise from the update rule.
+Another important implementation choice concerns destination fallback. If the environment replaces the requested destination with a feasible fallback destination at execution time, that transition is counted in the episode statistics but excluded from the PPO update buffer. Otherwise, the likelihood ratio would be formed from an action that was modified by the environment rather than executed exactly as sampled by the policy. For retained transitions, the stored log-probability is recomputed from the original action emitted by Python, not from the post-resolution destination actually executed in the simulator. This treatment keeps the optimization as close as possible to the on-policy assumption underlying PPO.
 
-Entropy regularization is linearly annealed from 0.02 to 0.002, encouraging exploration early in training and sharper decisions later. The main hyperparameters are listed in \Tabref{tab:training-hyperparameters}. Several of these choices follow stable PPO implementation practices discussed by Yu \emph{et al.} \cite{yu2022surprising}, particularly the use of a relatively small clipping range \(\epsilon = 0.1\) and a centralized critic that combines system-level context with agent-specific local information.
+The entropy coefficient is linearly annealed from 0.02 to 0.002, promoting broad exploration in the early episodes and sharper decisions after the policy begins to stabilize. The main hyperparameters are listed in \Tabref{tab:training-hyperparameters}. These settings are consistent with stable PPO practice in cooperative multi-agent learning \cite{yu2022surprising}, especially the relatively conservative clipping range \(\epsilon = 0.1\) and the use of a centralized critic that supplements local observations with global coordination context.
 
 \begin{table}[htbp]
     \centering
@@ -326,15 +359,15 @@ Entropy regularization is linearly annealed from 0.02 to 0.002, encouraging expl
     \label{tab:training-hyperparameters}
 \end{table}
 
-The runtime configuration still records a nominal \(\gamma = 0.99\) for compatibility with the shared training scripts, but the reported runs do not bootstrap across future rewards in the update rule above.
+The runtime configuration still exposes a nominal \(\gamma = 0.99\), but the reported runs use the immediate-return update above, so no discounted multi-step bootstrapping enters the final optimization.
 
 Algorithmically, one training episode proceeds as follows.
 \begin{enumerate}
-    \item Java starts a 30-minute PureEdgeSim episode and exposes the MARL interface through \texttt{RLEnvServer}.
-    \item Every time a task reaches the orchestrator, the active device sends a masked local observation to Python.
-    \item Python samples a destination and PRB action, sends the decision back, and stores the resulting transition.
-    \item At the end of the episode, the centralized critic computes values, advantages are estimated and normalized, and PPO updates the actor and critic for four epochs.
-    \item The best-performing checkpoints are then reused for offline inference and multi-seed evaluation.
+    \item Java launches one 30-minute PureEdgeSim episode and exposes the MARL interface through \texttt{RLEnvServer}.
+    \item Whenever a task reaches the orchestrator, the active device sends its masked observation to the Python learner.
+    \item Python samples a destination action and, when offloading is chosen, a PRB action; the environment then executes the decision and returns the task-level transition.
+    \item After the episode ends, values and advantages are computed from the collected transitions, and PPO updates the actor and critic for four epochs.
+    \item The resulting checkpoints are reused for offline inference and for the multi-seed evaluation reported in Chapter~5.
 \end{enumerate}
 
-Overall, the proposed method preserves decentralized execution at deployment time while still exploiting centralized information during training, allowing the policy to internalize network coupling and resource contention in a scalable way.
+Overall, the training procedure preserves decentralized execution at deployment time while still exploiting centralized information during learning, enabling the policy to internalize congestion, contention, and cross-device coupling without introducing a centralized online controller.
