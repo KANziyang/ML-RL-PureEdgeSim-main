@@ -73,12 +73,12 @@ Only devices with \texttt{generateTasks=true} are treated as RL agents. In the i
 
 PureEdgeSim remains event-driven rather than being recast as a fixed-step game loop \cite{mechalikh2021pureedgesim}. The present project preserves that design. Decisions are triggered only when tasks arrive at the orchestration stage, not at an artificial global clock tick, so the simulator retains its original temporal semantics.
 
-Once a task is generated, it is sent to the orchestrator, which selects the execution destination and, for RL-based algorithms, the PRB level used for the wireless upload. The task is then transmitted to the chosen destination, executed on the assigned VM, and finally returned to the source device. \Figref{fig:task-orchestration-flow} summarizes this simulator-side lifecycle.
+Once a task is generated, it is passed to the orchestrator, which dispatches it through either a heuristic decision path or an RL decision path. Under RL-based algorithms, this decision also includes the PRB level used for the wireless upload. After the destination is resolved, the task proceeds to execution and completion within the same event-driven simulator loop. \Figref{fig:task-orchestration-flow} summarizes this control flow.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.92\textwidth]{figures/task_orchestration_flow.png}
-    \caption{Simulator-side event-driven task lifecycle in the customized environment.}
+    \caption{Event-driven control flow from task generation to execution, highlighting the shared orchestrator and the heuristic versus RL decision paths.}
     \label{fig:task-orchestration-flow}
 \end{figure}
 
