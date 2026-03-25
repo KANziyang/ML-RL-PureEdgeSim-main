@@ -97,7 +97,14 @@ The Robles studies already demonstrated that PureEdgeSim can be modified to host
 \end{align*}
 followed by \texttt{marl\_episode\_end} at the end of each episode.
 
-This protocol has two advantages. First, the policy code remains in Python, which simplifies neural-network implementation and logging. Second, the simulator remains authoritative for validity checks, fallback handling, timing, and reward calculation.
+This protocol has two advantages. First, the policy code remains in Python, which simplifies neural-network implementation and logging. Second, the simulator remains authoritative for validity checks, fallback handling, timing, and reward calculation. \Figref{fig:java-python-training-architecture} illustrates the resulting training-time collaboration between the Java event loop, the orchestration layer, the TCP environment server, and the Python learning components.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\textwidth]{figures/java_python_training_architecture.png}
+    \caption{Training-mode collaborative architecture between the Java simulator and the Python MAPPO/PPO learner.}
+    \label{fig:java-python-training-architecture}
+\end{figure}
 
 \subsubsection{Offline Inference Mode}
 

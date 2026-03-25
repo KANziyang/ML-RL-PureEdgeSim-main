@@ -57,9 +57,12 @@ Desktop.ini
 
 # LaTeX build files
 *.aux
+*.fdb_latexmk
+*.fls
 *.log
 *.toc
 *.out
+*.synctex(busy)
 *.synctex.gz
 *.acn
 *.acr

@@ -3,7 +3,7 @@
 \backcite {satyanarayanan2017emergence, mao2017survey}{{2}{1.2.1}{subsubsection.15}}
 \backcite {luo2024survey, robles2023multilayer}{{3}{1.2.2}{subsubsection.16}}
 \backcite {lu2020mec_maddpg_sac, ke2022demadrl, sun2023hdmappo, robles2023multilayer}{{3}{1.2.3}{subsubsection.17}}
-\backcite {lu2020mec_maddpg_sac}{{4}{1.3}{subsection.18}}
+\backcite {lu2020mec_maddpg_sac}{{3}{1.3}{subsection.18}}
 \backcite {ke2022demadrl}{{4}{1.3}{subsection.18}}
 \backcite {sun2023hdmappo}{{4}{1.3}{subsection.18}}
 \backcite {aghapour2023offloading}{{4}{1.3}{subsection.18}}
@@ -11,29 +11,29 @@
 \backcite {robles2023multilayer}{{4}{1.3}{subsection.18}}
 \backcite {robles2023multilayer}{{4}{1.3}{subsection.18}}
 \backcite {cao2025dqn}{{4}{1.3}{subsection.18}}
-\backcite {mechalikh2021pureedgesim}{{5}{1.3}{subsection.18}}
-\backcite {mechalikh2025quality}{{5}{1.3}{subsection.18}}
-\backcite {abid2023eisim}{{5}{1.3}{subsection.18}}
-\backcite {mlrlpureedgesimgithub}{{5}{1.3}{subsection.18}}
-\backcite {yu2022surprising}{{5}{1.3}{subsection.18}}
-\backcite {giwa2025hetnet}{{5}{1.3}{subsection.18}}
+\backcite {mechalikh2021pureedgesim}{{4}{1.3}{subsection.18}}
+\backcite {mechalikh2025quality}{{4}{1.3}{subsection.18}}
+\backcite {abid2023eisim}{{4}{1.3}{subsection.18}}
+\backcite {mlrlpureedgesimgithub}{{4}{1.3}{subsection.18}}
+\backcite {yu2022surprising}{{4}{1.3}{subsection.18}}
+\backcite {giwa2025hetnet}{{4}{1.3}{subsection.18}}
 \backcite {sun2023hdmappo}{{5}{1.3}{subsection.18}}
 \backcite {robles2022continuum, robles2023multilayer}{{5}{1.3}{subsection.18}}
-\backcite {lu2020mec_maddpg_sac}{{6}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
-\backcite {ke2022demadrl}{{6}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
-\backcite {sun2023hdmappo}{{6}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
-\backcite {robles2023multilayer}{{6}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
-\backcite {aghapour2023offloading}{{6}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
-\backcite {giwa2025hetnet}{{6}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
-\backcite {mechalikh2021pureedgesim, pureedgesimgithub}{{7}{2.1}{subsection.22}}
-\backcite {mechalikh2021pureedgesim, silvafilho2017cloudsimplus}{{7}{2.1}{subsection.22}}
-\backcite {mechalikh2025quality}{{7}{2.1}{subsection.22}}
+\backcite {lu2020mec_maddpg_sac}{{5}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
+\backcite {ke2022demadrl}{{5}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
+\backcite {sun2023hdmappo}{{5}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
+\backcite {robles2023multilayer}{{5}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
+\backcite {aghapour2023offloading}{{5}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
+\backcite {giwa2025hetnet}{{5}{\caption@xref {??}{ on input line 77}}{table.caption.19}}
+\backcite {mechalikh2021pureedgesim, pureedgesimgithub}{{6}{2.1}{subsection.22}}
+\backcite {mechalikh2021pureedgesim, silvafilho2017cloudsimplus}{{6}{2.1}{subsection.22}}
+\backcite {mechalikh2025quality}{{6}{2.1}{subsection.22}}
+\backcite {robles2022continuum, robles2023multilayer}{{6}{2.2}{subsection.23}}
 \backcite {robles2022continuum, robles2023multilayer}{{7}{2.2}{subsection.23}}
-\backcite {robles2022continuum, robles2023multilayer}{{8}{2.2}{subsection.23}}
-\backcite {mechalikh2021pureedgesim}{{9}{2.4}{subsection.33}}
-\backcite {robles2022continuum, robles2023multilayer}{{11}{2.5.1}{subsubsection.36}}
-\backcite {robles2022continuum, robles2023multilayer}{{12}{2.6}{subsection.39}}
-\backcite {sun2023hdmappo}{{20}{4.1}{figure.caption.59}}
-\backcite {ke2022demadrl}{{20}{4.1}{figure.caption.59}}
-\backcite {schulman2017ppo}{{25}{4.6}{subsection.86}}
-\backcite {yu2022surprising}{{25}{4.6}{equation.90}}
+\backcite {mechalikh2021pureedgesim}{{8}{2.4}{subsection.33}}
+\backcite {robles2022continuum, robles2023multilayer}{{10}{2.5.1}{subsubsection.36}}
+\backcite {robles2022continuum, robles2023multilayer}{{12}{2.6}{subsection.40}}
+\backcite {sun2023hdmappo}{{20}{4.1}{figure.caption.60}}
+\backcite {ke2022demadrl}{{20}{4.1}{figure.caption.60}}
+\backcite {schulman2017ppo}{{25}{4.6}{subsection.87}}
+\backcite {yu2022surprising}{{25}{4.6}{equation.91}}
