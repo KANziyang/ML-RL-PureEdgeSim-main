@@ -21,62 +21,126 @@ The use of a single dual-head actor differs from two common alternatives in the 
 \subsection{Observation and State Design}
 \label{subsec:observation-state}
 
-The observation design follows the structure implemented in the decision-support module \texttt{DeviceAgentDecisionSupport}. For agent \(i\), the local input is
+The observation and critic-state design follows the implementation of the decision-support module \texttt{DeviceAgentDecisionSupport}. At each decision event, agent \(i\) receives the local observation
 \begin{align}
 o_i = \left(x_i, D_i, m_i\right),
 \end{align}
-where \(x_i \in \R^{13}\) is the device-level feature vector, \(D_i \in \R^{N_d \times 11}\) is the destination-feature matrix, and \(m_i \in \{0,1\}^{N_d}\) is the destination-feasibility mask.
+where \(x_i \in \R^{13}\) is the 13-dimensional agent observation (\texttt{agentObs}), \(D_i \in \R^{N_d \times 11}\) is the destination-feature matrix (\texttt{destFeatures}), and \(m_i \in \{0,1\}^{N_d}\) is the destination-feasibility mask (\texttt{destMask}). Candidate destinations are ordered deterministically as local execution first, followed by edge data centers sorted by data-center identifier, and finally cloud destinations sorted by identifier. This fixed ordering ensures that every destination index has a stable semantic meaning across episodes.
 
-The 13-dimensional agent feature vector combines normalized task descriptors, source-device resource indicators, and PRB-availability terms. The destination matrix contains one 11-dimensional feature vector for each candidate destination. Candidates are ordered consistently as local execution first, followed by edge data centers sorted by data-center identifier, and finally cloud destinations. Each destination feature summarizes its load, compute capacity, estimated finish-over-deadline ratio, distance, network admissibility, destination type, and estimated PRB demand.
+The vector \(x_i\) contains three categories of local information. The first five dimensions describe the current task demand through task length, deadline, request size, result size, and container size. Dimensions 5--8 summarize the source-device state, including CPU utilization, battery level, running-task count, and the MIPS of the best local VM. Dimensions 9--12 provide network and temporal context through the number of reachable edge destinations, global PRB availability, simulation progress, and the maximum PRB fraction currently affordable for the task. \Tabref{tab:agent-observation-features} lists the 13 fields and their meanings.
 
-The critic uses a two-level state representation. The base global state is a 27-dimensional vector,
+All 13 dimensions are normalized before being sent to the actor. Task length, deadline, request size, result size, and container size are divided by their corresponding global maxima and clipped to \([0,1]\). CPU utilization, battery level, PRB ratios, and simulation progress are also clipped to \([0,1]\). Running-task counts are normalized by the maximum VM count per node and clipped to \([0,2]\). If no feasible local VM exists, \texttt{sourceLocalVmMipsNorm} is set to \(0.0\).
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.08\linewidth}>{\raggedright\arraybackslash}p{0.24\linewidth}>{\raggedright\arraybackslash}p{0.54\linewidth}}
+        \hline
+        \textbf{Index} & \textbf{Field} & \textbf{Meaning} \\
+        \hline
+        0 & \texttt{taskLengthNorm} & Task computational demand. \\
+        1 & \texttt{taskDeadlineNorm} & Task deadline. \\
+        2 & \texttt{requestSizeNorm} & Request-data size. \\
+        3 & \texttt{resultSizeNorm} & Result-data size. \\
+        4 & \texttt{containerSizeNorm} & Container-image size. \\
+        5 & \texttt{sourceCpuNorm} & Source-device CPU utilization. \\
+        6 & \texttt{sourceEnergyNorm} & Source-device battery level. \\
+        7 & \shortstack[l]{\texttt{sourceRunning}\\\texttt{TasksNorm}} & Source-device running-task count. \\
+        8 & \shortstack[l]{\texttt{sourceLocalVm}\\\texttt{MipsNorm}} & MIPS of the best local VM. \\
+        9 & \shortstack[l]{\texttt{reachableEdge}\\\texttt{CountNorm}} & Number of reachable edge destinations. \\
+        10 & \texttt{prbRemainingRatio} & Globally remaining PRB ratio. \\
+        11 & \texttt{simTimeNorm} & Simulation progress. \\
+        12 & \shortstack[l]{\texttt{prbMaxAffordable}\\\texttt{Norm}} & Maximum PRB fraction currently affordable for the task. \\
+        \hline
+    \end{tabular}
+    \caption{Detailed 13-dimensional agent observation used by the actor.}
+    \label{tab:agent-observation-features}
+\end{table}
+
+The matrix \(D_i\) contains one 11-dimensional row for each candidate destination. Each row combines four types of destination-side information: current load and compute capacity, delay and distance proxies, network admissibility, and tier/capacity indicators. As a result, the actor can evaluate not only how busy a destination is, but also whether it belongs to the local, edge, or cloud tier, whether offloading is currently admissible, and how much PRB may be needed if that destination is selected. \Tabref{tab:destination-features} summarizes the complete destination-feature design.
+
+The destination features are likewise normalized before policy evaluation. CPU utilization, total MIPS, VM count, and estimated PRB demand are scaled to \([0,1]\). Running-task counts are normalized by the maximum VM count per node and clipped to \([0,2]\). The term \texttt{estimatedFinishOverDeadline} is clipped to \([0,2]\), taking the value \(2.0\) when no candidate VM is available. For \texttt{distanceNorm}, local execution uses \(0.0\), cloud destinations use \(1.0\), and edge destinations use the normalized source-to-destination distance. The indicators \texttt{networkAdmissible}, \texttt{isLocal}, \texttt{isEdge}, and \texttt{isCloud} remain binary.
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.08\linewidth}>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.53\linewidth}}
+        \hline
+        \textbf{Index} & \textbf{Field} & \textbf{Meaning} \\
+        \hline
+        0 & \texttt{cpuNorm} & Destination CPU utilization. \\
+        1 & \shortstack[l]{\texttt{runningTasks}\\\texttt{Norm}} & Destination running-task count. \\
+        2 & \texttt{totalMipsNorm} & Destination total MIPS. \\
+        3 & \shortstack[l]{\texttt{estimatedFinish}\\\texttt{OverDeadline}} & Estimated finish time divided by task deadline. \\
+        4 & \texttt{distanceNorm} & Source-to-destination distance. \\
+        5 & \shortstack[l]{\texttt{network}\\\texttt{Admissible}} & Whether network admission is feasible. \\
+        6 & \texttt{isLocal} & Local-destination indicator. \\
+        7 & \texttt{isEdge} & Edge-datacenter indicator. \\
+        8 & \texttt{isCloud} & Cloud-destination indicator. \\
+        9 & \texttt{vmCountNorm} & Number of VMs at the destination. \\
+        10 & \shortstack[l]{\texttt{estimatedTransfer}\\\texttt{PrbNeed}} & Estimated PRB fraction required to upload the task. \\
+        \hline
+    \end{tabular}
+    \caption{Detailed 11-dimensional feature vector for each candidate destination.}
+    \label{tab:destination-features}
+\end{table}
+
+The destination mask \(m_i\) expands the feasibility test into an explicit action constraint. For destination \(j\),
+\begin{align}
+m_{i,j} =
+\begin{cases}
+1, & \text{if destination \(j\) has a feasible VM and, for offloaded destinations,} \\
+   & \text{network admission is feasible}, \\
+0, & \text{otherwise}.
+\end{cases}
+\end{align}
+In the actor, this mask suppresses invalid destination logits before sampling. The policy therefore learns over the valid action region directly, rather than sampling infeasible destinations and being penalized only after execution.
+
+For PPO, the critic input is the base global state
 \begin{align}
 s_{\mathrm{base}} \in \R^{27},
 \end{align}
-that aggregates system-wide load indicators, PRB usage, task statistics, and tier-level summaries across the local, edge, and cloud layers. For MAPPO, this base state is further augmented with two recent-decision histograms:
+which is built by \texttt{fillGlobalState()}. The first 13 dimensions are an exact copy of the active agent's local observation \(x_i\). The remaining 14 dimensions are aggregated system statistics that summarize source-device load and energy, edge-side load dispersion, cloud utilization, active-task intensity, and global PRB usage. \Tabref{tab:global-state-features} lists the full composition of this base state.
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{0.08\linewidth}>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.56\linewidth}}
+        \hline
+        \textbf{Index} & \textbf{Component} & \textbf{Meaning} \\
+        \hline
+        0--12 & \texttt{agentObs[0..12]} & Direct copy of the active agent's 13-dimensional local observation. \\
+        13 & \texttt{sourceCpuStats.mean} & Mean CPU utilization across all source devices. \\
+        14 & \texttt{sourceCpuStats.max} & Maximum CPU utilization across all source devices. \\
+        15 & \shortstack[l]{\texttt{sourceEnergy}\\\texttt{Stats.mean}} & Mean battery level across all source devices. \\
+        16 & \shortstack[l]{\texttt{sourceEnergy}\\\texttt{Stats.max}} & Maximum battery level across all source devices. \\
+        17 & \shortstack[l]{\texttt{sourceRunning}\\\texttt{Stats.mean}} & Mean normalized running-task count across all source devices. \\
+        18 & \shortstack[l]{\texttt{sourceRunning}\\\texttt{Stats.max}} & Maximum normalized running-task count across all source devices. \\
+        19 & \texttt{edgeCpuStats.mean} & Mean CPU utilization across all edge data centers. \\
+        20 & \texttt{edgeCpuStats.std} & Standard deviation of CPU utilization across all edge data centers. \\
+        21 & \shortstack[l]{\texttt{edgeRunning}\\\texttt{Stats.mean}} & Mean normalized running-task count across all edge data centers. \\
+        22 & \texttt{edgeRunningStats.std} & Standard deviation of normalized running-task count across all edge data centers. \\
+        23 & \texttt{cloudCpuMean} & Mean CPU utilization across all cloud nodes. \\
+        24 & \texttt{totalActiveTasksNorm} & Normalized total number of active tasks across all VMs. \\
+        25 & \texttt{allocatedPrbRatio} & Ratio of globally allocated PRB blocks. \\
+        26 & \texttt{cpuImbalanceStd} & Standard deviation of CPU utilization across all fixed destinations (edge and cloud). \\
+        \hline
+    \end{tabular}
+    \caption{Composition of the 27-dimensional base global state used by the critic.}
+    \label{tab:global-state-features}
+\end{table}
+
+For MAPPO, the critic receives an augmented state in which the 27-dimensional base state is extended with recent decision telemetry:
 \begin{align}
 s_{\mathrm{aug}} = \left[s_{\mathrm{base}}; h^{\mathrm{dest}}; h^{\mathrm{prb}}\right]
 \in \R^{27 + N_d + 8},
 \end{align}
-where \(h^{\mathrm{dest}} \in \R^{N_d}\) stores the normalized destination-selection frequencies over the latest 200 decisions and \(h^{\mathrm{prb}} \in \R^{8}\) stores the corresponding PRB-bin frequencies. Under the reported topology, \(N_d = 6\) because the candidate set contains one local option, four edge data centers, and one cloud destination. The MAPPO critic therefore receives a 41-dimensional input. Intuitively, the actor still solves a partially observed local decision problem, whereas the critic evaluates each action against both the global system state and a compact summary of recent collective behaviour.
+where \(h^{\mathrm{dest}} \in \R^{N_d}\) is the normalized histogram of destination selections over the latest 200 decisions and \(h^{\mathrm{prb}} \in \R^{8}\) is the normalized histogram of PRB-bin selections over the latest 200 offloading decisions for which PRB allocation is actually applied. These telemetry terms are appended by \texttt{appendTelemetryToState()} and provide the critic with a compact summary of recent multi-agent coordination patterns. Under the default topology with one local option, four edge data centers, and one cloud destination, \(N_d = 6\), so the MAPPO critic input dimension becomes \(27 + 6 + 8 = 41\).
 
-To make the feature design explicit, \Tabref{tab:agent-observation-features} summarizes the 13 local observation dimensions and \Tabref{tab:destination-global-features} summarizes the destination feature matrix together with the base-state and telemetry components.
-
-\begin{table}[htbp]
-    \centering
-    \begin{tabular}{p{0.18\linewidth}p{0.72\linewidth}}
-        \hline
-        \textbf{Indices} & \textbf{Meaning} \\
-        \hline
-        0--4 & Normalized task length, deadline, request size, result size, and container size. \\
-        5--8 & Source-device CPU load, source energy level, source running-task count, and best local-VM MIPS. \\
-        9--12 & Reachable-edge count, remaining PRB ratio, normalized simulation time, and normalized affordable PRB ceiling. \\
-        \hline
-    \end{tabular}
-    \caption{Agent-observation dimensions used by the decision-support module.}
-    \label{tab:agent-observation-features}
-\end{table}
-
-\begin{table}[htbp]
-    \centering
-    \begin{tabular}{p{0.18\linewidth}p{0.72\linewidth}}
-        \hline
-        \textbf{Component} & \textbf{Meaning} \\
-        \hline
-        Destination 0--2 & Destination CPU load, running-task count, and total MIPS. \\
-        Destination 3--5 & Estimated finish-over-deadline ratio, normalized distance, and network-admissibility flag. \\
-        Destination 6--10 & Local / edge / cloud type flags, VM-count summary, and estimated PRB need. \\
-        Base state 0--12 & Direct copy of the active agent's 13-dimensional local observation. \\
-        Base state 13--26 & Source CPU mean/max, source energy mean/max, source running-task mean/max, edge CPU mean/std, edge running-task mean/std, cloud CPU mean, active-task ratio, allocated-PRB ratio, and destination CPU-imbalance std. \\
-        Telemetry 27--\(26+N_d\) & Normalized histogram of recent destination selections over the last 200 MAPPO decisions. \\
-        Telemetry \(27+N_d\)--\(34+N_d\) & Normalized histogram of recent PRB-bin selections over the same 200-decision window. \\
-        \hline
-    \end{tabular}
-    \caption{Destination-feature groups and critic-state composition.}
-    \label{tab:destination-global-features}
-\end{table}
-
-The destination mask plays a central role in maintaining valid actions. If a destination is out of coverage, lacks a feasible VM, or violates offloading constraints, its mask value is set to zero and the corresponding action logit is suppressed before sampling. This mask-aware policy is more sample efficient than allowing invalid actions to be sampled and penalizing them only afterward.
+Overall, the actor faces a partially observed local decision problem, whereas the critic evaluates each action against a richer aggregated state that captures both instantaneous system conditions and recent coordination behaviour.
 
 \subsection{Action Space Design}
 \label{subsec:action-space}
