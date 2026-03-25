@@ -89,33 +89,26 @@ For heuristic baselines, \texttt{CustomEdgeOrchestrator} computes the destinatio
 
 \subsubsection{Training Mode}
 
-Earlier PureEdgeSim RL studies place the learning logic inside the simulator loop \cite{robles2022continuum, robles2023multilayer}. The present project separates the discrete-event simulator and the learning components across Java and Python. In training mode, Python launches the Java simulator with the environment-server flag enabled. Java instantiates \texttt{RLEnvServer} and waits for the Python client to connect. The first message, \texttt{marl\_config}, communicates the number of agents, observation dimensions, destination labels, and PRB bins. Each decision then follows a request-response sequence:
+This work implements a Java--Python co-simulation architecture that separates discrete-event simulation from policy learning while preserving a synchronous decision interface. In training mode, Python launches the Java simulator with the environment-server flag enabled, after which Java instantiates \texttt{RLEnvServer} and waits for the client connection. The initial \texttt{marl\_config} message defines the number of agents, observation dimensions, destination labels, and PRB bins. Each scheduling decision then follows the request-response sequence
 \begin{align*}
 \texttt{marl\_turn\_obs} \rightarrow \texttt{marl\_action} \rightarrow \texttt{marl\_transition},
 \end{align*}
-followed by \texttt{marl\_episode\_end} at the end of each episode.
+and each episode terminates with \texttt{marl\_episode\_end}.
 
-This separation assigns complementary responsibilities to the two runtimes. Python handles inference, trajectory buffering, and policy updates, whereas Java remains authoritative for event timing, validity checks, fallback handling, and reward calculation. \Figref{fig:java-python-training-architecture} illustrates this training-time collaboration between simulator-side control flow and learner-side optimization.
+The implemented architecture assigns complementary responsibilities to the two runtimes. Java retains authority over event timing, feasibility checks, fallback handling, and reward computation so that every transition remains consistent with the simulator state. Python is responsible for policy inference, trajectory buffering, and parameter updates. \Figref{fig:java-python-training-architecture} illustrates how the training pipeline connects simulator-side execution with learner-side optimization.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.92\textwidth]{figures/java_python_training_architecture.png}
-    \caption{Training-time interaction between the Java simulator and the Python MAPPO/PPO learner.}
+    \caption{Training-time Java--Python co-simulation architecture linking simulator-side execution with MAPPO/PPO policy interaction and optimization.}
     \label{fig:java-python-training-architecture}
 \end{figure}
 
 \subsubsection{Offline Inference Mode}
 
-In offline inference mode, Java automatically launches \texttt{inference\_server.py} and connects to it through the same TCP interface. The model path is resolved by priority: an explicitly supplied checkpoint is used first, otherwise the latest training run is searched, and finally a legacy fallback path is checked. If no checkpoint can be loaded, the manager falls back to a safe default action so that evaluation runs remain executable. \Figref{fig:java-python-cosim} summarizes the shared protocol and data flow reused by both training and offline inference.
+Offline inference mode extends the same co-simulation design to deployment-oriented evaluation. Java automatically launches \texttt{inference\_server.py} and connects to it through the same TCP interface used during training. Model resolution follows a fixed priority order: an explicitly supplied checkpoint is used first, otherwise the latest training run is searched, and finally a legacy fallback path is checked. If no checkpoint can be loaded, the manager returns a safe default action so that evaluation runs remain executable.
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.92\textwidth]{figures/java_python_cosim.png}
-    \caption{Shared Java--Python co-simulation interface used by training and offline inference.}
-    \label{fig:java-python-cosim}
-\end{figure}
-
-The same message protocol is reused in both modes, so training and evaluation share a common environment interface. Reusing one interface reduces train-test skew and makes the RL pipeline easier to debug.
+By reusing one message protocol across both modes, the implementation keeps training and evaluation aligned under a common environment interface. This design reduces train-test skew and makes the end-to-end RL pipeline easier to validate and reproduce.
 
 \subsection{Evaluated Scheduling Algorithms}
 \label{subsec:baseline-algorithms}
