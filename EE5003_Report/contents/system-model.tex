@@ -14,7 +14,7 @@ The considered system is a three-tier LOCAL--EDGE--CLOUD computing continuum dep
     \label{fig:network-topology}
 \end{figure}
 
-Four heterogeneous device classes are configured. Smartphones and sensors are the task-generating devices and therefore form the decision-making population in the RL formulation, whereas Raspberry Pi nodes and laptops serve as background devices that increase resource heterogeneity, spatial density, and wireless contention. The edge tier contains four identical edge data centers located at \((50,50)\), \((150,50)\), \((50,150)\), and \((150,150)\). Each edge data center has two hosts, and each host exposes eight virtual machines (VMs) with \(60{,}000\) MIPS per VM. The cloud tier contains one data center with two hosts and sixteen VMs in total, each providing \(150{,}000\) MIPS. Its communication-side abstraction is specified separately in \Secref{subsec:communication-model}.
+Four heterogeneous device classes are configured. Smartphones and sensors are the task-generating devices and therefore form the decision-making population in the RL formulation, whereas Raspberry Pi nodes and laptops serve as background devices that increase resource heterogeneity, spatial density, and wireless contention. \Tabref{tab:edge-device-config} summarizes this end-device configuration. The edge tier contains four identical edge data centers located at \((50,50)\), \((150,50)\), \((50,150)\), and \((150,150)\). Each edge data center has two hosts, and each host exposes eight virtual machines (VMs) with \(60{,}000\) MIPS per VM. The cloud tier contains one data center with two hosts and sixteen VMs in total, each providing \(150{,}000\) MIPS. Its communication-side abstraction is specified separately in \Secref{subsec:communication-model}. \Tabref{tab:server-config} lists the corresponding edge-tier and cloud-tier server configuration.
 
 \begin{table}[htbp]
     \centering
@@ -55,7 +55,7 @@ An important modeling detail is that sensor nodes do not host a local VM. Conseq
 \subsection{Task Model}
 \label{subsec:task-model}
 
-Three application classes are used to generate workloads with distinct latency and communication requirements. Their generation rates, latency deadlines, and workload sizes are specified in \texttt{applications.xml}. For each arriving task, the controller chooses an execution destination from the feasible set consisting of local execution, the reachable edge data centers, and the cloud.
+Three application classes are used to generate workloads with distinct latency and communication requirements. Their generation rates, latency deadlines, and workload sizes are specified in \texttt{applications.xml}. \Tabref{tab:application-config} summarizes the workload configuration used in the reported experiments. For each arriving task, the controller chooses an execution destination from the feasible set consisting of local execution, the reachable edge data centers, and the cloud.
 
 \begin{table}[htbp]
     \centering

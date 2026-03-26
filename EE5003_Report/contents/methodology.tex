@@ -5,7 +5,7 @@
 \subsection{MAPPO Framework Overview}
 \label{subsec:mappo-overview}
 
-The proposed scheduler follows the centralized training with decentralized execution (CTDE) paradigm. During training, a centralized critic observes a global simulator state and evaluates device actions under system-wide congestion, load imbalance, and PRB utilization. During execution, each device acts independently using only its own local observation and the feasible-destination mask. This separation matches the target edge-computing scenario well: rich global information is available during simulation and offline learning, whereas online deployment should avoid a centralized decision bottleneck.
+The proposed scheduler follows the centralized training with decentralized execution (CTDE) paradigm. During training, a centralized critic observes a global simulator state and evaluates device actions under system-wide congestion, load imbalance, and PRB utilization. During execution, each device acts independently using only its own local observation and the feasible-destination mask. This separation matches the target edge-computing scenario well: rich global information is available during simulation and offline learning, whereas online deployment should avoid a centralized decision bottleneck. \Figref{fig:mappo-ctde-framework} summarizes this CTDE training-execution split.
 
 \begin{figure}[htbp]
     \centering
