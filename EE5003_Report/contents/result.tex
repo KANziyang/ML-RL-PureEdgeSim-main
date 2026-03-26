@@ -64,12 +64,12 @@ The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. T
 These seed-wise results make the robustness clear. All three runs remain tightly clustered in success rate, average total time, and energy consumption. No seed exhibits a large deviation from the others on the aggregate metrics reported here, suggesting that the learned policy generalizes consistently across the three evaluation seeds.
 
 \paragraph{Behavioral analysis.}
-Trajectory-level action statistics show that MAPPO learns a meaningful joint scheduling pattern. On seed 9001, MAPPO sends \(51.73\%\) of decisions to the cloud, \(19.81\%\) to local execution, and the remaining \(28.46\%\) to the four edge data centers. The PRB policy remains concentrated on the \(1\)blk, \(10\)blk, and \(20\)blk options, with the \(1\)blk option dominant at \(72.76\%\) of offloaded decisions. This distribution indicates that the learned policy is coordinating compute-tier selection and wireless reservation rather than overusing a single destination or PRB level.
+Trajectory-level action statistics show that MAPPO learns a meaningful joint scheduling pattern. The aggregate outcome of the representative seed-9001 run is summarized in \Figref{fig:mappo-standard-overview}. On this seed, MAPPO sends \(51.73\%\) of decisions to the cloud, \(19.81\%\) to local execution, and the remaining \(28.46\%\) to the four edge data centers. The PRB policy remains concentrated on the \(1\)blk, \(10\)blk, and \(20\)blk options, with the \(1\)blk option dominant at \(72.76\%\) of offloaded decisions. This distribution indicates that the learned policy is coordinating compute-tier selection and wireless reservation rather than overusing a single destination or PRB level.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.74\textwidth]{figures/mappo_seed9001_run_summary.png}
-    \caption{Overall MAPPO evaluation summary for the representative standard seed 9001.}
+    \includegraphics[width=0.96\textwidth]{figures/mappo_seed9001_run_summary.png}
+    \caption{Overall MAPPO evaluation summary dashboard for the representative standard seed 9001.}
     \label{fig:mappo-standard-overview}
 \end{figure}
 
@@ -88,7 +88,7 @@ Trajectory-level action statistics show that MAPPO learns a meaningful joint sch
     \label{fig:mappo-standard-actions}
 \end{figure}
 
-The same qualitative pattern remains stable across all three seeds. The cloud-selection rate stays within \(51.10\%\) to \(52.37\%\), the local-selection rate stays within \(19.09\%\) to \(20.51\%\), and the \(1\)blk PRB option remains dominant at roughly \(72.07\%\) to \(73.18\%\). Across seeds, the remaining PRB mass is concentrated mainly in the \(10\)blk and \(20\)blk options, while the \(30\)blk, \(40\)blk, and \(50\)blk options are unused. Seed 9002 shifts slightly more traffic toward Edge 7 and the \(20\)blk option, while seed 9003 shifts slightly more traffic toward Edge 5. These shifts are modest seed-specific adjustments rather than evidence of policy instability. 
+The destination and PRB breakdowns in \Figref{fig:mappo-standard-actions} show that the same qualitative pattern remains stable across all three seeds. The cloud-selection rate stays within \(51.10\%\) to \(52.37\%\), the local-selection rate stays within \(19.09\%\) to \(20.51\%\), and the \(1\)blk PRB option remains dominant at roughly \(72.07\%\) to \(73.18\%\). Across seeds, the remaining PRB mass is concentrated mainly in the \(10\)blk and \(20\)blk options, while the \(30\)blk, \(40\)blk, and \(50\)blk options are unused. Seed 9002 shifts slightly more traffic toward Edge 7 and the \(20\)blk option, while seed 9003 shifts slightly more traffic toward Edge 5. These shifts are modest seed-specific adjustments rather than evidence of policy instability. 
 
 \paragraph{Reward and energy analysis.}
 The remaining seed-level charts explain why the converged MAPPO policy remains stable. On the representative seed 9001, the runtime average reward in \Figref{fig:mappo-standard-reward} rises quickly after initialization and then stays tightly clustered around \(4.4\text{--}4.5\), while the exponential moving average remains nearly flat for the rest of the episode. The limited downward fluctuations do not accumulate over time, indicating that unsuccessful decisions are rare and do not destabilize the learned policy over the 30-minute horizon.
@@ -260,19 +260,19 @@ Two controlled ablations were conducted under the same 40-episode, 30-minute, 16
 
 \begin{table}[htbp]
     \centering
-    \footnotesize
-    \setlength{\tabcolsep}{4pt}
-    \renewcommand{\arraystretch}{1.12}
-    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}Xrrrrr@{}}
+    \small
+    \setlength{\tabcolsep}{9pt}
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabular}{@{}lccccc@{}}
         \hline
-        \textbf{Variant} & \textbf{Design Change} & \textbf{Success (\%)} & \textbf{Std.} & \textbf{Total Time (s)} & \textbf{Energy (W)} & \textbf{Delay Failures} \\
+        \textbf{Variant} & \shortstack{\textbf{Success}\\\textbf{(\%)}} & \textbf{Std.} & \shortstack{\textbf{Total Time}\\\textbf{(s)}} & \shortstack{\textbf{Energy}\\\textbf{(W)}} & \shortstack{\textbf{Delay}\\\textbf{Failures}} \\
         \hline
-        MAPPO & Full model with adaptive destination and PRB heads. & 99.9237 & 0.0238 & 4.5284 & 227.6360 & 48.00 \\
-        NoEmbedding & Remove the 16-D agent embedding; keep the destination head, PRB head, and centralized critic unchanged. & 99.8148 & 0.0245 & 4.4991 & 227.7301 & 123.00 \\
-        FixedPRB & Keep destination learning but fix every offloaded action to PRB bin 3 (\(10\) blocks \(=20\%\) of \(B_{\max}\)). & 92.3822 & 1.0314 & 4.7047 & 309.2645 & 5127.67 \\
+        MAPPO & \textbf{99.9237} & \textbf{0.0238} & 4.5284 & \textbf{227.6360} & \textbf{48.00} \\
+        NoEmbedding & 99.8148 & 0.0245 & \textbf{4.4991} & 227.7301 & 123.00 \\
+        FixedPRB (\(10\) blk) & 92.3822 & 1.0314 & 4.7047 & 309.2645 & 5127.67 \\
         \hline
-    \end{tabularx}
-    \caption{Three-seed evaluation summary of the MAPPO ablations under the standard 160-device setting.}
+    \end{tabular}
+    \caption{Three-seed evaluation summary of the MAPPO ablations under the standard 160-device setting. NoEmbedding removes the 16-D agent embedding. FixedPRB clamps every offloaded task to PRB bin 3 (\(10\) blocks, \(20\%\) of \(B_{\max}\)).}
     \label{tab:mappo-ablation-summary}
 \end{table}
 
@@ -283,13 +283,13 @@ The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} a
 
 \begin{figure}[htbp]
     \centering
-    \subfigure[Representative seed-9001 run summary for NoEmbedding.]{
-        \includegraphics[width=0.47\textwidth]{figures/noembedding_run_summary.png}
+    \subfigure[Representative seed-9001 summary dashboard for NoEmbedding.]{
+        \includegraphics[width=0.98\textwidth]{figures/noembedding_run_summary.png}
         \label{fig:noembedding-run-summary}
     }
-    \hfill
+    \par\medskip
     \subfigure[Representative seed-9001 reward timeline for NoEmbedding.]{
-        \includegraphics[width=0.47\textwidth]{figures/noembedding_reward_timeline.png}
+        \includegraphics[width=0.91\textwidth]{figures/noembedding_reward_timeline.png}
         \label{fig:noembedding-reward}
     }
     \caption{Seed-level reliability and reward stability for the NoEmbedding ablation.}
@@ -316,22 +316,22 @@ The FixedPRB ablation changes the outcome qualitatively. Training improves only 
 
 The representative seed-9001 charts in \Figref{fig:fixedprb-summary-reward} and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using \(10\) blocks by construction. Read against the full MAPPO seed-9001 distribution, this is a strong restriction: the learned policy normally uses \(1\) block for most offloads and expands to \(10\) or \(20\) blocks only when needed. Fixing every offloaded task at \(10\) blocks therefore creates a systematic mismatch, being too conservative for hard transfers and too wasteful for easy ones. The result is a system that underuses edge resources, overconsumes mist energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
 
-\begin{figure}[htbp]
+\begin{figure}[htb]
     \centering
-    \subfigure[Representative seed-9001 run summary for FixedPRB.]{
-        \includegraphics[width=0.47\textwidth]{figures/fixedprb_run_summary.png}
+    \subfigure[Representative seed-9001 summary dashboard for FixedPRB.]{
+        \includegraphics[width=0.98\textwidth]{figures/fixedprb_run_summary.png}
         \label{fig:fixedprb-run-summary}
     }
-    \hfill
+    \par\medskip
     \subfigure[Representative seed-9001 reward timeline for FixedPRB.]{
-        \includegraphics[width=0.47\textwidth]{figures/fixedprb_reward_timeline.png}
+        \includegraphics[width=0.91\textwidth]{figures/fixedprb_reward_timeline.png}
         \label{fig:fixedprb-reward}
     }
     \caption{Seed-level reliability and reward instability for the FixedPRB ablation.}
     \label{fig:fixedprb-summary-reward}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[htb]
     \centering
     \subfigure[Destination distribution on seed 9001 for FixedPRB.]{
         \includegraphics[width=0.47\textwidth]{figures/fixedprb_destination_distribution.png}

@@ -282,32 +282,107 @@ def _plot_availability_vs_selection(
 
 
 def _plot_run_summary(summary_metrics: Dict[str, float], output_path: Path) -> None:
-    labels = [
-        "Success Rate",
+    success_rate = float(summary_metrics["tasks_success_rate"])
+    failure_labels = [
         "Failed Delay",
         "Failed Mobility",
         "Failed Resource",
         "Failed Network",
-        "Avg Wait",
-        "Avg Exec Delay",
-        "Avg Total Time",
     ]
-    values = [
-        summary_metrics["tasks_success_rate"],
-        summary_metrics["tasks_failed_delay"],
-        summary_metrics["tasks_failed_mobility"],
-        summary_metrics["tasks_failed_resource"],
-        summary_metrics["tasks_failed_network"],
-        summary_metrics["average_waiting_time_s"],
-        summary_metrics["average_execution_delay_s"],
-        summary_metrics["average_total_time_s"],
+    failure_values = [
+        int(round(summary_metrics["tasks_failed_delay"])),
+        int(round(summary_metrics["tasks_failed_mobility"])),
+        int(round(summary_metrics["tasks_failed_resource"])),
+        int(round(summary_metrics["tasks_failed_network"])),
     ]
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.bar(labels, values, color="#2ca02c")
-    ax.set_title("Run Summary")
-    ax.tick_params(axis="x", rotation=30)
-    ax.grid(True, axis="y", alpha=0.3)
-    fig.tight_layout()
+    latency_labels = ["Avg Wait", "Avg Exec Delay", "Avg Total Time"]
+    latency_values = [
+        float(summary_metrics["average_waiting_time_s"]),
+        float(summary_metrics["average_execution_delay_s"]),
+        float(summary_metrics["average_total_time_s"]),
+    ]
+
+    fig = plt.figure(figsize=(12.5, 6.8), constrained_layout=True)
+    grid = fig.add_gridspec(2, 2, height_ratios=[1.0, 3.0])
+    ax_success = fig.add_subplot(grid[0, :])
+    ax_failures = fig.add_subplot(grid[1, 0])
+    ax_latency = fig.add_subplot(grid[1, 1])
+
+    # Success rate: dedicated 0-100% progress bar.
+    ax_success.barh([""], [100.0], color="#e8f3ea", edgecolor="none", height=0.58)
+    ax_success.barh([""], [success_rate], color="#2ca02c", edgecolor="none", height=0.58)
+    ax_success.set_xlim(0.0, 100.0)
+    ax_success.set_xticks([0, 25, 50, 75, 100])
+    ax_success.set_xlabel("Rate (%)")
+    ax_success.set_yticks([])
+    ax_success.set_title("Success Rate", fontsize=13, weight="bold", pad=8)
+    ax_success.grid(True, axis="x", alpha=0.25)
+    ax_success.text(
+        min(success_rate + 1.2, 99.0),
+        0,
+        f"{success_rate:.2f}%",
+        va="center",
+        ha="right" if success_rate > 92.0 else "left",
+        fontsize=12,
+        weight="bold",
+        color="#1b5e20",
+    )
+    for spine in ax_success.spines.values():
+        spine.set_visible(False)
+
+    # Failure counts: keep all categories visible, even when zero.
+    failure_colors = []
+    nonzero_failure_colors = ["#d62728", "#ff7f0e", "#f4a261", "#e76f51"]
+    nonzero_idx = 0
+    for value in failure_values:
+        if value > 0:
+            failure_colors.append(nonzero_failure_colors[min(nonzero_idx, len(nonzero_failure_colors) - 1)])
+            nonzero_idx += 1
+        else:
+            failure_colors.append("#d9d9d9")
+
+    fail_positions = list(range(len(failure_labels)))
+    ax_failures.barh(fail_positions, failure_values, color=failure_colors, edgecolor="none", height=0.62)
+    ax_failures.set_yticks(fail_positions)
+    ax_failures.set_yticklabels(failure_labels)
+    ax_failures.invert_yaxis()
+    ax_failures.set_title("Failure Breakdown", fontsize=13, weight="bold", pad=8)
+    ax_failures.set_xlabel("Tasks")
+    max_failure = max(failure_values) if failure_values else 0
+    ax_failures.set_xlim(0.0, max(1.0, max_failure * 1.12))
+    ax_failures.grid(True, axis="x", alpha=0.25)
+    for idx, value in enumerate(failure_values):
+        x_pos = value + max(1.0, max_failure * 0.02) if value > 0 else max(0.4, max_failure * 0.01)
+        ax_failures.text(x_pos, idx, f"{value:d}", va="center", ha="left", fontsize=11, color="#333333")
+    for spine in ax_failures.spines.values():
+        spine.set_visible(False)
+
+    # Latency metrics: separate seconds-scale chart.
+    latency_colors = ["#5dade2", "#2e86c1", "#1f618d"]
+    latency_positions = list(range(len(latency_labels)))
+    ax_latency.barh(latency_positions, latency_values, color=latency_colors, edgecolor="none", height=0.62)
+    ax_latency.set_yticks(latency_positions)
+    ax_latency.set_yticklabels(latency_labels)
+    ax_latency.invert_yaxis()
+    ax_latency.set_title("Latency Breakdown", fontsize=13, weight="bold", pad=8)
+    ax_latency.set_xlabel("Seconds")
+    max_latency = max(latency_values) if latency_values else 0.0
+    ax_latency.set_xlim(0.0, max(1.0, max_latency * 1.18))
+    ax_latency.grid(True, axis="x", alpha=0.25)
+    for idx, value in enumerate(latency_values):
+        ax_latency.text(
+            value + max(0.04, max_latency * 0.03),
+            idx,
+            f"{value:.2f}s",
+            va="center",
+            ha="left",
+            fontsize=11,
+            color="#1f2d3d",
+        )
+    for spine in ax_latency.spines.values():
+        spine.set_visible(False)
+
+    fig.patch.set_facecolor("white")
     fig.savefig(output_path, dpi=200)
     plt.close(fig)
 
