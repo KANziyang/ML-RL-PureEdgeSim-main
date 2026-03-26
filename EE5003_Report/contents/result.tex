@@ -329,7 +329,7 @@ The representative seed-9001 charts in \Figref{fig:fixedprb-run-summary}, \Figre
     \label{fig:fixedprb-reward}
 \end{figure}
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
     \centering
     \subfigure[Destination distribution on seed 9001 for FixedPRB.]{
         \includegraphics[width=0.47\textwidth]{figures/fixedprb_destination_distribution.png}
@@ -344,7 +344,7 @@ The representative seed-9001 charts in \Figref{fig:fixedprb-run-summary}, \Figre
     \label{fig:fixedprb-actions}
 \end{figure}
 
-The additional diagnostics in \Figref{fig:ablation-avail-energy} sharpen the contrast between the two ablations. NoEmbedding still tracks destination availability in roughly the same order as the full MAPPO policy and retains an energy profile very close to the main model, which is consistent with its relatively small performance loss. FixedPRB behaves differently: the selection histogram shifts further toward local execution while cloud choice remains high, and the total energy rises almost entirely because mist-device energy grows sharply. This confirms that the fixed-radio ablation does not merely reduce flexibility in the network layer; it changes the global compute-radio balance of the whole system.
+The additional NoEmbedding diagnostics in \Figref{fig:noembedding-diagnostics} show that NoEmbedding still tracks destination availability in roughly the same order as the full MAPPO policy and retains an energy profile very close to the main model. This consistency matches its relatively small performance loss and indicates that removing agent identity mainly perturbs decision sharpness rather than the global compute-radio balance.
 
 \begin{figure}[htbp]
     \centering
@@ -357,7 +357,14 @@ The additional diagnostics in \Figref{fig:ablation-avail-energy} sharpen the con
         \includegraphics[width=0.47\textwidth]{figures/noembedding_energy_consumption.png}
         \label{fig:noembedding-energy}
     }
+    \caption{Additional NoEmbedding diagnostics under the standard evaluation setting.}
+    \label{fig:noembedding-diagnostics}
+\end{figure}
 
+The additional FixedPRB diagnostics in \Figref{fig:fixedprb-diagnostics} show a different mechanism. The selection histogram shifts further toward local execution while cloud choice remains high, and the total energy rises almost entirely because mist-device energy grows sharply. This confirms that the fixed-radio ablation does not merely reduce flexibility in the network layer; it changes the global compute-radio balance of the whole system.
+
+\begin{figure}[htbp]
+    \centering
     \subfigure[Availability vs. selection for FixedPRB.]{
         \includegraphics[width=0.47\textwidth]{figures/fixedprb_availability_vs_selection.png}
         \label{fig:fixedprb-availability}
@@ -367,11 +374,11 @@ The additional diagnostics in \Figref{fig:ablation-avail-energy} sharpen the con
         \includegraphics[width=0.47\textwidth]{figures/fixedprb_energy_consumption.png}
         \label{fig:fixedprb-energy}
     }
-    \caption{Additional seed-level diagnostics for the two MAPPO ablations under the standard evaluation setting.}
-    \label{fig:ablation-avail-energy}
+    \caption{Additional FixedPRB diagnostics under the standard evaluation setting.}
+    \label{fig:fixedprb-diagnostics}
 \end{figure}
 
-The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make the contrast between adaptive and fixed PRB allocation visually immediate. The full MAPPO policy changes total reserved PRBs through both the number of concurrent uploads and the per-task reservation chosen for each upload. By contrast, the FixedPRB variant can react only through the number of offloaded tasks, because every offloaded transfer always reserves \(10\) blocks. Its block-allocation trace therefore still fluctuates with traffic intensity, but it lacks the per-task radio adaptation that the full model uses to absorb heterogeneous demand. The task failure timeline in \Figref{fig:ablation-fail-dynamics} reinforces this: MAPPO's failure curve stays flat near zero, whereas FixedPRB accumulates failures steadily throughout the episode, with visible acceleration during high-traffic windows. These runtime traces confirm that the aggregate metrics in \Tabref{tab:mappo-ablation-summary} are not artifacts of a few bad episodes but reflect a systematic inability of the fixed-radio policy to manage coupled compute-radio contention.
+The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make the contrast between adaptive and fixed PRB allocation visually immediate. The full MAPPO policy changes total reserved PRBs through both the number of concurrent uploads and the per-task reservation chosen for each upload. By contrast, the FixedPRB variant can react only through the number of offloaded tasks, because every offloaded transfer always reserves \(10\) blocks. Its block-allocation trace therefore still fluctuates with traffic intensity, but it lacks the per-task radio adaptation that the full model uses to absorb heterogeneous demand.
 
 \begin{figure}[htbp]
     \centering
@@ -388,6 +395,8 @@ The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make t
     \label{fig:ablation-prb-dynamics}
 \end{figure}
 
+The task failure timeline in \Figref{fig:ablation-fail-dynamics} reinforces the same conclusion. MAPPO's failure curve stays flat near zero, whereas FixedPRB accumulates failures steadily throughout the episode, with visible acceleration during high-traffic windows. This temporal divergence shows that the aggregate metrics in \Tabref{tab:mappo-ablation-summary} are not artifacts of a few bad episodes but reflect a systematic inability of the fixed-radio policy to manage coupled compute-radio contention.
+
 \begin{figure}[htbp]
     \centering
     \subfigure[Task failure timeline for full MAPPO.]{
@@ -403,9 +412,9 @@ The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make t
     \label{fig:ablation-fail-dynamics}
 \end{figure}
 
-\FloatBarrier
-
 Taken together, the ablations identify adaptive PRB control as the dominant contributor to overall performance. Removing it severely reduces both reliability and energy efficiency. Agent embeddings provide a smaller but consistent benefit: removing them does not break the scheduler, but it increases residual delay failures and pushes the policy toward more aggressive PRB usage. The MAPPO design therefore derives most of its practical value from joint offloading-and-PRB learning, while explicit agent conditioning refines that shared control and delivers an additional reliability gain.
+
+\FloatBarrier
 
 \subsection{Comparison between Reinforcement Learning and Baseline Algorithms}
 \label{subsec:rl-vs-baselines}
