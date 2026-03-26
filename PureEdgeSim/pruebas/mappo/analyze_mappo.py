@@ -12,7 +12,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-PRB_LABELS = ["20%", "40%", "60%", "80%", "100%"]
+# Must stay aligned with DeviceAgentDecisionSupport.PRB_BLOCK_RATIOS under the
+# current default max-per-task cap of 50 PRB blocks.
+PRB_LABELS = ["1blk", "2blk", "5blk", "10blk", "20blk", "30blk", "40blk", "50blk"]
 SUMMARY_KEYS = {
     "tasks_success_rate": ("Tasks success rate",),
     "tasks_failed_delay": ("Tasks failed (delay)",),
@@ -69,7 +71,7 @@ def analyze_episode(trajectory_path: Path, results_dir: Path, output_dir: Path) 
     _plot_distribution(
         PRB_LABELS,
         prb_counts,
-        "PRB Bin Distribution",
+        "PRB Block Distribution",
         output_dir / "prb_distribution.png",
         ylabel="Selections",
     )

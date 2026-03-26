@@ -64,11 +64,11 @@ The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. T
 These seed-wise results make the robustness clear. All three runs remain tightly clustered in success rate, average total time, and energy consumption. No seed exhibits a large deviation from the others on the aggregate metrics reported here, suggesting that the learned policy generalizes consistently across the three evaluation seeds.
 
 \paragraph{Behavioral analysis.}
-Trajectory-level action statistics show that MAPPO learns a meaningful joint scheduling pattern. On seed 9001, MAPPO sends \(51.73\%\) of decisions to the cloud, \(19.81\%\) to local execution, and the remaining \(28.46\%\) to the four edge data centers. The PRB policy remains concentrated on the \(20\%\), \(80\%\), and \(100\%\) bins, with the \(20\%\) bin dominant at \(72.76\%\). This distribution indicates that the learned policy is coordinating compute-tier selection and wireless reservation rather than overusing a single destination or PRB level.
+Trajectory-level action statistics show that MAPPO learns a meaningful joint scheduling pattern. On seed 9001, MAPPO sends \(51.73\%\) of decisions to the cloud, \(19.81\%\) to local execution, and the remaining \(28.46\%\) to the four edge data centers. The PRB policy remains concentrated on the \(1\)blk, \(10\)blk, and \(20\)blk options, with the \(1\)blk option dominant at \(72.76\%\) of offloaded decisions. This distribution indicates that the learned policy is coordinating compute-tier selection and wireless reservation rather than overusing a single destination or PRB level.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.74\textwidth]{figures/mappo_standard_eval_overview.png}
+    \includegraphics[width=0.74\textwidth]{figures/mappo_seed9001_run_summary.png}
     \caption{Overall MAPPO evaluation summary for the representative standard seed 9001.}
     \label{fig:mappo-standard-overview}
 \end{figure}
@@ -76,25 +76,25 @@ Trajectory-level action statistics show that MAPPO learns a meaningful joint sch
 \begin{figure}[htbp]
     \centering
     \subfigure[Destination distribution on seed 9001.]{
-        \includegraphics[width=0.47\textwidth]{figures/mappo_standard_destination_distribution.png}
+        \includegraphics[width=0.47\textwidth]{figures/mappo_seed9001_destination_distribution_analysis.png}
         \label{fig:mappo-standard-destination}
     }
     \hfill
-    \subfigure[PRB-bin distribution on seed 9001.]{
-        \includegraphics[width=0.47\textwidth]{figures/mappo_standard_prb_distribution.png}
+    \subfigure[PRB-block distribution on seed 9001.]{
+        \includegraphics[width=0.47\textwidth]{figures/mappo_seed9001_prb_distribution_analysis.png}
         \label{fig:mappo-standard-prb}
     }
     \caption{Detailed MAPPO action behavior for the stable standard evaluation seed.}
     \label{fig:mappo-standard-actions}
 \end{figure}
 
-The same qualitative pattern remains stable across all three seeds. The cloud-selection rate stays within \(51.10\%\) to \(52.37\%\), the local-selection rate stays within \(19.09\%\) to \(20.51\%\), and the \(20\%\) PRB bin remains dominant at roughly \(72\%\) to \(73\%\). Seed 9002 shifts slightly more traffic toward Edge 7 and the \(100\%\) PRB bin, while seed 9003 shifts slightly more traffic toward Edge 5. These shifts are modest seed-specific adjustments rather than evidence of policy instability. \Figref{fig:mappo-seed9003-availability} further shows that, even on seed 9003, the selection frequencies remain aligned with destination availability while fallback count and network failures remain zero.
+The same qualitative pattern remains stable across all three seeds. The cloud-selection rate stays within \(51.10\%\) to \(52.37\%\), the local-selection rate stays within \(19.09\%\) to \(20.51\%\), and the \(1\)blk PRB option remains dominant at roughly \(72.07\%\) to \(73.18\%\). Across seeds, the remaining PRB mass is concentrated mainly in the \(10\)blk and \(20\)blk options, while the \(30\)blk, \(40\)blk, and \(50\)blk options are unused. Seed 9002 shifts slightly more traffic toward Edge 7 and the \(20\)blk option, while seed 9003 shifts slightly more traffic toward Edge 5. These shifts are modest seed-specific adjustments rather than evidence of policy instability. \Figref{fig:mappo-seed9001-availability} further shows that, on the representative seed 9001, the selection frequencies remain aligned with destination availability while fallback count and network failures remain zero.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.74\textwidth]{figures/mappo_seed9003_availability_vs_selection.png}
-    \caption{Availability versus actual selection for MAPPO on seed 9003.}
-    \label{fig:mappo-seed9003-availability}
+    \includegraphics[width=0.74\textwidth]{figures/mappo_seed9001_availability_vs_selection_analysis.png}
+    \caption{Availability versus actual selection for MAPPO on the representative evaluation seed 9001.}
+    \label{fig:mappo-seed9001-availability}
 \end{figure}
 
 \paragraph{Per-decision reward and energy analysis.}
@@ -105,12 +105,12 @@ The energy breakdown in the same figure clarifies where the cost is incurred. Fo
 \begin{figure}[htbp]
     \centering
     \subfigure[Reward timeline on the representative evaluation seed 9001.]{
-        \includegraphics[width=0.47\textwidth]{figures/mappo_eval_reward_timeline.png}
+        \includegraphics[width=0.47\textwidth]{figures/mappo_seed9001_reward_timeline_analysis.png}
         \label{fig:mappo-standard-reward}
     }
     \hfill
     \subfigure[Energy breakdown on the representative evaluation seed 9001.]{
-        \includegraphics[width=0.47\textwidth]{figures/mappo_eval_energy_consumption.png}
+        \includegraphics[width=0.47\textwidth]{figures/mappo_seed9001_energy_consumption_analysis.png}
         \label{fig:mappo-standard-energy}
     }
     \caption{Per-decision reward stability and energy decomposition for the MAPPO policy under the standard setting.}
@@ -118,7 +118,7 @@ The energy breakdown in the same figure clarifies where the cost is incurred. Fo
 \end{figure}
 
 \paragraph{Runtime resource dynamics.}
-The simulator-side runtime charts provide a complementary view of how the learned policy interacts with the physical resource layer over the full 30-minute horizon. \Figref{fig:mappo-runtime-dynamics} shows the PRB block allocation timeline and the CPU utilization breakdown for the representative seed 9001. The PRB chart reveals that the policy maintains a moderate and stable wireless reservation throughout the episode, with occasional short bursts when multiple offloading decisions coincide. This is consistent with the \(20\%\) PRB-bin dominance observed in the action statistics: the policy avoids saturating the shared wireless pool while still reserving enough capacity for timely uplink transfers. The CPU utilization chart shows that cloud and edge servers are consistently loaded at moderate levels, while mist-layer utilization remains low, confirming that the policy successfully distributes compute pressure across tiers rather than overloading any single layer.
+The simulator-side runtime charts provide a complementary view of how the learned policy interacts with the physical resource layer over the full 30-minute horizon. \Figref{fig:mappo-runtime-dynamics} shows the PRB block allocation timeline and the CPU utilization breakdown for the representative seed 9001. The PRB chart reveals that the policy maintains a moderate and stable wireless reservation throughout the episode, with occasional short bursts when multiple offloading decisions coincide. This is consistent with the dominance of the smallest PRB reservation in the action statistics: most offloaded tasks request \(1\)blk, and only a smaller fraction escalate to \(10\)blk or \(20\)blk when more uplink capacity is needed. The CPU utilization chart shows that cloud and edge servers are consistently loaded at moderate levels, while mist-layer utilization remains low, confirming that the policy successfully distributes compute pressure across tiers rather than overloading any single layer.
 
 \begin{figure}[htbp]
     \centering
