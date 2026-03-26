@@ -88,24 +88,17 @@ Trajectory-level action statistics show that MAPPO learns a meaningful joint sch
     \label{fig:mappo-standard-actions}
 \end{figure}
 
-The same qualitative pattern remains stable across all three seeds. The cloud-selection rate stays within \(51.10\%\) to \(52.37\%\), the local-selection rate stays within \(19.09\%\) to \(20.51\%\), and the \(1\)blk PRB option remains dominant at roughly \(72.07\%\) to \(73.18\%\). Across seeds, the remaining PRB mass is concentrated mainly in the \(10\)blk and \(20\)blk options, while the \(30\)blk, \(40\)blk, and \(50\)blk options are unused. Seed 9002 shifts slightly more traffic toward Edge 7 and the \(20\)blk option, while seed 9003 shifts slightly more traffic toward Edge 5. These shifts are modest seed-specific adjustments rather than evidence of policy instability. \Figref{fig:mappo-seed9001-availability} further shows that, on the representative seed 9001, the selection frequencies remain aligned with destination availability while fallback count and network failures remain zero.
+The same qualitative pattern remains stable across all three seeds. The cloud-selection rate stays within \(51.10\%\) to \(52.37\%\), the local-selection rate stays within \(19.09\%\) to \(20.51\%\), and the \(1\)blk PRB option remains dominant at roughly \(72.07\%\) to \(73.18\%\). Across seeds, the remaining PRB mass is concentrated mainly in the \(10\)blk and \(20\)blk options, while the \(30\)blk, \(40\)blk, and \(50\)blk options are unused. Seed 9002 shifts slightly more traffic toward Edge 7 and the \(20\)blk option, while seed 9003 shifts slightly more traffic toward Edge 5. These shifts are modest seed-specific adjustments rather than evidence of policy instability. 
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.74\textwidth]{figures/mappo_seed9001_availability_vs_selection_analysis.png}
-    \caption{Availability versus actual selection for MAPPO on the representative evaluation seed 9001.}
-    \label{fig:mappo-seed9001-availability}
-\end{figure}
-
-\paragraph{Per-decision reward and energy analysis.}
-The remaining seed-level charts explain why the converged MAPPO policy remains stable. On the representative seed 9001, the raw reward trajectory in \Figref{fig:mappo-standard-reward-energy} is concentrated near the success regime, while the exponential moving average stays mostly between \(4.0\) and \(4.6\). Occasional negative spikes correspond to rare delay or mobility failures, but they are too sparse to alter the long-run trend. Hence the learned policy is not only strong in aggregate; it is also locally stable over tens of thousands of sequential offloading decisions.
+\paragraph{Reward and energy analysis.}
+The remaining seed-level charts explain why the converged MAPPO policy remains stable. On the representative seed 9001, the runtime average reward in \Figref{fig:mappo-standard-reward-energy} rises quickly after initialization and then stays tightly clustered around \(4.4\text{--}4.5\), while the exponential moving average remains nearly flat for the rest of the episode. The limited downward fluctuations do not accumulate over time, indicating that unsuccessful decisions are rare and do not destabilize the learned policy over the 30-minute horizon.
 
 The energy breakdown in the same figure clarifies where the cost is incurred. For seed 9001, total energy consumption is \(233.0438\,\mathrm{W}\), of which \(223.4854\,\mathrm{W}\) comes from mist/local execution, \(8.9694\,\mathrm{W}\) from edge servers, and only \(0.5890\,\mathrm{W}\) from the cloud. The energy metric is therefore still dominated by the battery-powered device layer even though more than half of the tasks are offloaded to the cloud. In practical terms, cloud offloading mainly relieves deadline pressure, whereas overall energy efficiency is still governed by how many tasks remain on local devices and how aggressively uplink PRBs are reserved.
 
 \begin{figure}[htbp]
     \centering
-    \subfigure[Reward timeline on the representative evaluation seed 9001.]{
-        \includegraphics[width=0.47\textwidth]{figures/mappo_seed9001_reward_timeline_analysis.png}
+    \subfigure[Runtime reward trend on the representative evaluation seed 9001.]{
+        \includegraphics[width=0.47\textwidth]{figures/mappo_seed9001_reward_runtime.png}
         \label{fig:mappo-standard-reward}
     }
     \hfill
@@ -113,7 +106,7 @@ The energy breakdown in the same figure clarifies where the cost is incurred. Fo
         \includegraphics[width=0.47\textwidth]{figures/mappo_seed9001_energy_consumption_analysis.png}
         \label{fig:mappo-standard-energy}
     }
-    \caption{Per-decision reward stability and energy decomposition for the MAPPO policy under the standard setting.}
+    \caption{Reward trend and energy decomposition for the MAPPO policy under the standard setting.}
     \label{fig:mappo-standard-reward-energy}
 \end{figure}
 
