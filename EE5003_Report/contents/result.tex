@@ -2,7 +2,7 @@
 \section{Experiment Results}
 \label{sec:results}
 
-This chapter presents the experimental evaluation of the proposed MAPPO-based joint offloading and PRB allocation framework described in \Secref{sec:methodology}. The experiments are organized into five groups: (i) the standard 40-episode MAPPO training and evaluation run, (ii) a device-count scalability study examining MAPPO performance under 80, 160, 240, and 320 devices, (iii) a MAPPO ablation study isolating the contributions of agent embeddings and adaptive PRB control, (iv) a 10-algorithm offline comparison under the same 160-device scenario, and (v) a direct MAPPO--PPO comparison.
+This chapter reports the experimental evaluation of the proposed MAPPO-based joint offloading and PRB allocation framework introduced in \Secref{sec:methodology}. The results are organized into five parts: (i) standard-setting MAPPO training and evaluation, (ii) a device-count scalability study over 80, 160, 240, and 320 devices, (iii) an ablation study examining agent embeddings and adaptive PRB control, (iv) an offline comparison against 10 scheduling algorithms under the 160-device setting, and (v) a direct MAPPO--PPO comparison.
 
 \subsection{MAPPO under the Standard 40-Episode, 30-Minute Setting}
 \label{subsec:mappo-standard-setting}
@@ -10,14 +10,14 @@ This chapter presents the experimental evaluation of the proposed MAPPO-based jo
 The standard MAPPO experiment uses the default configuration introduced in \Secref{sec:simulation}: a 30-minute simulation horizon, 160 task-generating devices, four edge data centers, one cloud node, and the LOCAL--EDGE--CLOUD architecture. The training run contains 40 episodes, each executed as a full PureEdgeSim episode driven by the Java--Python co-simulation loop.
 
 \paragraph{Training behavior.}
-The updated MAPPO learns a strong policy under this standard setting. The task success rate increases from \(57.85\%\) in episode 1 to \(99.91\%\) in episode 40. The mean success rate improves from \(75.79\%\) over the first five episodes to \(99.87\%\) over the last five episodes. MAPPO crosses \(95\%\) success by episode 6 and \(99\%\) success by episode 13, while the best episode is the final checkpoint itself at \(99.91\%\). At the same time, the average total task time drops from \(5.0108\,\mathrm{s}\) to \(4.6622\,\mathrm{s}\), and the number of delay-induced failures decreases from 28,193 to only 52. These trends indicate genuine policy improvement rather than a trivial single-tier shortcut.
+Under this setting, MAPPO converges to a high-quality joint policy. The task success rate rises from \(57.85\%\) in episode 1 to \(99.91\%\) in episode 40. The mean success rate increases from \(75.79\%\) over the first five episodes to \(99.87\%\) over the last five episodes. MAPPO exceeds \(95\%\) success by episode 6 and \(99\%\) by episode 13. Over the same interval, the average total task time decreases from \(5.0108\,\mathrm{s}\) to \(4.6622\,\mathrm{s}\), and delay-induced failures fall from 28,193 to 52. These concurrent improvements indicate that learning improves both reliability and end-to-end execution quality.
 
-The full training trajectory is shown in \Figref{fig:mappo-training-progress}. The most important observation is not only the high final success rate, but also the stable late-stage plateau after the multi-agent telemetry update and fallback-aware training fix. The mean success rate over the last 10 episodes is \(99.80\%\) with a standard deviation of \(0.131\). The training log records an average simulator wall time of \(227.74\,\mathrm{s}\) per episode, or \(9109.46\,\mathrm{s}\) in total for the 40 episodes, which is about 2.53 hours end to end.
+The full training trajectory is shown in \Figref{fig:mappo-training-progress}. Beyond the high final success rate, the more important observation is the stable late-stage plateau. Over the last 10 episodes, the mean success rate is \(99.80\%\) with a standard deviation of \(0.131\). The training log records an average simulator wall time of \(227.74\,\mathrm{s}\) per episode, or \(9109.46\,\mathrm{s}\) in total for 40 episodes, which corresponds to approximately 2.53 hours end to end.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.95\textwidth]{figures/mappo_training_progress_40ep.png}
-    \caption{MAPPO training progress under the updated multi-agent setting.}
+    \caption{MAPPO training progress under the standard multi-agent setting.}
     \label{fig:mappo-training-progress}
 \end{figure}
 
@@ -41,7 +41,7 @@ The full training trajectory is shown in \Figref{fig:mappo-training-progress}. T
 \end{table}
 
 \paragraph{Evaluation behavior across seeds.}
-The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. In contrast to the earlier preserved artifacts, the updated MAPPO is now stable on all three seeds. The success rates are \(99.8901\%\), \(99.9390\%\), and \(99.9421\%\), respectively. The three-seed mean success rate is therefore \(99.9237\%\) with a standard deviation of only \(0.0238\). The mean average total time is \(4.5284\,\mathrm{s}\), the mean energy consumption is \(227.6360\,\mathrm{W}\), and the fallback rate is exactly zero on every seed.
+The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. The corresponding success rates are \(99.8901\%\), \(99.9390\%\), and \(99.9421\%\), respectively. The three-seed mean success rate is \(99.9237\%\) with a standard deviation of \(0.0238\). The mean average total time is \(4.5284\,\mathrm{s}\), the mean energy consumption is \(227.6360\,\mathrm{W}\), and the fallback rate is zero on every seed. These metrics indicate strong cross-seed robustness within the tested setting.
 
 \begin{table}[htbp]
     \centering
@@ -61,17 +61,17 @@ The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. I
     \label{tab:mappo-eval-seeds}
 \end{table}
 
-\Figref{fig:mappo-seed-comparison} makes the new robustness explicit. All three seeds remain tightly clustered in success rate, average total time, and energy consumption. Most importantly, seed 9003 no longer exhibits the catastrophic collapse seen in the older checkpoint. The updated MAPPO therefore removes the previous robustness objection and makes the multi-agent design viable for the preserved evaluation setting.
+\Figref{fig:mappo-seed-comparison} makes this robustness explicit. All three runs remain tightly clustered in success rate, average total time, and energy consumption. No seed exhibits a large deviation from the others on the aggregate metrics reported here, suggesting that the learned policy generalizes consistently across the three evaluation seeds.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{figures/mappo_seed_comparison.png}
-    \caption{Seed-wise evaluation of the updated MAPPO checkpoint across three test seeds.}
+    \caption{Seed-wise evaluation of the MAPPO checkpoint across three test seeds.}
     \label{fig:mappo-seed-comparison}
 \end{figure}
 
 \paragraph{Behavioral analysis.}
-The action statistics stored in the MAPPO trajectory analysis show that the policy learned a meaningful joint scheduling pattern. On seed 9001, MAPPO sends \(51.73\%\) of decisions to the cloud, \(19.81\%\) to local execution, and the remaining \(28.46\%\) to the four edge data centers. The PRB policy remains concentrated on the \(20\%\), \(80\%\), and \(100\%\) bins, with the \(20\%\) bin clearly dominant at \(72.76\%\). This indicates that the policy is not simply overusing one destination or one PRB level, but is instead coordinating compute-tier choice and wireless reservation.
+Trajectory-level action statistics show that MAPPO learns a meaningful joint scheduling pattern. On seed 9001, MAPPO sends \(51.73\%\) of decisions to the cloud, \(19.81\%\) to local execution, and the remaining \(28.46\%\) to the four edge data centers. The PRB policy remains concentrated on the \(20\%\), \(80\%\), and \(100\%\) bins, with the \(20\%\) bin dominant at \(72.76\%\). This distribution indicates that the learned policy is coordinating compute-tier selection and wireless reservation rather than overusing a single destination or PRB level.
 
 \begin{figure}[htbp]
     \centering
@@ -95,19 +95,19 @@ The action statistics stored in the MAPPO trajectory analysis show that the poli
     \label{fig:mappo-standard-actions}
 \end{figure}
 
-More importantly, the same pattern remains stable across all three seeds. The cloud-selection rate stays within \(51.10\%\) to \(52.37\%\), the local-selection rate stays within \(19.09\%\) to \(20.51\%\), and the \(20\%\) PRB bin remains dominant at roughly \(72\%\) to \(73\%\). Seed 9002 shifts slightly more traffic toward Edge 7 and the \(100\%\) PRB bin, while seed 9003 shifts slightly more traffic toward Edge 5, but these are minor policy adjustments rather than instability. \Figref{fig:mappo-seed9003-availability} shows that even on seed 9003 the selection frequencies remain aligned with destination availability, while fallback count and network failures remain zero.
+The same qualitative pattern remains stable across all three seeds. The cloud-selection rate stays within \(51.10\%\) to \(52.37\%\), the local-selection rate stays within \(19.09\%\) to \(20.51\%\), and the \(20\%\) PRB bin remains dominant at roughly \(72\%\) to \(73\%\). Seed 9002 shifts slightly more traffic toward Edge 7 and the \(100\%\) PRB bin, while seed 9003 shifts slightly more traffic toward Edge 5. These shifts are modest seed-specific adjustments rather than evidence of policy instability. \Figref{fig:mappo-seed9003-availability} further shows that, even on seed 9003, the selection frequencies remain aligned with destination availability while fallback count and network failures remain zero.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.74\textwidth]{figures/mappo_seed9003_availability_vs_selection.png}
-    \caption{Availability versus actual selection for MAPPO on seed 9003 after the update.}
+    \caption{Availability versus actual selection for MAPPO on seed 9003.}
     \label{fig:mappo-seed9003-availability}
 \end{figure}
 
 \paragraph{Per-decision reward and energy analysis.}
-The remaining seed-level charts explain why the updated MAPPO remains stable once training converges. On the representative seed 9001, the raw reward trajectory in \Figref{fig:mappo-standard-reward-energy} is concentrated near the success regime, while the exponential moving average stays mostly between \(4.0\) and \(4.6\). The occasional negative spikes correspond to the rare delay or mobility failures already quantified in \Tabref{tab:mappo-eval-seeds}, but they are sparse enough that they do not perturb the long-run policy. In other words, the learned policy is not only successful on average; it is locally stable over tens of thousands of sequential offloading decisions.
+The remaining seed-level charts explain why the converged MAPPO policy remains stable. On the representative seed 9001, the raw reward trajectory in \Figref{fig:mappo-standard-reward-energy} is concentrated near the success regime, while the exponential moving average stays mostly between \(4.0\) and \(4.6\). Occasional negative spikes correspond to rare delay or mobility failures, but they are too sparse to alter the long-run trend. Hence the learned policy is not only strong in aggregate; it is also locally stable over tens of thousands of sequential offloading decisions.
 
-The energy breakdown in the same figure clarifies where the cost is paid. For seed 9001, total energy consumption is \(233.0438\,\mathrm{W}\), of which \(223.4854\,\mathrm{W}\) comes from mist/local execution, \(8.9694\,\mathrm{W}\) from edge servers, and only \(0.5890\,\mathrm{W}\) from the cloud. This means the energy metric is still dominated by the battery-powered device layer even though more than half of the tasks are offloaded to the cloud. The practical implication is that cloud offloading mainly relieves deadline pressure, whereas overall energy efficiency is still governed by how many tasks remain on local devices and how aggressively uplink PRBs are reserved.
+The energy breakdown in the same figure clarifies where the cost is incurred. For seed 9001, total energy consumption is \(233.0438\,\mathrm{W}\), of which \(223.4854\,\mathrm{W}\) comes from mist/local execution, \(8.9694\,\mathrm{W}\) from edge servers, and only \(0.5890\,\mathrm{W}\) from the cloud. The energy metric is therefore still dominated by the battery-powered device layer even though more than half of the tasks are offloaded to the cloud. In practical terms, cloud offloading mainly relieves deadline pressure, whereas overall energy efficiency is still governed by how many tasks remain on local devices and how aggressively uplink PRBs are reserved.
 
 \begin{figure}[htbp]
     \centering
@@ -120,7 +120,7 @@ The energy breakdown in the same figure clarifies where the cost is paid. For se
         \includegraphics[width=0.47\textwidth]{figures/mappo_eval_energy_consumption.png}
         \label{fig:mappo-standard-energy}
     }
-    \caption{Per-decision reward stability and energy decomposition for the updated MAPPO policy under the standard setting.}
+    \caption{Per-decision reward stability and energy decomposition for the MAPPO policy under the standard setting.}
     \label{fig:mappo-standard-reward-energy}
 \end{figure}
 
@@ -142,7 +142,7 @@ The simulator-side runtime charts provide a complementary view of how the learne
     \label{fig:mappo-runtime-dynamics}
 \end{figure}
 
-The delay distribution and task failure timeline in \Figref{fig:mappo-runtime-delay-fail} further confirm the policy's operational stability. The delay chart shows that the vast majority of tasks complete well within their deadlines, with only a thin tail of near-deadline completions. The task failure timeline remains essentially flat at zero throughout the episode, with the 52 delay failures from \Tabref{tab:mappo-training-checkpoints} spread so thinly across the 30-minute window that they are visually indistinguishable from zero. This level of temporal stability is important because it rules out the possibility that the high aggregate success rate masks periodic failure bursts during congestion peaks.
+The delay distribution and task failure timeline in \Figref{fig:mappo-runtime-delay-fail} further confirm the policy's operational stability. The delay chart shows that the vast majority of tasks complete well within their deadlines, with only a thin tail of near-deadline completions. The cumulative-failure curve remains nearly flat throughout the episode, consistent with the near-perfect seed-level success rates reported in \Tabref{tab:mappo-eval-seeds}. This temporal stability matters because it shows that the high aggregate success rate is not masking concentrated bursts of congestion-induced failures.
 
 \begin{figure}[htbp]
     \centering
@@ -159,7 +159,7 @@ The delay distribution and task failure timeline in \Figref{fig:mappo-runtime-de
     \label{fig:mappo-runtime-delay-fail}
 \end{figure}
 
-Overall, the standard-setting MAPPO results are now much stronger than before. MAPPO clearly learns a high-quality joint offloading and PRB policy, reaches near-perfect operation by the end of training, and no longer exhibits the severe seed sensitivity that previously weakened the case for explicit multi-agent modeling.
+Overall, under the standard setting, MAPPO learns a high-quality joint offloading and PRB policy, reaches near-perfect operation by the end of training, and remains robust across the three evaluation seeds.
 
 \subsection{Performance of MAPPO under Different Numbers of Devices}
 \label{subsec:mappo-device-count}
@@ -177,7 +177,7 @@ To evaluate the scalability of the proposed MAPPO framework, a device-count abla
 \end{figure}
 
 \paragraph{Evaluation performance.}
-\Tabref{tab:ablation-devices-eval} summarizes the three-seed evaluation metrics for each device count. The results reveal a clear two-regime pattern: MAPPO scales gracefully from 80 to 240 devices, maintaining task success rates above \(99.4\%\), but suffers a catastrophic performance collapse at 320 devices.
+\Tabref{tab:ablation-devices-eval} summarizes the three-seed evaluation metrics for each device count. The results reveal a clear two-regime pattern: MAPPO scales gracefully from 80 to 240 devices, maintaining task success rates above \(99.4\%\), but shows a sharp deterioration at 320 devices.
 
 \begin{table}[htbp]
     \centering
@@ -216,7 +216,7 @@ From 80 to 240 devices, the per-agent reward remains consistently positive and t
 \end{figure}
 
 \paragraph{The 320-device collapse: infrastructure saturation.}
-The 320-device failure is not caused by insufficient training or a limitation of the MAPPO algorithm itself. Rather, it reflects a fundamental infrastructure capacity bottleneck. At 320 devices, the simulator generates approximately \(130\,\mathrm{K}\) task decisions per episode, a \(30\%\) increase over the 240-device case. However, the number of delay failures jumps from 451 to 61,899---a \(137\times\) increase---indicating that the system has crossed a resource saturation threshold.
+The evidence suggests that the 320-device deterioration is driven primarily by infrastructure saturation rather than by ordinary optimization noise. At 320 devices, the simulator generates approximately \(130\,\mathrm{K}\) task decisions per episode, a \(30\%\) increase over the 240-device case. However, the number of delay failures jumps from 451 to 61,899---a \(137\times\) increase---indicating that the system crosses a capacity threshold.
 
 The evidence for infrastructure saturation is visible in the learned policy's behavioral adaptation. \Tabref{tab:ablation-devices-destination} shows how the destination distribution shifts as device count increases. At 80 devices, MAPPO sends roughly \(60\%\) of tasks to the cloud, leveraging its stable bandwidth and ample compute. As device count grows, the cloud fraction steadily decreases: from \(60\%\) at 80 devices to \(52\%\) at 160, \(31\%\) at 240, and only \(12\%\) at 320. Simultaneously, the local execution fraction rises from \(20\%\) to \(51\%\). This shift demonstrates that the policy is actively adapting to cloud congestion by redirecting traffic locally. At 320 devices, however, even with half of all tasks executed locally, the remaining offloaded workload still overwhelms the edge and cloud tiers, resulting in massive queuing delays. The \texttt{average\_real\_total\_time\_s} metric---which includes queuing time---reaches \(26\text{--}36\,\mathrm{s}\) at 320 devices, compared with \(3.2\,\mathrm{s}\) at 80 devices, confirming severe resource contention.
 
@@ -264,7 +264,7 @@ The evidence for infrastructure saturation is visible in the learned policy's be
 \end{figure}
 
 \paragraph{Summary.}
-The device-count ablation reveals that MAPPO scales effectively within the capacity envelope of the underlying infrastructure. From 80 to 240 devices, the policy maintains near-perfect task success rates while adaptively shifting its destination distribution to balance load across tiers. The 320-device collapse is not a failure of multi-agent learning but a consequence of fixed infrastructure capacity: four edge data centers and one cloud node cannot absorb the workload generated by 320 concurrent devices within deadline constraints. Supporting larger device populations would require expanding the infrastructure---adding edge data centers, increasing per-node VM capacity, or both---rather than modifying the learning algorithm.
+The device-count study therefore suggests that MAPPO remains effective within the capacity envelope of the underlying infrastructure. From 80 to 240 devices, the policy maintains near-perfect task success rates while adaptively shifting its destination distribution to balance load across tiers. At 320 devices, the fixed infrastructure of four edge data centers and one cloud node can no longer absorb the workload within deadline constraints. Scaling beyond this range likely requires additional compute or network capacity rather than only further tuning of the learning algorithm.
 
 \subsection{Ablation Study of MAPPO}
 \label{subsec:mappo-ablation}
@@ -288,9 +288,9 @@ Two controlled ablations were conducted under the same 40-episode, 30-minute, 16
 \end{table}
 
 \paragraph{NoEmbedding: controlled but measurable degradation.}
-The NoEmbedding model still converges to a strong scheduler, but it is consistently weaker than the full MAPPO policy in reliability. During training, success rises from \(57.44\%\) in episode 1 to \(99.69\%\) in episode 40, which is only slightly below the full model's \(99.91\%\). The difference appears mainly in the tail of the failure distribution rather than in coarse routing behavior: the three-seed mean success drops from \(99.9237\%\) to \(99.8148\%\), while mean delay failures increase from \(48\) to \(123\). The mean total time is slightly lower at \(4.4991\,\mathrm{s}\), but this marginal latency gain does not compensate for the worse deadline compliance. The mean simulator wall time also drops from \(227.74\,\mathrm{s}\) per episode to \(202.86\,\mathrm{s}\), so the ablation is cheaper to train, but not better in the metric that matters most for the scheduler.
+The NoEmbedding model still converges to a strong scheduler, but it exhibits a consistent reliability penalty relative to the full MAPPO policy. During training, success rises from \(57.44\%\) in episode 1 to \(99.69\%\) in episode 40, which is only slightly below the full model's \(99.91\%\). The difference appears mainly in the tail of the failure distribution rather than in coarse routing behavior: the three-seed mean success drops from \(99.9237\%\) to \(99.8148\%\), while mean delay failures increase from \(48\) to \(123\). The mean total time is slightly lower at \(4.4991\,\mathrm{s}\), but this marginal latency gain does not compensate for worse deadline compliance. The mean simulator wall time also drops from \(227.74\,\mathrm{s}\) per episode to \(202.86\,\mathrm{s}\), so the ablation is cheaper to train, but it is not preferable when deadline compliance is the primary objective.
 
-The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} and \Figref{fig:noembedding-actions} show why the degradation is modest rather than catastrophic. The run-summary chart is still dominated by the success bar, and the reward EMA remains high and positive across most of the episode. However, the negative reward spikes are more frequent and the EMA dips more noticeably than in the full MAPPO case, indicating less stable local decision quality. The destination-distribution chart remains almost unchanged, with \(51.78\%\) of tasks still sent to the cloud and \(19.83\%\) kept local. The main behavioral shift appears in the PRB chart: compared with the full MAPPO policy, NoEmbedding moves probability mass from the \(80\%\) bin to the \(100\%\) bin, with the latter rising to \(16.94\%\). This suggests that once agent identity is removed, the shared policy compensates by using slightly more aggressive uplink reservation on difficult decisions.
+The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} and \Figref{fig:noembedding-actions} show why the degradation is limited rather than severe. The run-summary chart is still dominated by the success bar, and the reward EMA remains high and positive across most of the episode. However, the negative reward spikes are more frequent and the EMA dips more noticeably than in the full MAPPO case, indicating less stable local decision quality. The destination-distribution chart remains almost unchanged, with \(51.78\%\) of tasks still sent to the cloud and \(19.83\%\) kept local. The main behavioral shift appears in the PRB chart: compared with the full MAPPO policy, NoEmbedding moves probability mass from the \(80\%\) bin to the \(100\%\) bin, with the latter rising to \(16.94\%\). This suggests that once agent identity is removed, the shared policy compensates by using slightly more aggressive uplink reservation on difficult decisions.
 
 \begin{figure}[htbp]
     \centering
@@ -323,7 +323,7 @@ The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} a
 \end{figure}
 
 \paragraph{FixedPRB: structural failure of the joint scheduler.}
-The FixedPRB ablation changes the outcome qualitatively. Training improves only from \(55.90\%\) to \(91.52\%\) success across the 40 episodes and plateaus there instead of entering the near-perfect regime. In evaluation, mean success collapses to \(92.3822\%\), mean energy jumps to \(309.2645\,\mathrm{W}\), and mean delay failures explode to \(5127.67\). Unlike NoEmbedding, this is not a small regularization effect; it is a direct loss of scheduling capability. The simulator also becomes much faster to run at \(145.41\,\mathrm{s}\) per episode on average, but the speedup reflects a degenerate policy with less adaptive resource usage rather than a better optimization process.
+The FixedPRB ablation changes the outcome qualitatively. Training improves only from \(55.90\%\) to \(91.52\%\) success across the 40 episodes and plateaus there rather than entering the near-perfect regime. In evaluation, mean success collapses to \(92.3822\%\), mean energy jumps to \(309.2645\,\mathrm{W}\), and mean delay failures rise to \(5127.67\). Unlike NoEmbedding, this is not a small regularization effect; it is a direct loss of scheduling capability. The simulator also becomes much faster to run at \(145.41\,\mathrm{s}\) per episode on average, but this speedup is associated with a simpler yet substantially poorer operating regime.
 
 The representative seed-9001 charts in \Figref{fig:fixedprb-summary-reward} and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using the \(80\%\) bin by construction. This removes the policy's ability to match radio reservation to task urgency and destination quality. The result is a system that underuses edge resources, overconsumes mist energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
 
@@ -416,12 +416,12 @@ The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make t
     \label{fig:ablation-fail-dynamics}
 \end{figure}
 
-Taken together, the ablations clarify the contribution of each MAPPO component. Adaptive PRB control is the dominant contributor to system quality: removing it destroys both reliability and energy efficiency. Agent embeddings provide a smaller but consistent benefit: removing them does not break the scheduler, but increases residual delay failures and pushes the policy toward more aggressive PRB usage. The MAPPO design therefore gains most of its practical value from joint offloading-and-PRB learning, while explicit agent conditioning refines that shared control and delivers the last fraction of reliability.
+Taken together, the ablations identify adaptive PRB control as the dominant contributor to overall performance. Removing it severely reduces both reliability and energy efficiency. Agent embeddings provide a smaller but consistent benefit: removing them does not break the scheduler, but it increases residual delay failures and pushes the policy toward more aggressive PRB usage. The MAPPO design therefore derives most of its practical value from joint offloading-and-PRB learning, while explicit agent conditioning refines that shared control and delivers an additional reliability gain.
 
 \subsection{Comparison between Reinforcement Learning and Baseline Algorithms}
 \label{subsec:rl-vs-baselines}
 
-The offline all-algorithm comparison confirms that reinforcement learning decisively outperforms the heuristic baselines under the standard 160-device setting. MAPPO achieves the highest task success rate at \(99.96\%\), followed closely by PPO at \(99.94\%\). The strongest heuristic remains ROUND\_ROBIN at \(90.39\%\), which is still far below both learned policies. The comparison also shows that the RL gain is not obtained by simply consuming more energy than every baseline: MAPPO and PPO both use about \(231.3\,\mathrm{W}\), which is substantially lower than ROUND\_ROBIN's \(298.26\,\mathrm{W}\).
+The offline all-algorithm comparison shows that the reinforcement-learning policies outperform the heuristic baselines under the standard 160-device setting. MAPPO achieves the highest task success rate at \(99.96\%\), followed closely by PPO at \(99.94\%\). The strongest heuristic remains ROUND\_ROBIN at \(90.39\%\), which is still far below both learned policies. These gains are not obtained simply by spending more energy: MAPPO and PPO both use about \(231.3\,\mathrm{W}\), which is substantially lower than ROUND\_ROBIN's \(298.26\,\mathrm{W}\).
 
 \Tabref{tab:baseline-comparison} lists the main metrics for all 10 algorithms, while \Figref{fig:baseline-comparison} visualizes the same comparison. Several patterns are worth emphasizing. First, MAPPO improves success rate by \(9.58\) percentage points over ROUND\_ROBIN while also reducing average total time by \(1.2750\,\mathrm{s}\) and energy consumption by \(67.00\,\mathrm{W}\). Second, compared with PPO, MAPPO is slightly more reliable and slightly lower in energy, whereas PPO is slightly faster in average total time by \(0.0670\,\mathrm{s}\). Third, CLOUD appears attractive in latency and energy, yet its success rate remains only \(64.64\%\), so it is not a viable scheduling policy when completion reliability matters. Fourth, LOCAL fails mainly because 33,630 tasks cannot be executed under local-only capacity constraints, which highlights the need for coordinated multi-tier offloading.
 
@@ -596,12 +596,12 @@ The task failure timelines in \Figref{fig:compare-failures} provide the most dir
     \label{fig:compare-failures}
 \end{figure}
 
-Reinforcement learning is therefore not merely competitive with heuristics; it is clearly superior across every dimension examined: success rate, latency, energy efficiency, CPU utilization balance, and temporal stability of the failure rate.
+Within this experimental setting, reinforcement learning is superior to the tested heuristics across the measured dimensions: success rate, latency, energy efficiency, CPU utilization balance, and temporal stability of the failure rate.
 
-\subsection{Analysis of PPO}
+\subsection{Comparison with PPO}
 \label{subsec:ppo-analysis}
 
-PPO serves as the closest learning-based baseline to MAPPO because it keeps the same environment and dual action heads while removing the explicit multi-agent parameterization. In the updated implementation, the controlled difference is now clearer than before: MAPPO uses both an agent embedding and a telemetry-augmented critic state, whereas PPO still uses a single shared actor and the original 27-dimensional critic state. For this reason, all direct MAPPO--PPO comparisons are collected in this subsection rather than being mixed into the standard MAPPO subsection.
+PPO serves as the closest learning-based baseline to MAPPO because it retains the same environment and dual-action interface while removing explicit multi-agent conditioning. In the present implementation, MAPPO differs from PPO mainly through the agent embedding and the telemetry-augmented critic state. This subsection therefore examines whether explicit multi-agent parameterization yields measurable gains over a strong single-policy baseline.
 
 \paragraph{Training comparison.}
 Under the standard training setup, PPO behaves very similarly to MAPPO during learning. PPO starts from \(57.94\%\) success in episode 1, rises to \(99.93\%\) by episode 40, crosses \(95\%\) success by episode 6, and reaches \(99\%\) by episode 12. Its average simulator wall time is \(223.48\,\mathrm{s}\) per episode, making it about \(4.26\,\mathrm{s}\) faster than MAPPO per episode on average. \Figref{fig:rl-training-comparison} and \Tabref{tab:rl-training-checkpoints} summarize the cross-model training dynamics.
@@ -634,7 +634,7 @@ Under the standard training setup, PPO behaves very similarly to MAPPO during le
 \end{table}
 
 \paragraph{Evaluation comparison.}
-The major difference between MAPPO and PPO is now much smaller than initially expected. PPO remains extremely stable across all three seeds, with success rates between \(99.92\%\) and \(99.96\%\). The three-seed mean success rate is \(99.9436\%\), the standard deviation is \(0.0137\), the mean total time is \(4.4665\,\mathrm{s}\), and the mean energy consumption is \(227.5745\,\mathrm{W}\). MAPPO is only slightly behind on the three-seed mean, with \(99.9237\%\) success and \(0.0238\) standard deviation, while winning the single-seed offline all-algorithm comparison by a narrow margin. The aggregated comparison is summarized in \Tabref{tab:mappo-ppo-summary} and \Figref{fig:mappo-ppo-eval-summary}.
+The performance gap between MAPPO and PPO is small under the tested setting. PPO remains extremely stable across all three seeds, with success rates between \(99.92\%\) and \(99.96\%\). The three-seed mean success rate is \(99.9436\%\), the standard deviation is \(0.0137\), the mean total time is \(4.4665\,\mathrm{s}\), and the mean energy consumption is \(227.5745\,\mathrm{W}\). MAPPO trails PPO slightly on these three-seed mean metrics, with \(99.9237\%\) success and \(0.0238\) standard deviation, but still remains within a very narrow margin and slightly outperforms PPO in the single-seed offline all-algorithm comparison. The aggregated comparison is summarized in \Tabref{tab:mappo-ppo-summary} and \Figref{fig:mappo-ppo-eval-summary}.
 
 \begin{table}[htbp]
     \centering
@@ -647,7 +647,7 @@ The major difference between MAPPO and PPO is now much smaller than initially ex
         PPO & 99.9436 & 0.0137 & 4.4665 & 227.5745 & 223.48 \\
         \hline
     \end{tabular}
-    \caption{Summary comparison of MAPPO and PPO under the finalized three-seed evaluation.}
+    \caption{Summary comparison of MAPPO and PPO under the three-seed evaluation.}
     \label{tab:mappo-ppo-summary}
 \end{table}
 
@@ -658,8 +658,8 @@ The major difference between MAPPO and PPO is now much smaller than initially ex
     \label{fig:mappo-ppo-eval-summary}
 \end{figure}
 
-The figure makes the trade-off clear. PPO still retains a small edge in three-seed mean success rate, mean total time, and variance, but the gap is now extremely small. At the same time, MAPPO is no longer a high-variance outlier: it reaches near-perfect success on every seed, removes fallback events entirely, and slightly surpasses PPO in the offline fixed-seed comparison.
+The figure makes the trade-off explicit. PPO retains small advantages in three-seed mean success rate, mean total time, and variance, but the gap is extremely small. MAPPO, however, remains highly competitive, achieves zero fallback on all three seeds, and slightly surpasses PPO in the offline fixed-seed comparison.
 
 One limitation should be noted: the PPO run does not preserve per-decision trajectory CSV files, so a detailed action-level analysis of PPO destination selection and PRB usage cannot be reproduced at the same granularity as MAPPO. This does not affect the aggregate evaluation metrics but prevents a fully symmetric behavioral comparison.
 
-Taken together, the PPO results clarify the role of multi-agent modeling. On-policy reinforcement learning itself is highly effective for this scheduling problem. At the same time, MAPPO is competitive with PPO in every aggregate metric while winning the offline fixed-seed comparison. The ablation results make the architectural story clearer: adaptive PRB control is indispensable, and explicit agent conditioning provides a smaller but measurable reliability gain. PPO is the slightly safer choice if only cross-seed mean performance is considered, but MAPPO is a technically credible and practically strong multi-agent scheduler.
+Taken together, the PPO comparison indicates that most of the performance gain comes from on-policy reinforcement learning itself, while explicit multi-agent conditioning provides a smaller secondary benefit. The ablation results clarify the architectural story: adaptive PRB control is indispensable, and explicit agent conditioning offers a measurable reliability gain. PPO remains a very strong benchmark and is slightly stronger on cross-seed averages, whereas MAPPO remains a technically credible and practically strong multi-agent scheduler.
