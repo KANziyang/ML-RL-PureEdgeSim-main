@@ -5,34 +5,36 @@
 \subsection{TCP JSON Message Protocol}
 \label{subsec:appendix-tcp}
 
-The Java-Python bridge uses newline-delimited JSON over a localhost TCP socket. The message types exchanged by \texttt{RLEnvServer} and the Python client are summarized in \Tabref{tab:tcp-schema}.
+The Java--Python bridge uses newline-delimited JSON over a localhost TCP socket. \Tabref{tab:tcp-schema} summarizes the message types exchanged by \texttt{RLEnvServer} and the Python client.
 
 \begin{table}[htbp]
     \centering
-    \begin{tabular}{p{0.18\linewidth}p{0.15\linewidth}p{0.56\linewidth}}
+    \small
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabularx}{0.98\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth}>{\raggedright\arraybackslash}p{0.18\linewidth}>{\raggedright\arraybackslash}X}
         \hline
         \textbf{Message type} & \textbf{Direction} & \textbf{Main fields} \\
         \hline
-        \texttt{marl\_config} & Java \(\rightarrow\) Python & \texttt{num\_agents}, \texttt{num\_destinations}, \texttt{agent\_obs\_dim}, \texttt{dest\_feat\_dim}, \texttt{state\_dim}, \texttt{prb\_bins}, destination labels, PRB-bin labels \\
-        \texttt{marl\_turn\_obs} & Java \(\rightarrow\) Python & \texttt{step\_id}, \texttt{agent\_id}, \texttt{agent\_obs}, \texttt{dest\_features}, \texttt{dest\_mask}, \texttt{state} \\
-        \texttt{marl\_action} & Python \(\rightarrow\) Java & \texttt{step\_id}, \texttt{dest\_action}, \texttt{prb\_action} \\
-        \texttt{marl\_transition} & Java \(\rightarrow\) Python & \texttt{step\_id}, \texttt{reward}, \texttt{done}, requested and executed destination actions, requested and executed PRB actions, \texttt{dest\_fallback} \\
-        \texttt{marl\_episode\_end} & Java \(\rightarrow\) Python & \texttt{done}, \texttt{episode\_index}, \texttt{final\_state}, \texttt{fallback\_count} \\
+        \texttt{marl\_config} & Java \(\rightarrow\) Python & \texttt{num\_agents}, \texttt{num\_destinations}, \texttt{agent\_obs\_dim}, \texttt{dest\_feat\_dim}, \texttt{state\_dim}, \texttt{prb\_bins}, destination labels, and PRB-bin labels \\
+        \texttt{marl\_turn\_obs} & Java \(\rightarrow\) Python & \texttt{step\_id}, \texttt{agent\_id}, \texttt{agent\_obs}, \texttt{dest\_features}, \texttt{dest\_mask}, and \texttt{state} \\
+        \texttt{marl\_action} & Python \(\rightarrow\) Java & \texttt{step\_id}, \texttt{dest\_action}, and \texttt{prb\_action} \\
+        \texttt{marl\_transition} & Java \(\rightarrow\) Python & \texttt{step\_id}, \texttt{reward}, \texttt{done}, requested/executed destination actions, requested/executed PRB actions, and \texttt{dest\_fallback} \\
+        \texttt{marl\_episode\_end} & Java \(\rightarrow\) Python & \texttt{done}, \texttt{episode\_index}, \texttt{final\_state}, and \texttt{fallback\_count} \\
         \texttt{control} & Python \(\rightarrow\) Java & Control commands such as \texttt{terminate} \\
         \hline
-    \end{tabular}
+    \end{tabularx}
     \caption{TCP JSON protocol used by the co-simulation interface.}
     \label{tab:tcp-schema}
 \end{table}
 
-Because the protocol is message-oriented and synchronous, it is straightforward to debug by logging raw JSON lines. This was particularly useful during development of fallback handling and offline inference mode.
+Because the protocol is synchronous and message-oriented, raw JSON line logging was sufficient for debugging. This proved especially useful when validating fallback handling and offline inference mode.
 
 \subsection{Hyperparameter Notes}
 \label{subsec:appendix-hyperparameters}
 
-The MAPPO and PPO training scripts share the same optimizer-level hyperparameters, including learning rates, clipping factor, minibatch size, and entropy annealing schedule. The main structural difference is that MAPPO uses an agent embedding and a centralized critic over the telemetry-augmented 41-dimensional state, whereas PPO removes the embedding and relies on a single shared actor representation with the original 27-dimensional critic state. Both actors still use the same dual-head action design for destination and PRB selection.
+The MAPPO and PPO training scripts share the same optimizer-level hyperparameters, including the learning rate, clipping factor, minibatch size, and entropy annealing schedule. The main structural difference is that MAPPO uses an agent embedding together with a centralized critic over the telemetry-augmented 41-dimensional state, whereas PPO removes the embedding and relies on a single shared actor representation with the original 27-dimensional critic state. Both actors retain the same dual-head action design for destination selection and PRB allocation.
 
-For reproducibility, the final quantitative results reported in \Secref{sec:results} are based on 40-episode training artifacts for both MAPPO and PPO, each followed by three evaluation seeds: 9001, 9002, and 9003. The PPO training run uses the same episode count and hyperparameters as MAPPO.
+For reproducibility, the final quantitative results reported in \Secref{sec:results} are based on 40-episode training artifacts for both MAPPO and PPO, each followed by evaluation on seeds 9001, 9002, and 9003. The PPO training run uses the same episode count and optimizer-level hyperparameters as MAPPO.
 
 \subsection{Reproducibility Notes}
 \label{subsec:appendix-reproducibility}
@@ -41,10 +43,11 @@ The report is based on the following artifact layout.
 \begin{itemize}
     \item The thesis template is stored in the report workspace.
     \item The simulator and learning code are stored in the companion project workspace.
-    \item The 40-episode MAPPO and PPO training runs are preserved under the \texttt{Results/} directory, with structured subdirectories for each experiment.
-    \item The three-seed evaluation summaries for MAPPO, PPO, and all ablation variants are stored as \texttt{run\_summary.json} files under the corresponding evaluation subdirectories.
-    \item The device-count scalability study (80, 160, 240, 320 devices) is preserved under \texttt{Results/ablation\_devices/}, and the component ablations (NoEmbedding, FixedPRB) are preserved under \texttt{Results/ablation\_NoEmbedding/} and \texttt{Results/ablation\_FixedPRB/}.
+    \item The 40-episode MAPPO and PPO training runs are preserved under \path{Results/}, with structured subdirectories for each experiment.
+    \item The three-seed evaluation summaries for MAPPO, PPO, and all ablation variants are stored as \path{run_summary.json} files under the corresponding evaluation subdirectories.
+    \item The device-count scalability study for 80, 160, 240, and 320 devices is preserved under \path{Results/ablation_devices/}.
+    \item The component ablations are preserved under \path{Results/ablation_NoEmbedding/} and \path{Results/ablation_FixedPRB/}.
     \item Heuristic baseline results from the offline all-algorithm comparison are preserved as both simulator CSV exports and dashboard images.
 \end{itemize}
 
-In practical use, the workflow is: prepare the PureEdgeSim configuration, launch training mode for MAPPO or PPO through the Python scripts, save model checkpoints, then switch to offline inference mode or batch evaluation mode to collect summary metrics and dashboard plots.
+In practice, the workflow is straightforward: prepare the PureEdgeSim configuration, launch MAPPO or PPO training through the Python scripts, save the resulting checkpoints, and then switch to offline inference mode or batch evaluation mode to collect summary metrics and dashboard plots.
