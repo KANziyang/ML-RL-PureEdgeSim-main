@@ -2,7 +2,7 @@
 \section{Experiment Results}
 \label{sec:results}
 
-This chapter reports the experimental evaluation of the proposed MAPPO-based joint offloading and PRB allocation framework introduced in \Secref{sec:methodology}. The results are organized into five parts: (i) standard-setting MAPPO training and evaluation, (ii) a device-count scalability study over 80, 160, 240, and 320 devices, (iii) an ablation study examining agent embeddings and adaptive PRB control, (iv) an offline comparison against 10 scheduling algorithms under the 160-device setting, and (v) a direct MAPPO--PPO comparison.
+This chapter reports the experimental evaluation of the proposed MAPPO-based joint offloading and PRB allocation framework introduced in \Secref{sec:methodology}. The results are organized into four parts: (i) standard-setting MAPPO training and evaluation, (ii) a device-count scalability study over 80, 160, 240, and 320 devices, (iii) an ablation study examining agent embeddings and adaptive PRB control, and (iv) an offline comparison against 10 scheduling algorithms under the 160-device setting, with PPO treated as the strongest learning-based baseline within that comparison.
 
 \subsection{MAPPO under the Standard 40-Episode, 30-Minute Setting}
 \label{subsec:mappo-standard-setting}
@@ -594,70 +594,22 @@ The task failure timelines in \Figref{fig:compare-failures} provide the most dir
     \label{fig:compare-failures}
 \end{figure}
 
-Within this experimental setting, reinforcement learning is superior to the tested heuristics across the measured dimensions: success rate, latency, energy efficiency, CPU utilization balance, and temporal stability of the failure rate.
-
-\subsection{Comparison with PPO}
-\label{subsec:ppo-analysis}
-
-PPO serves as the closest learning-based baseline to MAPPO because it retains the same environment and dual-action interface while removing explicit multi-agent conditioning. In the present implementation, MAPPO differs from PPO mainly through the agent embedding and the telemetry-augmented critic state. This subsection therefore examines whether explicit multi-agent parameterization yields measurable gains over a strong single-policy baseline.
-
-\paragraph{Training comparison.}
-Under the standard training setup, PPO behaves very similarly to MAPPO during learning. PPO starts from \(57.94\%\) success in episode 1, rises to \(99.93\%\) by episode 40, crosses \(95\%\) success by episode 6, and reaches \(99\%\) by episode 12. Its average simulator wall time is \(223.48\,\mathrm{s}\) per episode, making it about \(4.26\,\mathrm{s}\) faster than MAPPO per episode on average. \Figref{fig:rl-training-comparison} and \Tabref{tab:rl-training-checkpoints} summarize the cross-model training dynamics.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.95\textwidth]{figures/rl_training_progress_40ep.png}
-    \caption{Training comparison between MAPPO and PPO under the standard 40-episode setting.}
-    \label{fig:rl-training-comparison}
-\end{figure}
+PPO deserves one final note as the strongest learning-based baseline in this study. On the three-seed evaluation, PPO is slightly stronger than MAPPO in mean success rate, variance, mean total time, and mean energy, but the margins are extremely small. MAPPO's practical advantage in the current \(160\)-device, \(30\)-minute setting lies instead in tighter control of residual deadline failures rather than across-the-board superiority on seed-averaged means. In the fixed-seed offline all-algorithm comparison reported in \Tabref{tab:baseline-comparison}, MAPPO remains slightly better in success rate and energy, while \Figref{fig:compare-failures} shows a lower residual failure count than PPO (\(20\) versus \(36\)). This is a modest but meaningful advantage for deadline-sensitive reliability, which is the central objective of the scheduling problem considered here.
 
 \begin{table}[htbp]
     \centering
-    \small
-    \begin{tabular}{c|cc|cc}
-        \hline
-        \multirow{2}{*}{\textbf{Episode}} & \multicolumn{2}{c|}{\textbf{MAPPO}} & \multicolumn{2}{c}{\textbf{PPO}} \\
-        & Success (\%) & Avg. Total Time (s) & Success (\%) & Avg. Total Time (s) \\
-        \hline
-        1  & 57.85 & 5.0108 & 57.94 & 5.0363 \\
-        5  & 91.96 & 5.0888 & 91.38 & 5.0898 \\
-        10 & 97.90 & 4.7186 & 98.32 & 4.6157 \\
-        20 & 99.62 & 4.5733 & 99.75 & 4.6061 \\
-        30 & 99.19 & 4.6681 & 99.93 & 4.5705 \\
-        40 & 99.91 & 4.6622 & 99.93 & 4.5599 \\
-        \hline
-    \end{tabular}
-    \caption{Selected training checkpoints for MAPPO and PPO under the standard setting.}
-    \label{tab:rl-training-checkpoints}
-\end{table}
-
-\paragraph{Evaluation comparison.}
-The performance gap between MAPPO and PPO is small under the tested setting. PPO remains extremely stable across all three seeds, with success rates between \(99.92\%\) and \(99.96\%\). The three-seed mean success rate is \(99.9436\%\), the standard deviation is \(0.0137\), the mean total time is \(4.4665\,\mathrm{s}\), and the mean energy consumption is \(227.5745\,\mathrm{W}\). MAPPO trails PPO slightly on these three-seed mean metrics, with \(99.9237\%\) success and \(0.0238\) standard deviation, but still remains within a very narrow margin and slightly outperforms PPO in the single-seed offline all-algorithm comparison. The aggregated comparison is summarized in \Tabref{tab:mappo-ppo-summary} and \Figref{fig:mappo-ppo-eval-summary}.
-
-\begin{table}[htbp]
-    \centering
-    \small
+    \footnotesize
+    \setlength{\tabcolsep}{4pt}
     \begin{tabular}{l|ccccc}
         \hline
-        \textbf{Model} & Mean Success (\%) & Std. Success & Mean Total Time (s) & Mean Energy (W) & Train Wall Time (s/ep) \\
+        \textbf{Model} & \textbf{Mean Success (\%)} & \textbf{Std.} & \textbf{Mean Time (s)} & \textbf{Mean Energy (W)} & \textbf{Train Time (s/ep)} \\
         \hline
         MAPPO & 99.9237 & 0.0238 & 4.5284 & 227.6360 & 227.74 \\
         PPO & 99.9436 & 0.0137 & 4.4665 & 227.5745 & 223.48 \\
         \hline
     \end{tabular}
-    \caption{Summary comparison of MAPPO and PPO under the three-seed evaluation.}
+    \caption{Compact three-seed summary comparison between MAPPO and PPO. PPO is the strongest learning-based baseline, but the performance gap remains very small.}
     \label{tab:mappo-ppo-summary}
 \end{table}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.88\textwidth]{figures/mappo_ppo_eval_summary.png}
-    \caption{Final evaluation summary of MAPPO and PPO over three test seeds.}
-    \label{fig:mappo-ppo-eval-summary}
-\end{figure}
-
-The figure makes the trade-off explicit. PPO retains small advantages in three-seed mean success rate, mean total time, and variance, but the gap is extremely small. MAPPO, however, remains highly competitive, achieves zero fallback on all three seeds, and slightly surpasses PPO in the offline fixed-seed comparison.
-
-One limitation should be noted: the PPO run does not preserve per-decision trajectory CSV files, so a detailed action-level analysis of PPO destination selection and PRB usage cannot be reproduced at the same granularity as MAPPO. This does not affect the aggregate evaluation metrics but prevents a fully symmetric behavioral comparison.
-
-Taken together, the PPO comparison indicates that most of the performance gain comes from on-policy reinforcement learning itself, while explicit multi-agent conditioning provides a smaller secondary benefit. The ablation results clarify the architectural story: adaptive PRB control is indispensable, and explicit agent conditioning offers a measurable reliability gain. PPO remains a very strong benchmark and is slightly stronger on cross-seed averages, whereas MAPPO remains a technically credible and practically strong multi-agent scheduler.
+One limitation should be noted: the PPO run does not preserve per-decision trajectory CSV files, so destination selection and PRB behavior cannot be analyzed at the same granularity as MAPPO. This does not affect the aggregate metrics, but it prevents a fully symmetric behavioral comparison. Taken together with the ablation results in \Secref{subsec:mappo-ablation}, the baseline study suggests that the dominant source of performance gain is reinforcement learning itself, while MAPPO contributes a smaller but consistent reliability gain under deadline pressure. In other words, PPO confirms that on-policy RL is strong in this environment, whereas MAPPO's additional value in the current scenario is that it translates similar average performance into slightly better tail control for multi-terminal coordination. MAPPO therefore remains the central contribution of this report: it achieves near-best aggregate performance while offering the more reliable deadline-sensitive scheduler in the present setting.
