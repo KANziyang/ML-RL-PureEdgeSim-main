@@ -26,7 +26,7 @@ The full training trajectory is shown in \Figref{fig:mappo-training-progress}. B
     \small
     \begin{tabular}{c|cccc}
         \hline
-        \textbf{Episode} & Success (\%) & Avg. Total Time (s) & Energy (W) & Delay Failures \\
+        \textbf{Episode} & Success (\%) & Avg. Total Time (s) & Energy (Wh) & Delay Failures \\
         \hline
         1  & 57.85 & 5.0108 & 187.1040 & 28193 \\
         5  & 91.96 & 5.0888 & 221.2397 & 5313 \\
@@ -41,7 +41,7 @@ The full training trajectory is shown in \Figref{fig:mappo-training-progress}. B
 \end{table}
 
 \paragraph{Evaluation behavior across seeds.}
-The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. The corresponding success rates are \(99.8901\%\), \(99.9390\%\), and \(99.9421\%\), respectively. The three-seed mean success rate is \(99.9237\%\) with a standard deviation of \(0.0238\). The mean average total time is \(4.5284\,\mathrm{s}\), and the mean energy consumption is \(227.6360\,\mathrm{W}\). These metrics indicate strong cross-seed robustness within the tested setting.
+The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. The corresponding success rates are \(99.8901\%\), \(99.9390\%\), and \(99.9421\%\), respectively. The three-seed mean success rate is \(99.9237\%\) with a standard deviation of \(0.0238\). The mean average total time is \(4.5284\,\mathrm{s}\), and the mean energy consumption is \(227.6360\,\mathrm{Wh}\). These metrics indicate strong cross-seed robustness within the tested setting.
 
 \begin{table}[htbp]
     \centering
@@ -93,7 +93,7 @@ The destination and PRB breakdowns in \Figref{fig:mappo-standard-actions} show t
 \paragraph{Reward and energy analysis.}
 The remaining seed-level charts explain why the converged MAPPO policy remains stable. On the representative seed 9001, the runtime average reward in \Figref{fig:mappo-standard-reward} rises quickly after initialization and then stays tightly clustered around \(4.4\text{--}4.5\), while the exponential moving average remains nearly flat for the rest of the episode. The limited downward fluctuations do not accumulate over time, indicating that unsuccessful decisions are rare and do not destabilize the learned policy over the 30-minute horizon.
 
-The energy summary reported in \Tabref{tab:mappo-seed9001-energy} clarifies where the cost is incurred. For seed 9001, total energy consumption is \(233.0438\,\mathrm{W}\), of which \(223.4854\,\mathrm{W}\) comes from mist/local execution, \(8.9694\,\mathrm{W}\) from edge servers, and only \(0.5890\,\mathrm{W}\) from the cloud. The energy metric is therefore still dominated by the battery-powered device layer even though more than half of the tasks are offloaded to the cloud. In practical terms, cloud offloading mainly relieves deadline pressure, whereas overall energy efficiency is still governed by how many tasks remain on local devices and how aggressively uplink PRBs are reserved.
+The energy summary reported in \Tabref{tab:mappo-seed9001-energy} clarifies where the cost is incurred. For seed 9001, total energy consumption is \(233.0438\,\mathrm{Wh}\), of which \(223.4854\,\mathrm{Wh}\) comes from mist/local execution, \(8.9694\,\mathrm{Wh}\) from edge servers, and only \(0.5890\,\mathrm{Wh}\) from the cloud. The energy metric is therefore still dominated by the battery-powered device layer even though more than half of the tasks are offloaded to the cloud. In practical terms, cloud offloading mainly relieves deadline pressure, whereas overall energy efficiency is still governed by how many tasks remain on local devices and how aggressively uplink PRBs are reserved.
 
 \begin{figure}[htbp]
     \centering
@@ -107,12 +107,12 @@ The energy summary reported in \Tabref{tab:mappo-seed9001-energy} clarifies wher
     \small
     \renewcommand{\arraystretch}{1.15}
     \begin{tabularx}{0.92\textwidth}{l|c|X}
-        \textbf{Component} & \textbf{Energy (W)} & \textbf{Average} \\
+        \textbf{Component} & \textbf{Energy (Wh)} & \textbf{Average} \\
         \hline
-        Total & \(233.0438\) & \(1.4124\,\mathrm{W}\) per data center or device; \(0.0035\,\mathrm{W}\) per task \\
-        Cloud & \(0.5890\) & \(0.5890\,\mathrm{W}\) per data center \\
-        Edge & \(8.9694\) & \(2.2424\,\mathrm{W}\) per data center \\
-        Mist & \(223.4854\) & \(1.3968\,\mathrm{W}\) per edge device \\
+        Total & \(233.0438\) & \(1.4124\,\mathrm{Wh}\) per data center or device; \(0.0035\,\mathrm{Wh}\) per task \\
+        Cloud & \(0.5890\) & \(0.5890\,\mathrm{Wh}\) per data center \\
+        Edge & \(8.9694\) & \(2.2424\,\mathrm{Wh}\) per data center \\
+        Mist & \(223.4854\) & \(1.3968\,\mathrm{Wh}\) per edge device \\
     \end{tabularx}
     \caption{Energy summary for the representative evaluation seed 9001.}
     \label{tab:mappo-seed9001-energy}
@@ -178,7 +178,7 @@ To evaluate the scalability of the proposed MAPPO framework, a device-count abla
     \small
     \begin{tabular}{c|cccccc}
         \hline
-        \textbf{Devices} & \textbf{Decisions} & \textbf{Success (\%)} & \textbf{Time (s)} & \textbf{Energy (W)} & \textbf{Delay Fail} & \textbf{Reward} \\
+        \textbf{Devices} & \textbf{Decisions} & \textbf{Success (\%)} & \textbf{Time (s)} & \textbf{Energy (Wh)} & \textbf{Delay Fail} & \textbf{Reward} \\
         \hline
         80  & 33\,639  & 99.75 & 3.45 & 111.24 & 86    & 151\,057 \\
         160 & 67\,016  & 99.77 & 4.87 & 227.76 & 154   & 290\,588 \\
@@ -190,7 +190,7 @@ To evaluate the scalability of the proposed MAPPO framework, a device-count abla
     \label{tab:ablation-devices-eval}
 \end{table}
 
-From 80 to 240 devices, the per-agent reward remains consistently positive and the success rate stays above \(99.4\%\), indicating that MAPPO effectively coordinates an increasing number of agents without degrading individual decision quality. The total reward scales roughly in proportion to the number of decisions, confirming that each additional agent contributes positively. Average total time increases moderately from \(3.45\,\mathrm{s}\) to \(5.80\,\mathrm{s}\), which is expected as more agents compete for shared edge and cloud resources. Energy consumption also scales proportionally with device count, reflecting the additional mist-layer power draw from more active devices.
+From 80 to 240 devices, the per-agent reward remains consistently positive and the success rate stays above \(99.4\%\), indicating that MAPPO effectively coordinates an increasing number of agents without degrading individual decision quality. The total reward scales roughly in proportion to the number of decisions, confirming that each additional agent contributes positively. Average total time increases moderately from \(3.45\,\mathrm{s}\) to \(5.80\,\mathrm{s}\), which is expected as more agents compete for shared edge and cloud resources. Energy consumption also scales proportionally with device count, reflecting the additional mist-layer energy usage from more active devices.
 
 \Figref{fig:ablation-devices-success-time} visualizes the task success rate and average total time across device counts. The success rate remains flat near \(100\%\) for the first three configurations before dropping sharply at 320 devices, while the average total time increases gradually and then jumps at 320 devices.
 
@@ -231,7 +231,7 @@ The evidence for infrastructure saturation is visible in the learned policy's be
     \label{tab:ablation-devices-destination}
 \end{table}
 
-\Figref{fig:ablation-devices-energy-reward} shows the energy consumption and evaluation reward across device counts. Energy scales roughly linearly from 80 to 320 devices, reflecting the proportional increase in mist-layer power draw. The evaluation reward, however, turns sharply negative at 320 devices, confirming that the policy cannot generate net positive value when infrastructure capacity is exhausted.
+\Figref{fig:ablation-devices-energy-reward} shows the energy consumption and evaluation reward across device counts. Energy scales roughly linearly from 80 to 320 devices, reflecting the proportional increase in mist-layer energy usage. The evaluation reward, however, turns sharply negative at 320 devices, confirming that the policy cannot generate net positive value when infrastructure capacity is exhausted.
 
 \begin{figure}[h]
     \centering
@@ -265,7 +265,7 @@ Two controlled ablations were conducted under the same 40-episode, 30-minute, 16
     \renewcommand{\arraystretch}{1.15}
     \begin{tabular}{@{}lccccc@{}}
         \hline
-        \textbf{Variant} & \shortstack{\textbf{Success}\\\textbf{(\%)}} & \textbf{Std.} & \shortstack{\textbf{Total Time}\\\textbf{(s)}} & \shortstack{\textbf{Energy}\\\textbf{(W)}} & \shortstack{\textbf{Delay}\\\textbf{Failures}} \\
+        \textbf{Variant} & \shortstack{\textbf{Success}\\\textbf{(\%)}} & \textbf{Std.} & \shortstack{\textbf{Total Time}\\\textbf{(s)}} & \shortstack{\textbf{Energy}\\\textbf{(Wh)}} & \shortstack{\textbf{Delay}\\\textbf{Failures}} \\
         \hline
         MAPPO & \textbf{99.9237} & \textbf{0.0238} & 4.5284 & \textbf{227.6360} & \textbf{48.00} \\
         NoEmbedding & 99.8148 & 0.0245 & \textbf{4.4991} & 227.7301 & 123.00 \\
@@ -311,7 +311,7 @@ The representative seed-9001 charts in \Figref{fig:noembedding-run-summary}, \Fi
 \end{figure}
 
 \paragraph{FixedPRB: structural failure of the joint scheduler.}
-The FixedPRB ablation changes the outcome qualitatively. Training improves only from \(55.90\%\) to \(91.52\%\) success across the 40 episodes and plateaus there rather than entering the near-perfect regime. In evaluation, mean success collapses to \(92.3822\%\), mean energy jumps to \(309.2645\,\mathrm{W}\), and mean delay failures rise to \(5127.67\). Unlike NoEmbedding, this is not a small regularization effect; it is a direct loss of scheduling capability. The simulator also becomes much faster to run at \(145.41\,\mathrm{s}\) per episode on average, but this speedup is associated with a simpler yet substantially poorer operating regime.
+The FixedPRB ablation changes the outcome qualitatively. Training improves only from \(55.90\%\) to \(91.52\%\) success across the 40 episodes and plateaus there rather than entering the near-perfect regime. In evaluation, mean success collapses to \(92.3822\%\), mean energy jumps to \(309.2645\,\mathrm{Wh}\), and mean delay failures rise to \(5127.67\). Unlike NoEmbedding, this is not a small regularization effect; it is a direct loss of scheduling capability. The simulator also becomes much faster to run at \(145.41\,\mathrm{s}\) per episode on average, but this speedup is associated with a simpler yet substantially poorer operating regime.
 
 The representative seed-9001 charts in \Figref{fig:fixedprb-run-summary}, \Figref{fig:fixedprb-reward}, and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using \(10\) blocks by construction. Read against the full MAPPO seed-9001 distribution, this is a strong restriction: the learned policy normally uses \(1\) block for most offloads and expands to \(10\) or \(20\) blocks only when needed. Fixing every offloaded task at \(10\) blocks therefore creates a systematic mismatch, being too conservative for hard transfers and too wasteful for easy ones. The result is a system that underuses edge resources, overconsumes mist energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
 
@@ -419,9 +419,9 @@ Taken together, the ablations identify adaptive PRB control as the dominant cont
 \subsection{Comparison between Reinforcement Learning and Baseline Algorithms}
 \label{subsec:rl-vs-baselines}
 
-The offline all-algorithm comparison shows that the reinforcement-learning policies outperform the heuristic baselines under the standard 160-device setting. MAPPO achieves the highest task success rate at \(99.96\%\), followed closely by PPO at \(99.94\%\). The strongest heuristic remains ROUND\_ROBIN at \(90.39\%\), which is still far below both learned policies. These gains are not obtained simply by spending more energy: MAPPO and PPO both use about \(231.3\,\mathrm{W}\), which is substantially lower than ROUND\_ROBIN's \(298.26\,\mathrm{W}\).
+The offline all-algorithm comparison shows that the reinforcement-learning policies outperform the heuristic baselines under the standard 160-device setting. MAPPO achieves the highest task success rate at \(99.96\%\), followed closely by PPO at \(99.94\%\). The strongest heuristic remains ROUND\_ROBIN at \(90.39\%\), which is still far below both learned policies. These gains are not obtained simply by spending more energy: MAPPO and PPO both use about \(231.3\,\mathrm{Wh}\), which is substantially lower than ROUND\_ROBIN's \(298.26\,\mathrm{Wh}\).
 
-\Tabref{tab:baseline-comparison} lists the main metrics for all 10 algorithms, while \Figref{fig:baseline-comparison} visualizes the same comparison. Several patterns are worth emphasizing. First, MAPPO improves success rate by \(9.58\) percentage points over ROUND\_ROBIN while also reducing average total time by \(1.2750\,\mathrm{s}\) and energy consumption by \(67.00\,\mathrm{W}\). Second, compared with PPO, MAPPO is slightly more reliable and slightly lower in energy, whereas PPO is slightly faster in average total time by \(0.0670\,\mathrm{s}\). Third, CLOUD appears attractive in latency and energy, yet its success rate remains only \(64.64\%\), so it is not a viable scheduling policy when completion reliability matters. Fourth, LOCAL fails mainly because 33,630 tasks cannot be executed under local-only capacity constraints, which highlights the need for coordinated multi-tier offloading.
+\Tabref{tab:baseline-comparison} lists the main metrics for all 10 algorithms, while \Figref{fig:baseline-comparison} visualizes the same comparison. Several patterns are worth emphasizing. First, MAPPO improves success rate by \(9.58\) percentage points over ROUND\_ROBIN while also reducing average total time by \(1.2750\,\mathrm{s}\) and energy consumption by \(67.00\,\mathrm{Wh}\). Second, compared with PPO, MAPPO is slightly more reliable and slightly lower in energy, whereas PPO is slightly faster in average total time by \(0.0670\,\mathrm{s}\). Third, CLOUD appears attractive in latency and energy, yet its success rate remains only \(64.64\%\), so it is not a viable scheduling policy when completion reliability matters. Fourth, LOCAL fails mainly because 33,630 tasks cannot be executed under local-only capacity constraints, which highlights the need for coordinated multi-tier offloading.
 
 \begin{table}[htbp]
     \centering
@@ -429,7 +429,7 @@ The offline all-algorithm comparison shows that the reinforcement-learning polic
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{l|cccccc}
         \hline
-        \textbf{Algorithm} & \textbf{Success (\%)} & \textbf{Avg.\ Total Time (s)} & \textbf{Energy (W)} & \textbf{Delay Failures} & \textbf{Avg.\ CPU (\%)} & \textbf{Avg.\ BW (Mbps)} \\
+        \textbf{Algorithm} & \textbf{Success (\%)} & \textbf{Avg.\ Total Time (s)} & \textbf{Energy (Wh)} & \textbf{Delay Failures} & \textbf{Avg.\ CPU (\%)} & \textbf{Avg.\ BW (Mbps)} \\
         \hline
         RANDOM            & 41.05 & 4.5641 & 149.39 & 39\,630 &  6.56 & 50.79 \\
         LOCAL             & 45.36 & 7.3408 & 256.77 &  3\,133 & 41.03 & --    \\
@@ -602,7 +602,7 @@ PPO deserves one final note as the strongest learning-based baseline in this stu
     \setlength{\tabcolsep}{4pt}
     \begin{tabular}{l|ccccc}
         \hline
-        \textbf{Model} & \textbf{Mean Success (\%)} & \textbf{Std.} & \textbf{Mean Time (s)} & \textbf{Mean Energy (W)} & \textbf{Train Time (s/ep)} \\
+        \textbf{Model} & \textbf{Mean Success (\%)} & \textbf{Std.} & \textbf{Mean Time (s)} & \textbf{Mean Energy (Wh)} & \textbf{Train Time (s/ep)} \\
         \hline
         MAPPO & 99.9237 & 0.0238 & 4.5284 & 227.6360 & 227.74 \\
         PPO & 99.9436 & 0.0137 & 4.4665 & 227.5745 & 223.48 \\

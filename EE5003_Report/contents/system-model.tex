@@ -135,12 +135,12 @@ E_{\mathrm{rx}} = E_{\mathrm{elec}} \cdot B.
 Both \(E_{\mathrm{tx}}\) and \(E_{\mathrm{rx}}\) are converted from joules to watt-hours and accumulated into the respective device's wireless energy counter. Each task-level transfer triggers energy updates on both the sender and the receiver at every communication phase.
 
 \paragraph{CPU computation energy.}
-Each device consumes CPU energy according to a linear utilization model. Let \(P_{\mathrm{idle}}\) and \(P_{\mathrm{max}}\) denote the idle and maximum active power consumption of the device (in Wh per hour), respectively. When a task begins execution, the energy model updates the host device's CPU energy by
+Each device consumes CPU energy according to a linear utilization model. Let \(P_{\mathrm{idle}}\) and \(P_{\mathrm{max}}\) denote the idle and maximum active power consumption of the device, measured in watts, respectively. When a task begins execution, the energy model updates the host device's CPU energy by
 \begin{align}
 \Delta E_{\mathrm{cpu}} = \frac{P_{\mathrm{idle}} + (P_{\mathrm{max}} - P_{\mathrm{idle}}) \cdot u}{3600} \cdot \Delta t,
 \label{eq:energy-cpu}
 \end{align}
-where \(u = L / M_{\mathrm{total}}\) is the instantaneous CPU utilization contributed by the task (\(L\) is the task length in MI, \(M_{\mathrm{total}}\) is the total MIPS of the data center), and \(\Delta t\) is the update interval in seconds. The total device energy is the sum of the wireless and CPU components:
+where \(u = L / M_{\mathrm{total}}\) is the instantaneous CPU utilization contributed by the task (\(L\) is the task length in MI, \(M_{\mathrm{total}}\) is the total MIPS of the data center), and \(\Delta t\) is the update interval in seconds. The factor \(1/3600\) converts watt-seconds into watt-hours over the simulation update interval. The total device energy is the sum of the wireless and CPU components:
 \begin{align}
 E_{\mathrm{total}} = E_{\mathrm{cpu}} + E_{\mathrm{wireless}}.
 \label{eq:energy-total}

@@ -452,7 +452,7 @@ def generate_comparison(results: List[AblationResult], output_dir: Path) -> None
     metric_keys = [
         ("tasks_success_rate", "Task Success Rate (%)"),
         ("average_total_time_s", "Avg Total Time (s)"),
-        ("energy_consumption_w", "Energy Consumption (W)"),
+        ("energy_consumption_w", "Energy Consumption (Wh)"),
         ("tasks_failed_delay", "Tasks Failed (delay)"),
         ("tasks_failed_network", "Tasks Failed (network)"),
     ]

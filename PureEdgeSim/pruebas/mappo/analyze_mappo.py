@@ -25,6 +25,8 @@ SUMMARY_KEYS = {
     "average_execution_delay_s": ("Average execution delay (s)",),
     "average_total_time_s": ("Average total time (s)",),
     "average_real_total_time_s": ("Average real total time (s)",),
+    # Historical CSV headers still say "(W)", but the stored values are
+    # cumulative energy totals used throughout the paper.
     "energy_consumption_w": ("Energy consumption (W)",),
     "cloud_energy_consumption_w": ("Cloud energy consumption (W)",),
     "edge_energy_consumption_w": ("Edge energy consumption (W)",),
@@ -397,7 +399,8 @@ def _plot_energy_summary(summary_metrics: Dict[str, float], output_path: Path) -
     ]
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.bar(labels, values, color="#9467bd")
-    ax.set_title("Energy Consumption (W)")
+    ax.set_title("Energy Consumption (Wh)")
+    ax.set_ylabel("Energy (Wh)")
     ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=200)
