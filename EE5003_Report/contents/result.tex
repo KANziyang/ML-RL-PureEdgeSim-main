@@ -214,7 +214,7 @@ The evidence suggests that the 320-device deterioration is driven primarily by i
 
 The evidence for infrastructure saturation is visible in the learned policy's behavioral adaptation. \Tabref{tab:ablation-devices-destination} shows how the destination distribution shifts as device count increases. At 80 devices, MAPPO sends roughly \(60\%\) of tasks to the cloud, leveraging its stable bandwidth and ample compute. As device count grows, the cloud fraction steadily decreases: from \(60\%\) at 80 devices to \(52\%\) at 160, \(31\%\) at 240, and only \(12\%\) at 320. Simultaneously, the local execution fraction rises from \(20\%\) to \(51\%\). This shift demonstrates that the policy is actively adapting to cloud congestion by redirecting traffic locally. At 320 devices, however, even with half of all tasks executed locally, the remaining offloaded workload still overwhelms the edge and cloud tiers, resulting in massive queuing delays. The \texttt{average\_real\_total\_time\_s} metric---which includes queuing time---reaches \(26\text{--}36\,\mathrm{s}\) at 320 devices, compared with \(3.2\,\mathrm{s}\) at 80 devices, confirming severe resource contention.
 
-\begin{table}[htbp]
+\begin{table}[h]
     \centering
     \small
     \begin{tabular}{c|ccc}
@@ -233,7 +233,7 @@ The evidence for infrastructure saturation is visible in the learned policy's be
 
 \Figref{fig:ablation-devices-energy-reward} shows the energy consumption and evaluation reward across device counts. Energy scales roughly linearly from 80 to 320 devices, reflecting the proportional increase in mist-layer power draw. The evaluation reward, however, turns sharply negative at 320 devices, confirming that the policy cannot generate net positive value when infrastructure capacity is exhausted.
 
-\begin{figure}[htbp]
+\begin{figure}[h]
     \centering
     \subfigure[Energy consumption across device counts.]{
         \includegraphics[width=0.47\textwidth]{figures/ablation_devices_energy.png}
@@ -248,14 +248,7 @@ The evidence for infrastructure saturation is visible in the learned policy's be
     \label{fig:ablation-devices-energy-reward}
 \end{figure}
 
-\Figref{fig:ablation-devices-failed-delay} further illustrates the saturation effect. The number of delay-induced failures remains negligible from 80 to 240 devices but explodes at 320 devices, forming a clear inflection point that marks the infrastructure capacity boundary.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.60\textwidth]{figures/ablation_devices_failed_delay.png}
-    \caption{Delay-induced task failures across device counts. The sharp jump at 320 devices indicates infrastructure saturation rather than policy degradation.}
-    \label{fig:ablation-devices-failed-delay}
-\end{figure}
+The delay-failure statistics further illustrate the saturation effect. The number of delay-induced failures remains negligible from 80 to 240 devices but explodes at 320 devices, forming a clear inflection point that marks the infrastructure capacity boundary.
 
 \paragraph{Summary.}
 The device-count study therefore suggests that MAPPO remains effective within the capacity envelope of the underlying infrastructure. From 80 to 240 devices, the policy maintains near-perfect task success rates while adaptively shifting its destination distribution to balance load across tiers. At 320 devices, the fixed infrastructure of four edge data centers and one cloud node can no longer absorb the workload within deadline constraints. Scaling beyond this range likely requires additional compute or network capacity rather than only further tuning of the learning algorithm.
