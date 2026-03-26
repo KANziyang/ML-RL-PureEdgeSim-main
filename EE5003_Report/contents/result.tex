@@ -14,14 +14,14 @@ Under this setting, MAPPO converges to a high-quality joint policy. The task suc
 
 The full training trajectory is shown in \Figref{fig:mappo-training-progress}. Beyond the high final success rate, the more important observation is the stable late-stage plateau. Over the last 10 episodes, the mean success rate is \(99.80\%\) with a standard deviation of \(0.131\). The training log records an average simulator wall time of \(227.74\,\mathrm{s}\) per episode, or \(9109.46\,\mathrm{s}\) in total for 40 episodes, which corresponds to approximately 2.53 hours end to end.
 
-\begin{figure}[htbp]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=0.95\textwidth]{figures/mappo_training_progress_40ep.png}
     \caption{MAPPO training progress under the standard multi-agent setting.}
     \label{fig:mappo-training-progress}
 \end{figure}
 
-\begin{table}[htbp]
+\begin{table}[htb]
     \centering
     \small
     \begin{tabular}{c|cccc}
@@ -41,34 +41,27 @@ The full training trajectory is shown in \Figref{fig:mappo-training-progress}. B
 \end{table}
 
 \paragraph{Evaluation behavior across seeds.}
-The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. The corresponding success rates are \(99.8901\%\), \(99.9390\%\), and \(99.9421\%\), respectively. The three-seed mean success rate is \(99.9237\%\) with a standard deviation of \(0.0238\). The mean average total time is \(4.5284\,\mathrm{s}\), the mean energy consumption is \(227.6360\,\mathrm{W}\), and the fallback rate is zero on every seed. These metrics indicate strong cross-seed robustness within the tested setting.
+The final MAPPO checkpoint was evaluated on three seeds: 9001, 9002, and 9003. The corresponding success rates are \(99.8901\%\), \(99.9390\%\), and \(99.9421\%\), respectively. The three-seed mean success rate is \(99.9237\%\) with a standard deviation of \(0.0238\). The mean average total time is \(4.5284\,\mathrm{s}\), and the mean energy consumption is \(227.6360\,\mathrm{W}\). These metrics indicate strong cross-seed robustness within the tested setting.
 
 \begin{table}[htbp]
     \centering
     \small
-    \begin{tabular}{c|cccc}
+    \begin{tabular}{c|ccc}
         \hline
-        \textbf{Seed} & Success (\%) & Avg. Total Time (s) & Energy (W) & Fallback Rate (\%) \\
+        \textbf{Seed} & Success (\%) & Avg. Total Time (s) & Energy (Wh) \\
         \hline
-        9001 & 99.8901 & 4.6031 & 233.0438 & 0.00 \\
-        9002 & 99.9390 & 4.4367 & 220.7694 & 0.00 \\
-        9003 & 99.9421 & 4.5454 & 229.0948 & 0.00 \\
+        9001 & 99.8901 & 4.6031 & 233.0438 \\
+        9002 & 99.9390 & 4.4367 & 220.7694 \\
+        9003 & 99.9421 & 4.5454 & 229.0948 \\
         \hline
-        Mean & 99.9237 & 4.5284 & 227.6360 & 0.00 \\
+        Mean & 99.9237 & 4.5284 & 227.6360 \\
         \hline
     \end{tabular}
     \caption{MAPPO evaluation results across three test seeds.}
     \label{tab:mappo-eval-seeds}
 \end{table}
 
-\Figref{fig:mappo-seed-comparison} makes this robustness explicit. All three runs remain tightly clustered in success rate, average total time, and energy consumption. No seed exhibits a large deviation from the others on the aggregate metrics reported here, suggesting that the learned policy generalizes consistently across the three evaluation seeds.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.88\textwidth]{figures/mappo_seed_comparison.png}
-    \caption{Seed-wise evaluation of the MAPPO checkpoint across three test seeds.}
-    \label{fig:mappo-seed-comparison}
-\end{figure}
+These seed-wise results make the robustness clear. All three runs remain tightly clustered in success rate, average total time, and energy consumption. No seed exhibits a large deviation from the others on the aggregate metrics reported here, suggesting that the learned policy generalizes consistently across the three evaluation seeds.
 
 \paragraph{Behavioral analysis.}
 Trajectory-level action statistics show that MAPPO learns a meaningful joint scheduling pattern. On seed 9001, MAPPO sends \(51.73\%\) of decisions to the cloud, \(19.81\%\) to local execution, and the remaining \(28.46\%\) to the four edge data centers. The PRB policy remains concentrated on the \(20\%\), \(80\%\), and \(100\%\) bins, with the \(20\%\) bin dominant at \(72.76\%\). This distribution indicates that the learned policy is coordinating compute-tier selection and wireless reservation rather than overusing a single destination or PRB level.
