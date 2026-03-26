@@ -14,7 +14,7 @@ Under this setting, MAPPO converges to a high-quality joint policy. The task suc
 
 The full training trajectory is shown in \Figref{fig:mappo-training-progress}. Beyond the high final success rate, the more important observation is the stable late-stage plateau. Over the last 10 episodes, the mean success rate is \(99.80\%\) with a standard deviation of \(0.131\). The training log records an average simulator wall time of \(227.74\,\mathrm{s}\) per episode, or \(9109.46\,\mathrm{s}\) in total for 40 episodes, which corresponds to approximately 2.53 hours end to end.
 
-\begin{figure}[htbp]
+\begin{figure}[h]
     \centering
     \includegraphics[width=0.95\textwidth]{figures/mappo_training_progress_40ep.png}
     \caption{MAPPO training progress under the standard multi-agent setting.}
