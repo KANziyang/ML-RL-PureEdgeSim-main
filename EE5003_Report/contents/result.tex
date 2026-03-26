@@ -256,28 +256,30 @@ The device-count study therefore suggests that MAPPO remains effective within th
 \subsection{Ablation Study of MAPPO}
 \label{subsec:mappo-ablation}
 
-Two controlled ablations were conducted under the same 40-episode, 30-minute, 160-device setting as the full MAPPO run. \textbf{NoEmbedding} removes the 16-dimensional agent embedding while keeping the same dual-head actor and centralized critic. \textbf{FixedPRB} keeps the offloading policy but forces every non-local transfer to use the same \(80\%\) PRB request, thereby disabling adaptive radio allocation. These two variants isolate two different questions: whether explicit agent identity matters, and whether adaptive PRB control matters.
+Two controlled ablations were conducted under the same 40-episode, 30-minute, 160-device setting as the full MAPPO run. \textbf{NoEmbedding} removes the 16-dimensional agent embedding while keeping the same dual-head actor and centralized critic. \textbf{FixedPRB} keeps the destination policy trainable but disables adaptive radio allocation by clamping every non-local action to the fourth PRB bin (index 3), which under the default \(B_{\max}=50\) corresponds to a fixed reservation of \(10\) blocks, or \(20\%\) of the per-task PRB cap; local execution still forces PRB \(=0\). These two variants isolate two different questions: whether explicit agent identity matters, and whether adaptive PRB control matters.
 
 \begin{table}[htbp]
     \centering
-    \small
-    \begin{tabular}{l|ccccc}
+    \footnotesize
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}Xrrrrr@{}}
         \hline
-        \textbf{Variant} & Mean Success (\%) & Std. Success & Mean Total Time (s) & Mean Energy (W) & Mean Delay Failures \\
+        \textbf{Variant} & \textbf{Design Change} & \textbf{Success (\%)} & \textbf{Std.} & \textbf{Total Time (s)} & \textbf{Energy (W)} & \textbf{Delay Failures} \\
         \hline
-        MAPPO & 99.9237 & 0.0238 & 4.5284 & 227.6360 & 48.00 \\
-        NoEmbedding & 99.8148 & 0.0245 & 4.4991 & 227.7301 & 123.00 \\
-        FixedPRB & 92.3822 & 1.0314 & 4.7047 & 309.2645 & 5127.67 \\
+        MAPPO & Full model with adaptive destination and PRB heads. & 99.9237 & 0.0238 & 4.5284 & 227.6360 & 48.00 \\
+        NoEmbedding & Remove the 16-D agent embedding; keep the destination head, PRB head, and centralized critic unchanged. & 99.8148 & 0.0245 & 4.4991 & 227.7301 & 123.00 \\
+        FixedPRB & Keep destination learning but fix every offloaded action to PRB bin 3 (\(10\) blocks \(=20\%\) of \(B_{\max}\)). & 92.3822 & 1.0314 & 4.7047 & 309.2645 & 5127.67 \\
         \hline
-    \end{tabular}
-    \caption{Three-seed evaluation summary of the MAPPO ablations.}
+    \end{tabularx}
+    \caption{Three-seed evaluation summary of the MAPPO ablations under the standard 160-device setting.}
     \label{tab:mappo-ablation-summary}
 \end{table}
 
 \paragraph{NoEmbedding: controlled but measurable degradation.}
 The NoEmbedding model still converges to a strong scheduler, but it exhibits a consistent reliability penalty relative to the full MAPPO policy. During training, success rises from \(57.44\%\) in episode 1 to \(99.69\%\) in episode 40, which is only slightly below the full model's \(99.91\%\). The difference appears mainly in the tail of the failure distribution rather than in coarse routing behavior: the three-seed mean success drops from \(99.9237\%\) to \(99.8148\%\), while mean delay failures increase from \(48\) to \(123\). The mean total time is slightly lower at \(4.4991\,\mathrm{s}\), but this marginal latency gain does not compensate for worse deadline compliance. The mean simulator wall time also drops from \(227.74\,\mathrm{s}\) per episode to \(202.86\,\mathrm{s}\), so the ablation is cheaper to train, but it is not preferable when deadline compliance is the primary objective.
 
-The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} and \Figref{fig:noembedding-actions} show why the degradation is limited rather than severe. The run-summary chart is still dominated by the success bar, and the reward EMA remains high and positive across most of the episode. However, the negative reward spikes are more frequent and the EMA dips more noticeably than in the full MAPPO case, indicating less stable local decision quality. The destination-distribution chart remains almost unchanged, with \(51.78\%\) of tasks still sent to the cloud and \(19.83\%\) kept local. The main behavioral shift appears in the PRB chart: compared with the full MAPPO policy, NoEmbedding moves probability mass from the \(80\%\) bin to the \(100\%\) bin, with the latter rising to \(16.94\%\). This suggests that once agent identity is removed, the shared policy compensates by using slightly more aggressive uplink reservation on difficult decisions.
+The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} and \Figref{fig:noembedding-actions} show why the degradation is limited rather than severe. The run-summary chart is still dominated by the success bar, and the reward EMA remains high and positive across most of the episode. However, the negative reward spikes are more frequent and the EMA dips more noticeably than in the full MAPPO case, indicating less stable local decision quality. The destination-distribution chart remains almost unchanged, with \(51.78\%\) of tasks still sent to the cloud and \(19.83\%\) kept local. The main behavioral shift appears in the PRB chart: the policy still places most offloaded tasks in the \(1\)-block bin, but compared with the full MAPPO policy it shifts some of the remaining mass from \(10\) blocks to \(20\) blocks, with the \(20\)-block bin rising to \(16.94\%\). This suggests that once agent identity is removed, the shared policy compensates by using slightly more aggressive uplink reservation on difficult decisions.
 
 \begin{figure}[htbp]
     \centering
@@ -312,7 +314,7 @@ The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} a
 \paragraph{FixedPRB: structural failure of the joint scheduler.}
 The FixedPRB ablation changes the outcome qualitatively. Training improves only from \(55.90\%\) to \(91.52\%\) success across the 40 episodes and plateaus there rather than entering the near-perfect regime. In evaluation, mean success collapses to \(92.3822\%\), mean energy jumps to \(309.2645\,\mathrm{W}\), and mean delay failures rise to \(5127.67\). Unlike NoEmbedding, this is not a small regularization effect; it is a direct loss of scheduling capability. The simulator also becomes much faster to run at \(145.41\,\mathrm{s}\) per episode on average, but this speedup is associated with a simpler yet substantially poorer operating regime.
 
-The representative seed-9001 charts in \Figref{fig:fixedprb-summary-reward} and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using the \(80\%\) bin by construction. This removes the policy's ability to match radio reservation to task urgency and destination quality. The result is a system that underuses edge resources, overconsumes mist energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
+The representative seed-9001 charts in \Figref{fig:fixedprb-summary-reward} and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using \(10\) blocks by construction. Read against the full MAPPO seed-9001 distribution, this is a strong restriction: the learned policy normally uses \(1\) block for most offloads and expands to \(10\) or \(20\) blocks only when needed. Fixing every offloaded task at \(10\) blocks therefore creates a systematic mismatch, being too conservative for hard transfers and too wasteful for easy ones. The result is a system that underuses edge resources, overconsumes mist energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
 
 \begin{figure}[htbp]
     \centering
@@ -371,7 +373,7 @@ The additional diagnostics in \Figref{fig:ablation-avail-energy} sharpen the con
     \label{fig:ablation-avail-energy}
 \end{figure}
 
-The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make the contrast between adaptive and fixed PRB allocation visually immediate. The full MAPPO policy maintains a moderate, fluctuating PRB reservation that adapts to instantaneous contention, while the FixedPRB variant shows a rigid, uniformly high allocation pattern that saturates the wireless pool during congestion peaks. The task failure timeline in \Figref{fig:ablation-fail-dynamics} reinforces this: MAPPO's failure curve stays flat near zero, whereas FixedPRB accumulates failures steadily throughout the episode, with visible acceleration during high-traffic windows. These runtime traces confirm that the aggregate metrics in \Tabref{tab:mappo-ablation-summary} are not artifacts of a few bad episodes but reflect a systematic inability of the fixed-radio policy to manage wireless contention.
+The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make the contrast between adaptive and fixed PRB allocation visually immediate. The full MAPPO policy changes total reserved PRBs through both the number of concurrent uploads and the per-task reservation chosen for each upload. By contrast, the FixedPRB variant can react only through the number of offloaded tasks, because every offloaded transfer always reserves \(10\) blocks. Its block-allocation trace therefore still fluctuates with traffic intensity, but it lacks the per-task radio adaptation that the full model uses to absorb heterogeneous demand. The task failure timeline in \Figref{fig:ablation-fail-dynamics} reinforces this: MAPPO's failure curve stays flat near zero, whereas FixedPRB accumulates failures steadily throughout the episode, with visible acceleration during high-traffic windows. These runtime traces confirm that the aggregate metrics in \Tabref{tab:mappo-ablation-summary} are not artifacts of a few bad episodes but reflect a systematic inability of the fixed-radio policy to manage coupled compute-radio contention.
 
 \begin{figure}[htbp]
     \centering
@@ -384,7 +386,7 @@ The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make t
         \includegraphics[width=0.47\textwidth]{figures/fixedprb_prb_blocks.png}
         \label{fig:fixedprb-ablation-prb}
     }
-    \caption{Comparison of PRB block allocation dynamics between the full MAPPO policy (adaptive) and the FixedPRB ablation (fixed at 80\%) on seed 9001.}
+    \caption{Comparison of PRB block allocation dynamics between the full MAPPO policy (adaptive) and the FixedPRB ablation (each offloaded task fixed at \(10\) blocks, i.e., \(20\%\) of \(B_{\max}\)) on seed 9001.}
     \label{fig:ablation-prb-dynamics}
 \end{figure}
 
