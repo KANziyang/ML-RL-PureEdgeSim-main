@@ -93,7 +93,7 @@ The destination and PRB breakdowns in \Figref{fig:mappo-standard-actions} show t
 \paragraph{Reward and energy analysis.}
 The remaining seed-level charts explain why the converged MAPPO policy remains stable. On the representative seed 9001, the runtime average reward in \Figref{fig:mappo-standard-reward} rises quickly after initialization and then stays tightly clustered around \(4.4\text{--}4.5\), while the exponential moving average remains nearly flat for the rest of the episode. The limited downward fluctuations do not accumulate over time, indicating that unsuccessful decisions are rare and do not destabilize the learned policy over the 30-minute horizon.
 
-The energy summary reported in \Tabref{tab:mappo-seed9001-energy} clarifies where the cost is incurred. For seed 9001, total energy consumption is \(233.0438\,\mathrm{Wh}\), of which \(223.4854\,\mathrm{Wh}\) comes from mist/local execution, \(8.9694\,\mathrm{Wh}\) from edge servers, and only \(0.5890\,\mathrm{Wh}\) from the cloud. The energy metric is therefore still dominated by the battery-powered device layer even though more than half of the tasks are offloaded to the cloud. In practical terms, cloud offloading mainly relieves deadline pressure, whereas overall energy efficiency is still governed by how many tasks remain on local devices and how aggressively uplink PRBs are reserved.
+The energy summary reported in \Tabref{tab:mappo-seed9001-energy} clarifies where the cost is incurred. For seed 9001, total energy consumption is \(233.0438\,\mathrm{Wh}\), of which \(223.4854\,\mathrm{Wh}\) comes from local execution, \(8.9694\,\mathrm{Wh}\) from edge servers, and only \(0.5890\,\mathrm{Wh}\) from the cloud. The energy metric is therefore still dominated by the battery-powered device layer even though more than half of the tasks are offloaded to the cloud. In practical terms, cloud offloading mainly relieves deadline pressure, whereas overall energy efficiency is still governed by how many tasks remain on local devices and how aggressively uplink PRBs are reserved.
 
 \begin{figure}[htbp]
     \centering
@@ -112,14 +112,14 @@ The energy summary reported in \Tabref{tab:mappo-seed9001-energy} clarifies wher
         Total & \(233.0438\) & \(1.4124\,\mathrm{Wh}\) per data center or device; \(0.0035\,\mathrm{Wh}\) per task \\
         Cloud & \(0.5890\) & \(0.5890\,\mathrm{Wh}\) per data center \\
         Edge & \(8.9694\) & \(2.2424\,\mathrm{Wh}\) per data center \\
-        Mist & \(223.4854\) & \(1.3968\,\mathrm{Wh}\) per edge device \\
+        Local & \(223.4854\) & \(1.3968\,\mathrm{Wh}\) per local device \\
     \end{tabularx}
     \caption{Energy summary for the representative evaluation seed 9001.}
     \label{tab:mappo-seed9001-energy}
 \end{table}
 
 \paragraph{Runtime resource dynamics.}
-The simulator-side runtime charts provide a complementary view of how the learned policy interacts with the physical resource layer over the full 30-minute horizon. \Figref{fig:mappo-runtime-dynamics} shows the PRB block allocation timeline and the CPU utilization breakdown for the representative seed 9001. The PRB chart reveals that the policy maintains a moderate and stable wireless reservation throughout the episode, with occasional short bursts when multiple offloading decisions coincide. This is consistent with the dominance of the smallest PRB reservation in the action statistics: most offloaded tasks request \(1\)blk, and only a smaller fraction escalate to \(10\)blk or \(20\)blk when more uplink capacity is needed. The CPU utilization chart shows that cloud and edge servers are consistently loaded at moderate levels, while mist-layer utilization remains low, confirming that the policy successfully distributes compute pressure across tiers rather than overloading any single layer.
+The simulator-side runtime charts provide a complementary view of how the learned policy interacts with the physical resource layer over the full 30-minute horizon. \Figref{fig:mappo-runtime-dynamics} shows the PRB block allocation timeline and the CPU utilization breakdown for the representative seed 9001. The PRB chart reveals that the policy maintains a moderate and stable wireless reservation throughout the episode, with occasional short bursts when multiple offloading decisions coincide. This is consistent with the dominance of the smallest PRB reservation in the action statistics: most offloaded tasks request \(1\)blk, and only a smaller fraction escalate to \(10\)blk or \(20\)blk when more uplink capacity is needed. The CPU utilization chart shows that cloud and edge servers are consistently loaded at moderate levels, while local-layer utilization remains low, confirming that the policy successfully distributes compute pressure across tiers rather than overloading any single layer.
 
 \begin{figure}[htbp]
     \centering
@@ -190,7 +190,7 @@ To evaluate the scalability of the proposed MAPPO framework, a device-count abla
     \label{tab:ablation-devices-eval}
 \end{table}
 
-From 80 to 240 devices, the per-agent reward remains consistently positive and the success rate stays above \(99.4\%\), indicating that MAPPO effectively coordinates an increasing number of agents without degrading individual decision quality. The total reward scales roughly in proportion to the number of decisions, confirming that each additional agent contributes positively. Average total time increases moderately from \(3.45\,\mathrm{s}\) to \(5.80\,\mathrm{s}\), which is expected as more agents compete for shared edge and cloud resources. Energy consumption also scales proportionally with device count, reflecting the additional mist-layer energy usage from more active devices.
+From 80 to 240 devices, the per-agent reward remains consistently positive and the success rate stays above \(99.4\%\), indicating that MAPPO effectively coordinates an increasing number of agents without degrading individual decision quality. The total reward scales roughly in proportion to the number of decisions, confirming that each additional agent contributes positively. Average total time increases moderately from \(3.45\,\mathrm{s}\) to \(5.80\,\mathrm{s}\), which is expected as more agents compete for shared edge and cloud resources. Energy consumption also scales proportionally with device count, reflecting the additional local-layer energy usage from more active devices.
 
 \Figref{fig:ablation-devices-success-time} visualizes the task success rate and average total time across device counts. The success rate remains flat near \(100\%\) for the first three configurations before dropping sharply at 320 devices, while the average total time increases gradually and then jumps at 320 devices.
 
@@ -231,7 +231,7 @@ The evidence for infrastructure saturation is visible in the learned policy's be
     \label{tab:ablation-devices-destination}
 \end{table}
 
-\Figref{fig:ablation-devices-energy-reward} shows the energy consumption and evaluation reward across device counts. Energy scales roughly linearly from 80 to 320 devices, reflecting the proportional increase in mist-layer energy usage. The evaluation reward, however, turns sharply negative at 320 devices, confirming that the policy cannot generate net positive value when infrastructure capacity is exhausted.
+\Figref{fig:ablation-devices-energy-reward} shows the energy consumption and evaluation reward across device counts. Energy scales roughly linearly from 80 to 320 devices, reflecting the proportional increase in local-layer energy usage. The evaluation reward, however, turns sharply negative at 320 devices, confirming that the policy cannot generate net positive value when infrastructure capacity is exhausted.
 
 \begin{figure}[h]
     \centering
@@ -313,7 +313,7 @@ The representative seed-9001 charts in \Figref{fig:noembedding-run-summary}, \Fi
 \paragraph{FixedPRB: structural failure of the joint scheduler.}
 The FixedPRB ablation changes the outcome qualitatively. Training improves only from \(55.90\%\) to \(91.52\%\) success across the 40 episodes and plateaus there rather than entering the near-perfect regime. In evaluation, mean success collapses to \(92.3822\%\), mean energy jumps to \(309.2645\,\mathrm{Wh}\), and mean delay failures rise to \(5127.67\). Unlike NoEmbedding, this is not a small regularization effect; it is a direct loss of scheduling capability. The simulator also becomes much faster to run at \(145.41\,\mathrm{s}\) per episode on average, but this speedup is associated with a simpler yet substantially poorer operating regime.
 
-The representative seed-9001 charts in \Figref{fig:fixedprb-run-summary}, \Figref{fig:fixedprb-reward}, and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using \(10\) blocks by construction. Read against the full MAPPO seed-9001 distribution, this is a strong restriction: the learned policy normally uses \(1\) block for most offloads and expands to \(10\) or \(20\) blocks only when needed. Fixing every offloaded task at \(10\) blocks therefore creates a systematic mismatch, being too conservative for hard transfers and too wasteful for easy ones. The result is a system that underuses edge resources, overconsumes mist energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
+The representative seed-9001 charts in \Figref{fig:fixedprb-run-summary}, \Figref{fig:fixedprb-reward}, and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using \(10\) blocks by construction. Read against the full MAPPO seed-9001 distribution, this is a strong restriction: the learned policy normally uses \(1\) block for most offloads and expands to \(10\) or \(20\) blocks only when needed. Fixing every offloaded task at \(10\) blocks therefore creates a systematic mismatch, being too conservative for hard transfers and too wasteful for easy ones. The result is a system that underuses edge resources, overconsumes local energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
 
 \begin{figure}[htbp]
     \centering
@@ -361,7 +361,7 @@ The additional NoEmbedding diagnostics in \Figref{fig:noembedding-diagnostics} s
     \label{fig:noembedding-diagnostics}
 \end{figure}
 
-The additional FixedPRB diagnostics in \Figref{fig:fixedprb-diagnostics} show a different mechanism. The selection histogram shifts further toward local execution while cloud choice remains high, and the total energy rises almost entirely because mist-device energy grows sharply. This confirms that the fixed-radio ablation does not merely reduce flexibility in the network layer; it changes the global compute-radio balance of the whole system.
+The additional FixedPRB diagnostics in \Figref{fig:fixedprb-diagnostics} show a different mechanism. The selection histogram shifts further toward local execution while cloud choice remains high, and the total energy rises almost entirely because local-device energy grows sharply. This confirms that the fixed-radio ablation does not merely reduce flexibility in the network layer; it changes the global compute-radio balance of the whole system.
 
 \begin{figure}[htbp]
     \centering
@@ -506,7 +506,7 @@ From a systems perspective, the main benefit of reinforcement learning is coordi
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{l|rrr|rr}
         \hline
-        \textbf{Algorithm} & \textbf{Cloud Tasks} & \textbf{Edge Tasks} & \textbf{Mist Tasks} & \textbf{Cloud Success} & \textbf{Edge Success} \\
+        \textbf{Algorithm} & \textbf{Cloud Tasks} & \textbf{Edge Tasks} & \textbf{Local Tasks} & \textbf{Cloud Success} & \textbf{Edge Success} \\
         \hline
         RANDOM            & 20\,451 & 46\,193 &    639 & 17\,850 &  9\,134 \\
         LOCAL             &       0 &       0 & 33\,653 &      -- &      -- \\
@@ -527,7 +527,7 @@ From a systems perspective, the main benefit of reinforcement learning is coordi
 \end{table}
 
 \paragraph{CPU utilization and delay patterns.}
-The CPU utilization and delay charts in \Figref{fig:compare-cpu} and \Figref{fig:compare-delays} reveal the operational mechanisms behind the aggregate metrics. MAPPO and PPO maintain moderate, stable CPU utilization across all tiers, with cloud servers loaded at around \(93\%\) and edge servers at around \(60\%\), while mist devices stay below \(20\%\). This balanced loading pattern avoids both idle waste and congestion-induced queuing. ROUND\_ROBIN, by contrast, pushes overall CPU utilization to \(43.97\%\) with edge servers near saturation, which creates queuing delays that cascade into deadline misses. The TRADE\_OFF heuristic shows a similar but less severe pattern, with cloud servers at \(65\%\) and edge at \(95\%\).
+The CPU utilization and delay charts in \Figref{fig:compare-cpu} and \Figref{fig:compare-delays} reveal the operational mechanisms behind the aggregate metrics. MAPPO and PPO maintain moderate, stable CPU utilization across all tiers, with cloud servers loaded at around \(93\%\) and edge servers at around \(60\%\), while local devices stay below \(20\%\). This balanced loading pattern avoids both idle waste and congestion-induced queuing. ROUND\_ROBIN, by contrast, pushes overall CPU utilization to \(43.97\%\) with edge servers near saturation, which creates queuing delays that cascade into deadline misses. The TRADE\_OFF heuristic shows a similar but less severe pattern, with cloud servers at \(65\%\) and edge at \(95\%\).
 
 \begin{figure}[htbp]
     \centering
