@@ -14,7 +14,7 @@ Under this setting, MAPPO converges to a high-quality joint policy. The task suc
 
 The full training trajectory is shown in \Figref{fig:mappo-training-progress}. Beyond the high final success rate, the more important observation is the stable late-stage plateau. Over the last 10 episodes, the mean success rate is \(99.80\%\) with a standard deviation of \(0.131\). The training log records an average simulator wall time of \(227.74\,\mathrm{s}\) per episode, or \(9109.46\,\mathrm{s}\) in total for 40 episodes, which corresponds to approximately 2.53 hours end to end.
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.95\textwidth]{figures/mappo_training_progress_40ep.png}
     \caption{MAPPO training progress under the standard multi-agent setting.}
@@ -279,21 +279,20 @@ Two controlled ablations were conducted under the same 40-episode, 30-minute, 16
 \paragraph{NoEmbedding: controlled but measurable degradation.}
 The NoEmbedding model still converges to a strong scheduler, but it exhibits a consistent reliability penalty relative to the full MAPPO policy. During training, success rises from \(57.44\%\) in episode 1 to \(99.69\%\) in episode 40, which is only slightly below the full model's \(99.91\%\). The difference appears mainly in the tail of the failure distribution rather than in coarse routing behavior: the three-seed mean success drops from \(99.9237\%\) to \(99.8148\%\), while mean delay failures increase from \(48\) to \(123\). The mean total time is slightly lower at \(4.4991\,\mathrm{s}\), but this marginal latency gain does not compensate for worse deadline compliance. The mean simulator wall time also drops from \(227.74\,\mathrm{s}\) per episode to \(202.86\,\mathrm{s}\), so the ablation is cheaper to train, but it is not preferable when deadline compliance is the primary objective.
 
-The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} and \Figref{fig:noembedding-actions} show why the degradation is limited rather than severe. The run-summary chart is still dominated by the success bar, and the reward EMA remains high and positive across most of the episode. However, the negative reward spikes are more frequent and the EMA dips more noticeably than in the full MAPPO case, indicating less stable local decision quality. The destination-distribution chart remains almost unchanged, with \(51.78\%\) of tasks still sent to the cloud and \(19.83\%\) kept local. The main behavioral shift appears in the PRB chart: the policy still places most offloaded tasks in the \(1\)-block bin, but compared with the full MAPPO policy it shifts some of the remaining mass from \(10\) blocks to \(20\) blocks, with the \(20\)-block bin rising to \(16.94\%\). This suggests that once agent identity is removed, the shared policy compensates by using slightly more aggressive uplink reservation on difficult decisions.
+The representative seed-9001 charts in \Figref{fig:noembedding-run-summary}, \Figref{fig:noembedding-reward}, and \Figref{fig:noembedding-actions} show why the degradation is limited rather than severe. The run-summary chart is still dominated by the success bar, and the reward EMA remains high and positive across most of the episode. However, the negative reward spikes are more frequent and the EMA dips more noticeably than in the full MAPPO case, indicating less stable local decision quality. The destination-distribution chart remains almost unchanged, with \(51.78\%\) of tasks still sent to the cloud and \(19.83\%\) kept local. The main behavioral shift appears in the PRB chart: the policy still places most offloaded tasks in the \(1\)-block bin, but compared with the full MAPPO policy it shifts some of the remaining mass from \(10\) blocks to \(20\) blocks, with the \(20\)-block bin rising to \(16.94\%\). This suggests that once agent identity is removed, the shared policy compensates by using slightly more aggressive uplink reservation on difficult decisions.
 
 \begin{figure}[htbp]
     \centering
-    \subfigure[Representative seed-9001 summary dashboard for NoEmbedding.]{
-        \includegraphics[width=0.98\textwidth]{figures/noembedding_run_summary.png}
-        \label{fig:noembedding-run-summary}
-    }
-    \par\medskip
-    \subfigure[Representative seed-9001 reward timeline for NoEmbedding.]{
-        \includegraphics[width=0.91\textwidth]{figures/noembedding_reward_timeline.png}
-        \label{fig:noembedding-reward}
-    }
-    \caption{Seed-level reliability and reward stability for the NoEmbedding ablation.}
-    \label{fig:noembedding-summary-reward}
+    \includegraphics[width=0.96\textwidth]{figures/noembedding_run_summary.png}
+    \caption{Representative seed-9001 summary dashboard for the NoEmbedding ablation.}
+    \label{fig:noembedding-run-summary}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\textwidth]{figures/noembedding_reward_timeline.png}
+    \caption{Representative seed-9001 reward timeline for the NoEmbedding ablation.}
+    \label{fig:noembedding-reward}
 \end{figure}
 
 \begin{figure}[htbp]
@@ -314,21 +313,20 @@ The representative seed-9001 charts in \Figref{fig:noembedding-summary-reward} a
 \paragraph{FixedPRB: structural failure of the joint scheduler.}
 The FixedPRB ablation changes the outcome qualitatively. Training improves only from \(55.90\%\) to \(91.52\%\) success across the 40 episodes and plateaus there rather than entering the near-perfect regime. In evaluation, mean success collapses to \(92.3822\%\), mean energy jumps to \(309.2645\,\mathrm{W}\), and mean delay failures rise to \(5127.67\). Unlike NoEmbedding, this is not a small regularization effect; it is a direct loss of scheduling capability. The simulator also becomes much faster to run at \(145.41\,\mathrm{s}\) per episode on average, but this speedup is associated with a simpler yet substantially poorer operating regime.
 
-The representative seed-9001 charts in \Figref{fig:fixedprb-summary-reward} and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using \(10\) blocks by construction. Read against the full MAPPO seed-9001 distribution, this is a strong restriction: the learned policy normally uses \(1\) block for most offloads and expands to \(10\) or \(20\) blocks only when needed. Fixing every offloaded task at \(10\) blocks therefore creates a systematic mismatch, being too conservative for hard transfers and too wasteful for easy ones. The result is a system that underuses edge resources, overconsumes mist energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
+The representative seed-9001 charts in \Figref{fig:fixedprb-run-summary}, \Figref{fig:fixedprb-reward}, and \Figref{fig:fixedprb-actions} reveal the mechanism. The run-summary chart is dominated by the failed-delay bar, and the reward timeline becomes highly oscillatory with dense negative excursions, showing that bad decisions are frequent throughout the episode rather than confined to a few isolated events. The destination distribution also collapses to a two-way split: \(43.37\%\) local and \(42.29\%\) cloud, with the four edge nodes together receiving only \(14.35\%\) of selections. Most decisively, the PRB distribution degenerates to a single point mass, with \(100\%\) of offloaded tasks using \(10\) blocks by construction. Read against the full MAPPO seed-9001 distribution, this is a strong restriction: the learned policy normally uses \(1\) block for most offloads and expands to \(10\) or \(20\) blocks only when needed. Fixing every offloaded task at \(10\) blocks therefore creates a systematic mismatch, being too conservative for hard transfers and too wasteful for easy ones. The result is a system that underuses edge resources, overconsumes mist energy, and accumulates thousands of deadline misses even though fallback, mobility, and network failures remain at zero.
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
     \centering
-    \subfigure[Representative seed-9001 summary dashboard for FixedPRB.]{
-        \includegraphics[width=0.98\textwidth]{figures/fixedprb_run_summary.png}
-        \label{fig:fixedprb-run-summary}
-    }
-    \par\medskip
-    \subfigure[Representative seed-9001 reward timeline for FixedPRB.]{
-        \includegraphics[width=0.91\textwidth]{figures/fixedprb_reward_timeline.png}
-        \label{fig:fixedprb-reward}
-    }
-    \caption{Seed-level reliability and reward instability for the FixedPRB ablation.}
-    \label{fig:fixedprb-summary-reward}
+    \includegraphics[width=0.96\textwidth]{figures/fixedprb_run_summary.png}
+    \caption{Representative seed-9001 summary dashboard for the FixedPRB ablation.}
+    \label{fig:fixedprb-run-summary}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\textwidth]{figures/fixedprb_reward_timeline.png}
+    \caption{Representative seed-9001 reward timeline for the FixedPRB ablation.}
+    \label{fig:fixedprb-reward}
 \end{figure}
 
 \begin{figure}[htb]
@@ -404,6 +402,8 @@ The runtime-level resource dynamics in \Figref{fig:ablation-prb-dynamics} make t
     \caption{Comparison of task failure accumulation between the full MAPPO policy and the FixedPRB ablation on seed 9001.}
     \label{fig:ablation-fail-dynamics}
 \end{figure}
+
+\FloatBarrier
 
 Taken together, the ablations identify adaptive PRB control as the dominant contributor to overall performance. Removing it severely reduces both reliability and energy efficiency. Agent embeddings provide a smaller but consistent benefit: removing them does not break the scheduler, but it increases residual delay failures and pushes the policy toward more aggressive PRB usage. The MAPPO design therefore derives most of its practical value from joint offloading-and-PRB learning, while explicit agent conditioning refines that shared control and delivers an additional reliability gain.
 
