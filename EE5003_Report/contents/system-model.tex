@@ -2,10 +2,10 @@
 \section{System Model and Problem Formulation}
 \label{sec:system-model}
 
-\subsection{Network Architecture}
+\subsection{Three-Tier System Architecture}
 \label{subsec:system-architecture}
 
-The considered system is a three-tier LOCAL--EDGE--CLOUD computing continuum deployed over a \(200\,\mathrm{m} \times 200\,\mathrm{m}\) area. In PureEdgeSim, all end devices are instantiated as edge devices; task requests originate from these devices and may be executed locally, offloaded to one of several edge data centers, or forwarded to the cloud. \Figref{fig:network-topology} shows the simulation map used to visualize device placement, server locations, and coverage regions in the experimental area.
+The system considered in this report follows a three-tier LOCAL--EDGE--CLOUD architecture deployed over a \(200\,\mathrm{m} \times 200\,\mathrm{m}\) area. In PureEdgeSim, all end devices are instantiated as edge devices; task requests originate from these devices and may be executed locally, offloaded to one of several edge data centers, or forwarded to the cloud. \Figref{fig:network-topology} shows the simulation map used to visualize device placement, server locations, and coverage regions in the experimental area.
 
 \begin{figure}[htbp]
     \centering
@@ -19,14 +19,14 @@ Four heterogeneous device classes are configured. Smartphones and sensors are th
 \begin{table}[htbp]
     \centering
     \resizebox{\textwidth}{!}{%
-    \begin{tabular}{p{0.23\linewidth}cccccc}
+    \begin{tabular}{p{0.23\linewidth}ccccc}
         \hline
-        \textbf{Device type} & \textbf{Share} & \textbf{Task gen.} & \textbf{Mobility} & \textbf{CPU} & \textbf{RAM} & \textbf{Local VM} \\
+        \textbf{Device type} & \textbf{Share} & \textbf{Task gen.} & \textbf{Mobility} & \textbf{CPU} & \textbf{Local VM} \\
         \hline
-        Smartphone & 30\% & yes & \(1.4\,\mathrm{m/s}\) & \(20{,}000\) MIPS & 4 GB & 1 VM \\
-        Raspberry Pi & 20\% & no & fixed & \(8{,}000\) MIPS & 4 GB & 1 VM \\
-        Laptop & 20\% & no & fixed & \(60{,}000\) MIPS & 8 GB & 1 VM \\
-        Sensor & 30\% & yes & fixed & no VM & 4 GB & none \\
+        Smartphone & 30\% & yes & \(1.4\,\mathrm{m/s}\) & \(20{,}000\) MIPS & 1 VM \\
+        Raspberry Pi & 20\% & no & fixed & \(8{,}000\) MIPS & 1 VM \\
+        Laptop & 20\% & no & fixed & \(60{,}000\) MIPS & 1 VM \\
+        Sensor & 30\% & yes & fixed & no VM & none \\
         \hline
     \end{tabular}
     }

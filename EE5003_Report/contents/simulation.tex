@@ -38,7 +38,7 @@ The resulting project-specific extensions and their placement in the software st
 
 This subsection records the concrete simulator instance used in the experiments. The formal communication, computation, energy, and reward models are deferred to \Secref{sec:system-model}; the emphasis here is on how the environment is instantiated for empirical evaluation.
 
-The scenario comprises 160 devices in a \(200\,\mathrm{m} \times 200\,\mathrm{m}\) area, four edge data centers, and one cloud node. The simulation horizon is 30 minutes, deliberately longer than in the Robles studies so that each episode produces tens of thousands of scheduling decisions and exposes the policies to sustained congestion and mobility effects. The resulting setup remains close enough to prior PureEdgeSim practice for comparison, while being specialized to the LOCAL--EDGE--CLOUD architecture studied here. \Tabref{tab:simulation-parameters} summarizes the main simulator parameters used in this instantiated environment.
+The scenario comprises 160 devices in a \(200\,\mathrm{m} \times 200\,\mathrm{m}\) area, four edge data centers, and one cloud node. The simulation horizon is 30 minutes, deliberately longer than in the Robles studies so that each episode produces tens of thousands of scheduling decisions and exposes the policies to sustained congestion and mobility effects. \Tabref{tab:simulation-parameters} summarizes the main simulator parameters used in this instantiated environment.
 
 \begin{table}[htbp]
     \centering
@@ -50,7 +50,6 @@ The scenario comprises 160 devices in a \(200\,\mathrm{m} \times 200\,\mathrm{m}
         Number of devices & 160 \\
         Simulation time & 30 min \\
         Mobile device speed & \(1.4\,\mathrm{m/s}\) \\
-        Edge-device communication range & \(40\,\mathrm{m}\) \\
         Edge data-center coverage radius & \(120\,\mathrm{m}\) \\
         Cloud equivalent distance & \(160\,\mathrm{m}\) \\
         WLAN bandwidth & \(5000\,\mathrm{Mbps}\) \\
@@ -66,7 +65,6 @@ The scenario comprises 160 devices in a \(200\,\mathrm{m} \times 200\,\mathrm{m}
     \label{tab:simulation-parameters}
 \end{table}
 
-Only devices with \texttt{generateTasks=true} are treated as RL agents. In the instantiated workload, these are the smartphones and sensors. This choice follows the PureEdgeSim practice used in the Robles studies, where learning is attached to actual task initiators rather than to every simulator entity. Non-agent devices still affect the environment through mobility, compute competition, and shared wireless contention, so the overall system remains strongly coupled.
 
 The empirical study is organized to answer the three research questions introduced in \Secref{sec:introduction}. The standard-setting MAPPO training run and the heuristic-baseline comparison address whether joint on-policy RL is effective in the studied environment. The controlled NoEmbedding and FixedPRB ablations isolate which parts of the MAPPO design matter most, especially whether adaptive PRB control is the dominant contributor. The MAPPO--PPO comparison and the device-count study then clarify, respectively, the specific value of explicit multi-agent conditioning and the operating range over which the learned policy remains effective.
 
@@ -125,7 +123,7 @@ This subsection defines the algorithm set used in the later offline comparison (
         \textbf{Algorithm} & \textbf{Decision rule} \\
         \hline
         RANDOM & Randomly select a feasible VM. \\
-        LOCAL & Apply a local-first scheduling rule without learned coordination across tiers. \\
+        LOCAL & Restrict execution to the local tier \\
         EDGE & Restrict execution to the edge tier and choose the least-loaded feasible VM. \\
         CLOUD & Restrict execution to the cloud tier and choose the least-loaded feasible VM. \\
         ROUND\_ROBIN & Select the feasible VM with the smallest current task count across all tiers. \\
@@ -133,8 +131,8 @@ This subsection defines the algorithm set used in the later offline comparison (
         LAT\_EN\_AWARE & Use a latency-energy-aware heuristic that combines delay and energy terms through a hand-crafted rule. \\
         TEST & Apply an experimental composite heuristic that combines effective compute rate with instantaneous load. \\
         \hline
-        PPO & Use a single shared actor as the closest RL baseline, keeping the same dual-action interface without agent-specific embeddings. \\
-        MAPPO & Use the proposed multi-agent RL scheduler with agent-specific conditioning and centralized training over the shared environment. \\
+        PPO & Use a learned shared policy to jointly choose the execution destination and PRB reservation, optimized for expected cumulative QoS-oriented reward. \\
+        MAPPO & Use an agent-conditioned learned policy to jointly choose the execution destination and PRB reservation, optimized under CTDE for expected cumulative QoS-oriented reward. \\
         \hline
     \end{tabular}
     \caption{Algorithm set used in the offline comparison, with heuristic schedulers listed first and RL schedulers separated below.}
