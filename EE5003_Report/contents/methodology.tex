@@ -18,7 +18,12 @@ Each task-generating device is treated as one agent. When a new task reaches the
 
 The use of a single dual-head actor differs from two common alternatives in the literature. Sun and He \cite{sun2023hdmappo} adopt a hierarchical MAPPO design in which a high-level agent selects the offloading destination and a low-level agent determines the offloading ratio. Although such decomposition reduces the action space handled by each policy, it also introduces extra coordination complexity between the two levels. In contrast, the actor in this report performs destination selection and PRB selection within one forward pass, which keeps the learning pipeline simpler and avoids additional hierarchical reward shaping. Ke et al. \cite{ke2022demadrl} instead use fully decentralized DDQN agents without a centralized critic. That design removes centralized training overhead, but it also sacrifices the coordination benefit of shared system-level information. The CTDE formulation adopted here provides a more suitable balance for dense edge-cloud scheduling: execution remains decentralized, while training can still exploit global information to learn cooperative behaviour.
 
-\subsection{Observation and State Design}
+\subsection{RL Problem Instantiation}
+\label{subsec:rl-problem-instantiation}
+
+This subsection turns the abstract Dec-POMDP in \Secref{subsec:problem-formulation} into the concrete simulator-side interface used by MAPPO and PPO. It specifies how observations and critic states are constructed, how the composite destination-and-PRB action is encoded, how fallback is handled at execution time, and how one completed task is converted into a learning reward.
+
+\subsubsection{Observation and State Design}
 \label{subsec:observation-state}
 
 The observation and critic-state design follows the implementation of the decision-support module \texttt{DeviceAgentDecisionSupport}. At each decision event, agent \(i\) receives the local observation
@@ -145,7 +150,7 @@ Overall, the actor faces a partially observed local decision problem, whereas th
 
 \FloatBarrier
 
-\subsection{Action Space Design}
+\subsubsection{Action Space and Fallback Handling}
 \label{subsec:action-space}
 
 At each decision step, agent \(i\) produces a composite action consisting of a destination selection and a PRB allocation level:
@@ -190,6 +195,34 @@ If the selected destination is local execution (\(a_i^{\mathrm{dest}} = 0\)), no
 
 \paragraph{Destination fallback.}
 Although destination masking prevents most invalid selections, a runtime fallback rule is retained for robustness against transient state changes between observation construction and action execution. If the sampled destination turns out to be infeasible at execution time---for example, because the target device has moved out of coverage during the intervening network delay---the environment replaces it with the feasible destination that has the shortest estimated completion time. The transition records both the originally requested action and the actually executed action, and the fallback event is signaled through a dedicated flag. As described in \Secref{subsec:training-algorithm}, fallback transitions are excluded from the PPO update buffer and penalized in the reward to discourage the policy from relying on environment-side corrections.
+
+\subsubsection{Reward Function Design}
+\label{subsec:reward-function}
+
+The environment returns one scalar reward after each task has been fully resolved:
+\begin{align}
+R_t =
+\begin{cases}
+-5.0, & \text{if the task fails}, \\
+5.0 - \widetilde{L}_t - 2.0\widetilde{E}_t - 1.5\widetilde{B}_t - 1.5 Z_t, & \text{if the task succeeds}.
+\end{cases}
+\label{eq:reward}
+\end{align}
+The success-side terms are instantiated as
+\begin{align}
+\widetilde{L}_t &= \mathrm{clip}\!\left(\frac{T_t}{T_t^{\max}},\, 0,\, 2\right), \\
+\widetilde{B}_t &= \mathrm{clip}\!\left(\frac{B_t}{\max(B_{\max}, 1)},\, 0,\, 1\right), \\
+Z_t &=
+\begin{cases}
+1, & \text{if destination fallback is triggered}, \\
+0, & \text{otherwise},
+\end{cases}
+\end{align}
+where \(T_t\) is the realized end-to-end task latency, \(T_t^{\max}\) is the task deadline, \(B_t\) is the requested PRB reservation, and \(B_{\max}\) is the per-task PRB cap determined by the current system configuration. The normalized energy term \(\widetilde{E}_t\) follows the EMA-based standardization defined in \Eqref{eq:energy-norm}.
+
+This reward is designed to align policy optimization with the QoS objective of the system. In the present edge-cloud setting, QoS is reflected most directly by whether a task finishes successfully and whether it finishes within a small fraction of its latency budget. For that reason, task failure receives the strongest negative signal, while successful completion starts from a positive base reward and is then discounted according to the quality of the realized service. The reward therefore does not merely ask the agent to offload somewhere feasible; it pushes the policy toward decisions that improve completion reliability and reduce end-to-end delay, which are the two most immediate manifestations of user-perceived QoS in this workload.
+
+The remaining terms are included because QoS in a congested mobile edge system is not determined by latency alone. The latency term \(\widetilde{L}_t\) directly penalizes schedules that consume too much of the deadline budget. The energy term \(\widetilde{E}_t\) is not a QoS metric in isolation, but it acts as a service-sustainability term: repeatedly choosing energy-expensive actions increases device stress and can degrade long-run service continuity, so the reward discourages such behaviour. The network term \(\widetilde{B}_t\) penalizes aggressive PRB reservations, which helps prevent the policy from improving one task's delay at the expense of wider wireless congestion and degraded QoS for subsequent tasks. Finally, the fallback indicator \(Z_t\) discourages decisions that are not robustly executable in the actual system state. Taken together, these terms make the reward QoS-oriented in a strict sense: it prioritizes successful and timely task completion directly, while using energy, PRB, and fallback penalties to suppress myopic actions that would otherwise erode overall service quality.
 
 \subsection{Network Architecture}
 \label{subsec:network-architecture}
@@ -269,35 +302,6 @@ The network is a three-layer MLP with two 256-unit hidden layers and \(\tanh\) a
 \subsubsection{PPO Baseline}
 
 The PPO baseline reuses the same destination encoder, destination head, and PRB head, but differs from MAPPO in two respects. First, the actor removes the learnable agent embedding, so the agent encoder receives only the raw 13-dimensional observation, corresponding to the tuple \((13, 128, 128)\). All devices therefore share one undifferentiated policy without explicit identity modelling. Second, the critic receives the base 27-dimensional global state rather than the telemetry-augmented 41-dimensional state, so its architecture follows the tuple \((27, 256, 256, 1)\) and has no visibility into recent joint-decision patterns. The comparison between PPO and MAPPO therefore isolates two factors: whether device identity is explicitly modelled in the actor, and whether the critic observes recent multi-agent coordination statistics.
-
-\subsection{Reward Function Design}
-\label{subsec:reward-function}
-
-The environment returns one scalar reward after each task has been fully resolved:
-\begin{align}
-R_t =
-\begin{cases}
--5.0, & \text{if the task fails}, \\
-5.0 - \ell_t - 2.0\, e_t - 1.5\, n_t - p_t^{\mathrm{fb}}, & \text{if the task succeeds}.
-\end{cases}
-\label{eq:reward}
-\end{align}
-The four success-side terms are defined as
-\begin{align}
-\ell_t &= \mathrm{clip}\!\left(\frac{T_t}{T_t^{\max}},\, 0,\, 2\right), \\
-e_t &= \mathrm{clip}\!\left(\frac{E_t - \mu_t}{\sqrt{\sigma_t^2 + 10^{-8}}},\, -2,\, 2\right), \\
-n_t &= \mathrm{clip}\!\left(\frac{B_t}{\max(B_{\max}, 1)},\, 0,\, 1\right), \\
-p_t^{\mathrm{fb}} &=
-\begin{cases}
-1.5, & \text{if destination fallback is triggered}, \\
-0, & \text{otherwise},
-\end{cases}
-\end{align}
-where \(T_t\) is the realized end-to-end task latency, \(T_t^{\max}\) is the task deadline, \(E_t\) is the total task energy reported by the simulator, \(B_t\) is the requested PRB reservation, and \(B_{\max}\) is the per-task PRB cap determined by the current system configuration.
-
-This reward is designed to align policy optimization with the QoS objective of the system. In the present edge-cloud setting, QoS is reflected most directly by whether a task finishes successfully and whether it finishes within a small fraction of its latency budget. For that reason, task failure receives the strongest negative signal, while successful completion starts from a positive base reward and is then discounted according to the quality of the realized service. The reward therefore does not merely ask the agent to offload somewhere feasible; it pushes the policy toward decisions that improve completion reliability and reduce end-to-end delay, which are the two most immediate manifestations of user-perceived QoS in this workload.
-
-The remaining terms are included because QoS in a congested mobile edge system is not determined by latency alone. The latency term \(\ell_t\) directly penalizes schedules that consume too much of the deadline budget. The energy term \(e_t\) is not a QoS metric in isolation, but it acts as a service-sustainability term: repeatedly choosing energy-expensive actions increases device stress and can degrade long-run service continuity, so the reward discourages such behaviour. In the implementation, \(\mu_t\) and \(\sigma_t^2\) are updated by exponential moving averages with smoothing factor \(\alpha = 0.01\), allowing this penalty to adapt online to the operating regime. The network term \(n_t\) penalizes aggressive PRB reservations, which helps prevent the policy from improving one task's delay at the expense of wider wireless congestion and degraded QoS for subsequent tasks. Finally, the fallback penalty \(p_t^{\mathrm{fb}}\) discourages decisions that are not robustly executable in the actual system state. Taken together, these terms make the reward QoS-oriented in a strict sense: it prioritizes successful and timely task completion directly, while using energy, PRB, and fallback penalties to suppress myopic actions that would otherwise erode overall service quality.
 
 \subsection{Training Algorithm}
 \label{subsec:training-algorithm}

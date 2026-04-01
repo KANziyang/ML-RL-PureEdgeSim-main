@@ -153,14 +153,14 @@ To stabilize policy learning, the reward function does not use raw energy direct
 \hat{\sigma}_E^2 &\leftarrow \hat{\sigma}_E^2 + \alpha_E \bigl((E_t - \hat{\mu}_E)^2 - \hat{\sigma}_E^2\bigr).
 \label{eq:energy-ema}
 \end{align}
-The normalized energy term used in the reward (\Eqref{eq:implemented-reward}) is then
+The normalized energy term used later in the implemented reward (\Eqref{eq:reward}) is then
 \begin{align}
 \widetilde{E}_t = \mathrm{clamp}\!\left(\frac{E_t - \hat{\mu}_E}{\sqrt{\hat{\sigma}_E^2 + \epsilon}},\; -2,\; 2\right),
 \label{eq:energy-norm}
 \end{align}
 where \(\epsilon = 10^{-8}\) prevents division by zero. This running standardization allows the energy penalty to adapt to the scale of the current workload without requiring manual tuning of the reward coefficient.
 
-\subsection{Problem Formulation}
+\subsection{Dec-POMDP Formulation of Joint Offloading and PRB Allocation}
 \label{subsec:problem-formulation}
 
 The scheduling objective is to jointly determine the execution destination and wireless-resource reservation for each task so as to improve deadline satisfaction while limiting energy consumption and PRB usage. Because decisions are made by many devices under partial observability and shared resource constraints, the problem is modeled as a cooperative Dec-POMDP
@@ -169,14 +169,14 @@ The scheduling objective is to jointly determine the execution destination and w
 \{\mathcal{A}_i\}_{i \in \mathcal{N}}, P, R \right\rangle .
 \end{align*}
 
-The agent set \(\mathcal{N}\) contains all task-generating devices, ordered by data-center identifier. Although decisions are emitted asynchronously as tasks arrive at the orchestrator, the agents are coupled through the same evolving compute queues, mobility conditions, and shared PRB pool. For agent \(i\), the local observation \(o_i \in \mathcal{O}_i\) contains a 13-dimensional device feature vector and an \(N_{\mathrm{dest}} \times 11\) destination-feature matrix. The candidate destinations are ordered as local execution first, followed by edge data centers sorted by identifier, and then cloud destinations. Under the reported topology, \(N_{\mathrm{dest}} = 6\). The base global state \(s \in \mathcal{S}\) is a 27-dimensional system summary; the MAPPO-specific critic augmentation used later in \Secref{sec:methodology} is built on top of this base state rather than replacing it.
+The agent set \(\mathcal{N}\) contains all task-generating devices. Although decisions are emitted asynchronously as tasks arrive at the orchestrator, the agents are coupled through the same evolving compute queues, mobility conditions, and shared PRB pool. For agent \(i\), the local observation \(o_i \in \mathcal{O}_i\) summarizes the active task demand, the source-device state, the candidate-destination attributes, and the current feasibility constraints. The global state \(s \in \mathcal{S}\) aggregates system-level information about load, energy, and wireless-resource usage. The exact feature construction used by the implemented MAPPO and PPO agents is deferred to \Secref{sec:methodology}.
 
 The action of agent \(i\) at decision step \(t\) is
 \begin{align*}
 a_{i,t} = \left(a_{i,t}^{\mathrm{dest}}, a_{i,t}^{\mathrm{prb}}\right) \in
 \mathcal{A}_i^{\mathrm{dest}} \times \mathcal{A}_i^{\mathrm{prb}},
 \end{align*}
-where \(a_{i,t}^{\mathrm{dest}}\) selects the execution destination and \(a_{i,t}^{\mathrm{prb}}\) selects one of the eight PRB bins. When local execution is chosen, no uplink reservation is needed and the PRB action is forced to zero.
+where \(a_{i,t}^{\mathrm{dest}}\) selects the execution destination and \(a_{i,t}^{\mathrm{prb}}\) selects a discrete wireless-resource reservation level for offloaded tasks. When local execution is chosen, no uplink reservation is applied. The concrete action encoding used in the simulator is specified later in \Secref{subsec:action-space}.
 
 Let \(\pi = \{\pi_i\}_{i \in \mathcal{N}}\) denote the decentralized device policies. For decision step \(t\), let \(F_t \in \{0,1\}\) be the task-failure indicator, let \(Z_t \in \{0,1\}\) indicate whether the requested destination is replaced by a feasible fallback, let \(\widetilde{L}_t\) denote the latency ratio, let \(\widetilde{E}_t\) denote the online-standardized energy term, and let \(\widetilde{B}_t\) denote the normalized PRB cost. A natural long-run system objective is to minimize the average weighted cost
 \begin{align}
@@ -185,16 +185,7 @@ J(\pi) = \E_{\pi} \left[\frac{1}{T}\sum_{t=1}^{T}
 + \lambda_b \widetilde{B}_t + \lambda_z Z_t\right)\right)\right].
 \label{eq:policy-objective}
 \end{align}
-In the implemented simulator, policy learning uses the following shaped task-level reward:
-\begin{align}
-R_t =
-\begin{cases}
--5.0, & \text{if the task fails},\\
-5.0 - \widetilde{L}_t - 2.0\widetilde{E}_t - 1.5\widetilde{B}_t - 1.5 Z_t, & \text{if the task succeeds},
-\end{cases}
-\label{eq:implemented-reward}
-\end{align}
-This reward assigns a hard penalty to task failure and otherwise trades off latency, energy consumption, reserved PRBs, and fallback corrections. The corresponding decision process is subject to the practical constraints
+In the implemented learning system, this abstract objective is instantiated through the shaped task-level reward introduced later in \Secref{subsec:reward-function}. The corresponding decision process is subject to the practical constraints
 \begin{align*}
 a_{i,t}^{\mathrm{dest}} &\in \mathcal{D}_{i,t}^{\mathrm{feas}}, \\
 0 \le b_{i,t} &\le B_{\max}, \\
