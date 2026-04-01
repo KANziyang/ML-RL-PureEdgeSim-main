@@ -30,6 +30,7 @@ SUMMARY_KEYS = {
     "energy_consumption_w": ("Energy consumption (W)",),
     "cloud_energy_consumption_w": ("Cloud energy consumption (W)",),
     "edge_energy_consumption_w": ("Edge energy consumption (W)",),
+    # The legacy simulator CSV still uses the "Mist" column name for local-device energy.
     "mist_energy_consumption_w": ("Mist energy consumption (W)",),
 }
 
@@ -390,7 +391,7 @@ def _plot_run_summary(summary_metrics: Dict[str, float], output_path: Path) -> N
 
 
 def _plot_energy_summary(summary_metrics: Dict[str, float], output_path: Path) -> None:
-    labels = ["Total", "Cloud", "Edge", "Mist"]
+    labels = ["Total", "Cloud", "Edge", "Local"]
     values = [
         summary_metrics["energy_consumption_w"],
         summary_metrics["cloud_energy_consumption_w"],
@@ -398,10 +399,21 @@ def _plot_energy_summary(summary_metrics: Dict[str, float], output_path: Path) -
         summary_metrics["mist_energy_consumption_w"],
     ]
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(labels, values, color="#9467bd")
+    bars = ax.bar(labels, values, color="#9467bd")
     ax.set_title("Energy Consumption (Wh)")
     ax.set_ylabel("Energy (Wh)")
     ax.grid(True, axis="y", alpha=0.3)
+    ymax = max(values) if values else 0.0
+    offset = max(0.2, ymax * 0.015)
+    for bar, value in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value + offset,
+            f"{value:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
     fig.tight_layout()
     fig.savefig(output_path, dpi=200)
     plt.close(fig)
