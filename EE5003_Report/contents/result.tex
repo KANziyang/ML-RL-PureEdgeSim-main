@@ -504,27 +504,29 @@ From a systems perspective, the main benefit of reinforcement learning is coordi
     \centering
     \footnotesize
     \resizebox{\textwidth}{!}{%
-    \begin{tabular}{l|rrr|rr}
+    \begin{tabular}{l|rrr|rrr}
         \hline
-        \textbf{Algorithm} & \textbf{Cloud Tasks} & \textbf{Edge Tasks} & \textbf{Local Tasks} & \textbf{Cloud Success} & \textbf{Edge Success} \\
+        \textbf{Algorithm} & \textbf{Cloud Tasks} & \textbf{Edge Tasks} & \textbf{Local Tasks} & \textbf{Cloud Success} & \textbf{Edge Success} & \textbf{Local Success} \\
         \hline
-        RANDOM            & 20\,451 & 46\,193 &    639 & 17\,850 &  9\,134 \\
-        LOCAL             &       0 &       0 & 33\,653 &      -- &      -- \\
-        EDGE              &       0 & 67\,283 &       0 &      -- & 28\,705 \\
-        CLOUD             & 67\,283 &       0 &       0 & 43\,489 &      -- \\
-        ROUND\_ROBIN      &  8\,433 & 33\,718 & 25\,132 &  8\,433 & 28\,725 \\
-        TRADE\_OFF        & 17\,040 & 40\,854 &  9\,389 & 17\,038 & 14\,245 \\
-        LAT\_EN\_AWARE    & 15\,584 & 43\,891 &  7\,808 & 15\,584 & 10\,112 \\
-        TEST              & 23\,355 & 36\,018 &  7\,910 & 20\,365 & 25\,489 \\
+        RANDOM            & 20\,451 & 46\,193 &    639 & 17\,850 &  9\,134 &    639 \\
+        LOCAL             &       0 &       0 & 33\,653 &      -- &      -- & 30\,520 \\
+        EDGE              &       0 & 67\,283 &       0 &      -- & 28\,705 &      -- \\
+        CLOUD             & 67\,283 &       0 &       0 & 43\,489 &      -- &      -- \\
+        ROUND\_ROBIN      &  8\,433 & 33\,718 & 25\,132 &  8\,433 & 28\,725 & 23\,657 \\
+        TRADE\_OFF        & 17\,040 & 40\,854 &  9\,389 & 17\,038 & 14\,245 &  9\,389 \\
+        LAT\_EN\_AWARE    & 15\,584 & 43\,891 &  7\,808 & 15\,584 & 10\,112 &  7\,808 \\
+        TEST              & 23\,355 & 36\,018 &  7\,910 & 20\,365 & 25\,489 &  7\,910 \\
         \hline
-        PPO               & 34\,928 & 18\,697 & 13\,658 & 34\,928 & 18\,676 \\
-        MAPPO             & 35\,072 & 18\,583 & 13\,628 & 35\,072 & 18\,576 \\
+        PPO               & 34\,928 & 18\,697 & 13\,658 & 34\,928 & 18\,676 & 13\,640 \\
+        MAPPO             & 35\,072 & 18\,583 & 13\,628 & 35\,072 & 18\,576 & 13\,610 \\
         \hline
     \end{tabular}%
     }
-    \caption{Per-tier task distribution and success counts. RL policies achieve near-perfect success on every tier, while heuristics suffer heavy losses on the tiers they overload.}
+\caption{Per-tier task distribution and success counts. RL policies achieve near-perfect success on every tier, while heuristics suffer heavy losses on the tiers they overload.}
     \label{tab:tier-distribution}
 \end{table}
+
+The added Local Success column makes the local-tier contrast explicit. Although PPO and MAPPO still execute about \(13.6\)K tasks locally, they successfully complete 13,640 and 13,610 of those tasks respectively, corresponding to approximately \(99.87\%\) local success in both cases. ROUND\_ROBIN, by contrast, completes only 23,657 of its 25,132 local tasks, and the LOCAL-only baseline completes 30,520 of 33,653 local tasks. This confirms that the RL policies do not achieve high global success by sacrificing local reliability; instead, they maintain near-perfect local completion while avoiding excessive dependence on the local tier.
 
 \paragraph{CPU utilization and delay patterns.}
 The CPU utilization and delay charts in \Figref{fig:compare-cpu} and \Figref{fig:compare-delays} reveal the operational mechanisms behind the aggregate metrics. MAPPO and PPO maintain moderate, stable CPU utilization across all tiers, with cloud servers loaded at around \(93\%\) and edge servers at around \(60\%\), while local devices stay below \(20\%\). This balanced loading pattern avoids both idle waste and congestion-induced queuing. ROUND\_ROBIN, by contrast, pushes overall CPU utilization to \(43.97\%\) with edge servers near saturation, which creates queuing delays that cascade into deadline misses. The TRADE\_OFF heuristic shows a similar but less severe pattern, with cloud servers at \(65\%\) and edge at \(95\%\).
