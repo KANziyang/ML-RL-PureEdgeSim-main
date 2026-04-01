@@ -8,31 +8,26 @@
 \backcite {sun2023hdmappo}{{4}{1.3}{subsection.21}}
 \backcite {aghapour2023offloading}{{4}{1.3}{subsection.21}}
 \backcite {luo2024survey}{{4}{1.3}{subsection.21}}
-\backcite {robles2023multilayer}{{4}{1.3}{subsection.21}}
-\backcite {robles2023multilayer}{{4}{1.3}{subsection.21}}
-\backcite {cao2025dqn}{{4}{1.3}{subsection.21}}
-\backcite {mechalikh2021pureedgesim}{{5}{1.3}{subsection.21}}
-\backcite {mechalikh2025quality}{{5}{1.3}{subsection.21}}
-\backcite {abid2023eisim}{{5}{1.3}{subsection.21}}
-\backcite {mlrlpureedgesimgithub}{{5}{1.3}{subsection.21}}
-\backcite {yu2022surprising}{{5}{1.3}{subsection.21}}
-\backcite {giwa2025hetnet}{{5}{1.3}{subsection.21}}
+\backcite {robles2022continuum, robles2023multilayer}{{4}{1.3}{subsection.21}}
+\backcite {mechalikh2021pureedgesim}{{4}{1.3}{subsection.21}}
+\backcite {abid2023eisim, mlrlpureedgesimgithub}{{4}{1.3}{subsection.21}}
+\backcite {yu2022surprising}{{4}{1.3}{subsection.21}}
+\backcite {giwa2025hetnet}{{4}{1.3}{subsection.21}}
 \backcite {sun2023hdmappo}{{5}{1.3}{subsection.21}}
-\backcite {robles2022continuum, robles2023multilayer}{{5}{1.3}{subsection.21}}
-\backcite {lu2020mec_maddpg_sac}{{6}{\caption@xref {??}{ on input line 87}}{table.caption.22}}
-\backcite {ke2022demadrl}{{6}{\caption@xref {??}{ on input line 87}}{table.caption.22}}
-\backcite {sun2023hdmappo}{{6}{\caption@xref {??}{ on input line 87}}{table.caption.22}}
-\backcite {robles2023multilayer}{{6}{\caption@xref {??}{ on input line 87}}{table.caption.22}}
-\backcite {aghapour2023offloading}{{6}{\caption@xref {??}{ on input line 87}}{table.caption.22}}
-\backcite {giwa2025hetnet}{{6}{\caption@xref {??}{ on input line 87}}{table.caption.22}}
-\backcite {mechalikh2021pureedgesim, pureedgesimgithub}{{7}{2.1}{subsection.25}}
-\backcite {mechalikh2021pureedgesim, silvafilho2017cloudsimplus}{{7}{2.1}{subsection.25}}
-\backcite {mechalikh2025quality}{{7}{2.1}{subsection.25}}
-\backcite {robles2022continuum, robles2023multilayer}{{7}{2.2}{subsection.26}}
-\backcite {robles2022continuum, robles2023multilayer}{{7}{2.2}{subsection.26}}
-\backcite {mechalikh2021pureedgesim}{{10}{2.4}{subsection.34}}
-\backcite {abidi2017eezc}{{17}{3.5}{section*.54}}
-\backcite {sun2023hdmappo}{{22}{4.1}{figure.caption.68}}
-\backcite {ke2022demadrl}{{22}{4.1}{figure.caption.68}}
-\backcite {schulman2017ppo}{{30}{4.6}{subsection.109}}
-\backcite {yu2022surprising}{{31}{4.6}{equation.114}}
+\backcite {lu2020mec_maddpg_sac}{{5}{\caption@xref {??}{ on input line 83}}{table.caption.22}}
+\backcite {ke2022demadrl}{{5}{\caption@xref {??}{ on input line 83}}{table.caption.22}}
+\backcite {sun2023hdmappo}{{5}{\caption@xref {??}{ on input line 83}}{table.caption.22}}
+\backcite {robles2023multilayer}{{5}{\caption@xref {??}{ on input line 83}}{table.caption.22}}
+\backcite {aghapour2023offloading}{{5}{\caption@xref {??}{ on input line 83}}{table.caption.22}}
+\backcite {giwa2025hetnet}{{5}{\caption@xref {??}{ on input line 83}}{table.caption.22}}
+\backcite {mechalikh2021pureedgesim, pureedgesimgithub}{{6}{2.1}{subsection.25}}
+\backcite {mechalikh2021pureedgesim, silvafilho2017cloudsimplus}{{6}{2.1}{subsection.25}}
+\backcite {mechalikh2025quality}{{6}{2.1}{subsection.25}}
+\backcite {robles2022continuum, robles2023multilayer}{{6}{2.2}{subsection.26}}
+\backcite {robles2022continuum, robles2023multilayer}{{6}{2.2}{subsection.26}}
+\backcite {mechalikh2021pureedgesim}{{9}{2.4}{subsection.34}}
+\backcite {abidi2017eezc}{{16}{3.5}{section*.54}}
+\backcite {sun2023hdmappo}{{21}{4.1}{figure.caption.68}}
+\backcite {ke2022demadrl}{{21}{4.1}{figure.caption.68}}
+\backcite {schulman2017ppo}{{29}{4.6}{subsection.109}}
+\backcite {yu2022surprising}{{30}{4.6}{equation.114}}
