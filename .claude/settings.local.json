@@ -51,7 +51,9 @@
       "Bash(pip3 list:*)",
       "Bash(pdftotext 'C:\\\\Users\\\\hp\\\\Desktop\\\\6G\\\\Paper\\\\Aghapour et al. - 2023 - Task offloading and resource allocation algorithm based on deep reinforcement learning for distribut.pdf' -)",
       "Bash(pdftotext 'C:\\\\Users\\\\hp\\\\Desktop\\\\6G\\\\Paper\\\\Cao et al. - 2025 - A deep Q-network-based edge service offloading in cloud–edge–terminal environment.pdf' -)",
-      "Bash(pdftotext:*)"
+      "Bash(pdftotext:*)",
+      "Bash(python compare_ppo_mappo.py)",
+      "Bash(python ablation_devices_viz.py)"
     ]
   }
 }
